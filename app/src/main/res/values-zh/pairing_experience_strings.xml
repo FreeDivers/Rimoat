@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pairing_result_valid">有效</string>
+    <string name="pairing_result_invalid">无效</string>
+    <string name="pairing_result_untested">未测试</string>
+</resources>

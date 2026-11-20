@@ -1,0 +1,33 @@
+<resources>
+    <string name="about_title">概要</string>
+    <string name="about_version">バージョン %1$s</string>
+    <string name="about_repository">プロジェクトリポジトリ</string>
+    <string name="about_repository_unavailable">ブラウザを開けません</string>
+    <string name="about_license">オープンソースライセンス</string>
+    <string name="licenses_search">オープンソースライブラリを検索</string>
+    <string name="licenses_title">オープンソースライセンス</string>
+    <string name="licenses_empty">一致するライブラリはありません</string>
+    <string name="licenses_unavailable">オープンソースライセンスを読み込めません</string>
+    <string name="licenses_debug_only">デバッグ版のみ</string>
+    <string name="settings_title">設定</string>
+    <string name="settings_back">戻る</string>
+    <string name="settings_backup_all">すべてのリモコンをバックアップ</string>
+    <string name="settings_import_backup">ローカルバックアップを読み込む</string>
+    <string name="settings_trash">ごみ箱</string>
+    <string name="settings_rooms">部屋</string>
+    <string name="settings_theme">テーマカラー</string>
+    <string name="settings_color_mode">カラーモード</string>
+    <string name="settings_switch_pure_black">ダークモードの背景を黒にする</string>
+    <string name="settings_language">アプリの言語</string>
+    <string name="settings_about">概要</string>
+    <string name="cancel">キャンセル</string>
+    <string name="merge">統合</string>
+    <string name="done">完了</string>
+    <string name="theme_default_green">デフォルトの緑</string>
+    <string name="theme_dynamic">システムのダイナミックカラー</string>
+    <string name="theme_dynamic_android12">システムのダイナミックカラー（Android 12+）</string>
+    <string name="color_mode_system">システム設定に従う</string>
+    <string name="color_mode_light">ライト</string>
+    <string name="color_mode_dark">ダーク</string>
+    <string name="language_system">システムに合わせる</string>
+</resources>

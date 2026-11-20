@@ -1,0 +1,15 @@
+<resources>
+    <string name="widget_single_name">Single button</string>
+    <string name="widget_panel_name">Remote panel</string>
+    <string name="widget_status_name">Device settings</string>
+    <string name="widget_single_description">Control a device from your home screen with one button</string>
+    <string name="widget_panel_description">Keep favorite buttons from different remotes together</string>
+    <string name="widget_status_description">View device settings and adjust common controls</string>
+    <string name="widget_error_title">Unable to display</string>
+    <string name="widget_error_action">Tap to configure again</string>
+    <dimen name="widget_radius">24dp</dimen>
+    <color name="widget_surface">#F2F4F0</color>
+    <color name="widget_on_surface">#1F1F1F</color>
+    <color name="widget_secondary">#444746</color>
+    <color name="widget_primary">#3E6700</color>
+</resources>

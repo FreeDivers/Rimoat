@@ -1,0 +1,189 @@
+package org.qinyan.rimoat
+
+import android.app.Application
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModelStore
+import com.github.takahirom.roborazzi.*
+import kotlinx.coroutines.*
+import kotlinx.serialization.json.Json
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.qinyan.rimoat.data.*
+import org.qinyan.rimoat.hardware.*
+import org.qinyan.rimoat.hardware.learning.IrLearnerManager
+import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.ui.learning.*
+import org.qinyan.rimoat.ui.motion.LocalMotionActive
+import org.qinyan.rimoat.ui.motion.MotionContent
+import org.qinyan.rimoat.ui.screens.RemoteControlScreen
+import org.qinyan.rimoat.ui.theme.IrRemoteTheme
+import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import org.robolectric.annotation.LooperMode
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], qualifiers = "zh-rCN-w411dp-h891dp-mdpi", application = Application::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@LooperMode(LooperMode.Mode.PAUSED)
+@OptIn(ExperimentalRoborazziApi::class)
+class BugFixInteractionRoborazziTest {
+    @get:Rule val compose = createComposeRule()
+    private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
+    private val app get() = RuntimeEnvironment.getApplication()
+    private fun capture(name: String, dialog: Boolean = false) {
+        (if (dialog) compose.onNode(isDialog()) else compose.onRoot())
+            .captureRoboImage("src/test/screenshots/$name.webp", roborazziOptions = options)
+    }
+
+    @Test fun rapidNavigationAndCancelledBackLeaveFinalPageTouchable() {
+        var target by mutableStateOf("客厅电视")
+        var clicks = 0
+        var interactive = false
+        lateinit var dispatcher: OnBackPressedDispatcher
+        val action = app.getString(R.string.screen_resend)
+        compose.setContent {
+            dispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                MotionContent(target, { it }, { _, _ -> false }, backTarget = "首页", onBack = { target = "首页" }) { page ->
+                    if (page == target) interactive = LocalMotionActive.current
+                    Column {
+                        Text(page)
+                        Button(onClick = { clicks++ }) { Text(action) }
+                    }
+                }
+            }
+        }
+        capture("motion_recovery_before")
+        compose.mainClock.autoAdvance = false
+        repeat(20) { index ->
+            compose.runOnUiThread { target = if (index % 2 == 0) "卧室风扇" else "客厅电视" }
+            compose.mainClock.advanceTimeBy(32)
+        }
+        compose.runOnUiThread { target = "卧室风扇" }
+        compose.mainClock.advanceTimeBy(400)
+        compose.runOnUiThread {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(100f, 0f, .5f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.mainClock.advanceTimeBy(32)
+        compose.runOnUiThread {
+            dispatcher.dispatchOnBackCancelled()
+            target = "书房投影"
+        }
+        compose.mainClock.advanceTimeBy(500)
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithText("书房投影").assertIsDisplayed()
+        compose.onNodeWithText(action).performTouchInput { click() }
+        compose.runOnIdle { assertTrue(interactive); assertEquals(1, clicks) }
+        capture("motion_recovery_after")
+    }
+
+    @Test fun switchingButtonDuringTestTransmissionClearsFeedbackAndCancelsOldJob() {
+        AppStrings.initialize(app)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val learner = IrLearnerManager(app, scope).apply {
+            setForceMockMode(true); mockLearner.setSimulatedDelayMs(0)
+        }
+        val transmitter = IrTransmitterManager(app, scope).apply {
+            setForceMockMode(true); mockTransmitter.simulateDelayMs = 5_000
+        }
+        var button by mutableStateOf(RemoteButton("power", "电源"))
+        try {
+            compose.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    SingleButtonLearningDialog(button, learner, transmitter, {}, { _, _ -> }, autoStart = true)
+                }
+            }
+            compose.waitUntil(5_000) {
+                compose.onAllNodesWithText(app.getString(R.string.screen_test_transmit)).fetchSemanticsNodes().isNotEmpty()
+            }
+            capture("learning_button_before", true)
+            compose.onNodeWithText(app.getString(R.string.screen_test_transmit)).performClick()
+            compose.waitUntil(2_000) {
+                compose.onAllNodesWithText(app.getString(R.string.screen_testing_transmit)).fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.runOnIdle { button = RemoteButton("mute", "静音") }
+            compose.waitUntil(5_000) {
+                compose.onAllNodesWithText(app.getString(R.string.screen_test_transmit)).fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithText(app.getString(R.string.screen_testing_transmit)).assertDoesNotExist()
+            compose.onNodeWithText(app.getString(R.string.screen_simulated_send)).assertDoesNotExist()
+            compose.onNodeWithText(app.getString(R.string.screen_test_transmit)).assertIsEnabled()
+            capture("learning_button_after", true)
+        } finally { learner.cancel(); learner.unregisterReceiver(); transmitter.release(); scope.cancel() }
+    }
+
+    @Test fun waveformWithNegativePulsesMatchesClampedDuration() {
+        compose.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                IrWaveformPreview(listOf(9000, -4500, 560, 560, -560, 1690))
+            }
+        }
+        compose.onNodeWithContentDescription(app.getString(R.string.screen_received_waveform)).assertIsDisplayed()
+        compose.onNodeWithText(app.getString(R.string.screen_duration_ms, "11.8")).assertIsDisplayed()
+        capture("waveform_negative_pulses")
+    }
+
+    @Test fun wizardBackAndContinueKeepCapturedSignalVisible() {
+        AppStrings.initialize(app)
+        val original = CustomRemoteWizardUiState(step = WizardStep.LEARNING, remoteName = "客厅电视",
+            keyQueue = listOf(WizardKeyItem(id = "power", label = "电源", status = KeyLearnStatus.LEARNED,
+                capturedSignal = IrSignal.Raw(patternMicros = intArrayOf(9000, 4500, 560)), pulseCount = 3, durationMs = 14.06)))
+        val store = ViewModelStore()
+        val vm = CustomRemoteWizardViewModel(savedStateHandle = SavedStateHandle(mapOf("wizard_state" to
+            Json.encodeToString(CustomRemoteWizardUiState.serializer(), original)))).also { store.put("wizard", it) }
+        try {
+            compose.setContent { IrRemoteTheme(darkTheme = false, dynamicColor = false) { CustomRemoteWizardScreen(vm, {}, {}) } }
+            compose.waitForIdle()
+            capture("wizard_resume_before")
+            compose.runOnIdle { vm.handleBack() }
+            compose.waitForIdle()
+            compose.runOnIdle { assertTrue(vm.proceedToLearning()) }
+            compose.waitForIdle()
+            assertEquals(1, vm.uiState.value.learnedCount)
+            assertEquals(original.keyQueue.single().capturedSignal, vm.uiState.value.currentKey?.capturedSignal)
+            capture("wizard_resume_after")
+        } finally { compose.runOnIdle { store.clear() } }
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w891dp-h411dp-land-mdpi")
+    fun sidePresetsPerformOneHapticPerClick() {
+        AppStrings.initialize(app)
+        val haptics = mutableListOf<HapticFeedbackType>()
+        val feedback = object : HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { haptics += hapticFeedbackType }
+        }
+        val store = ViewModelStore()
+        val vm = RemoteControlViewModel("ac", initialProfile = RemoteProfile("ac", "卧室空调",
+            category = DeviceCategory.AC, acProtocolId = 670)).also { store.put("remote", it) }
+        try {
+            compose.setContent {
+                CompositionLocalProvider(LocalHapticFeedback provides feedback) {
+                    IrRemoteTheme(darkTheme = false, dynamicColor = false) { RemoteControlScreen(vm, onBack = {}) }
+                }
+            }
+            capture("side_presets_before")
+            compose.onNodeWithText(app.getString(R.string.screen_resend)).performClick()
+            compose.runOnIdle { assertEquals(listOf(HapticFeedbackType.LongPress), haptics) }
+            capture("side_presets_after")
+        } finally { compose.runOnIdle { store.clear() } }
+    }
+}

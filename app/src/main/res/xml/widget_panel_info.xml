@@ -1,0 +1,8 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="160dp" android:minHeight="144dp" android:minResizeWidth="128dp" android:minResizeHeight="64dp"
+    android:targetCellWidth="2" android:targetCellHeight="2" 
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:description="@string/widget_panel_description" android:previewLayout="@layout/widget_panel_preview"
+    android:previewImage="@drawable/widget_preview_panel" android:resizeMode="horizontal|vertical" android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" android:widgetFeatures="reconfigurable"
+    android:configure="org.qinyan.rimoat.widget.WidgetConfigurationActivity"/>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_unavailable_tapped">%1$sは利用できません</string>
+    <string name="control_show_reason">理由</string>
+    <string name="control_unavailable_action">%1$sが利用できない理由を確認</string>
+    <string name="control_learning_help">学習モードで元のリモコンの信号を登録できます。対応する赤外線受信機が必要です。エアコンの学習信号は記録時の設定を表し、すべての温度やモードには対応しません。</string>
+    <string name="control_reason_missing_signal_details">このコードセットにはこの機能の信号がありません。元のリモコンの信号を学習してこのボタンを追加できます。対応する赤外線受信機が必要です。</string>
+    <string name="control_enter_learning">学習モード</string>
+    <string name="control_reason_temperature_minimum">すでに下限の 16 °C です。</string>
+    <string name="control_reason_temperature_maximum">すでに上限の 30 °C です。</string>
+    <string name="panel_edit_title">リモコンを編集</string>
+    <string name="panel_restore_default">標準の配置に戻す</string>
+    <string name="panel_restore_confirm">標準の順序に戻し、すべてのボタンを表示しますか？保存済みの信号は保持されます。</string>
+    <string name="panel_move_before">%1$sを前へ移動</string>
+    <string name="panel_move_after">%1$sを後ろへ移動</string>
+    <string name="panel_show_control">%1$sを表示</string>
+    <string name="panel_group_controls">基本操作</string>
+    <string name="panel_group_extensions">その他の操作</string>
+    <string name="panel_group_navigation">ナビゲーション</string>
+    <string name="shortcut_unavailable">このリモコンは利用できなくなりました</string>
+</resources>

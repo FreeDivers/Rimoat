@@ -1,0 +1,10 @@
+<resources>
+    <string name="widget_single_name">单键遥控</string>
+    <string name="widget_panel_name">遥控面板</string>
+    <string name="widget_status_name">电器状态</string>
+    <string name="widget_single_description">选择一个常用按键，在桌面直接遥控</string>
+    <string name="widget_panel_description">把不同遥控器的常用按键放在一起</string>
+    <string name="widget_status_description">查看电器设定，快速调整常用功能</string>
+    <string name="widget_error_title">暂时无法显示</string>
+    <string name="widget_error_action">点按重新配置</string>
+</resources>

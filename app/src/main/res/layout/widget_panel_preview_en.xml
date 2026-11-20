@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Picker-only image of the actual Glance layout; the live widget is composed in Kotlin. -->
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:scaleType="fitCenter"
+    android:src="@drawable/widget_picker_en_panel"
+    android:contentDescription="@string/widget_picker_en_panel_description" />

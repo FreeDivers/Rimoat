@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_group_appearance">Appearance</string>
+    <string name="settings_group_remotes">Remotes</string>
+    <string name="settings_group_data">Backup and import</string>
+    <string name="settings_group_rotation">Screen rotation</string>
+    <string name="settings_group_application">Application</string>
+    <string name="settings_rotation_direction">Direction</string>
+    <string name="rotation_direction_reverse_portrait">Reverse portrait</string>
+    <string name="rotation_direction_sensor_portrait">Two-way portrait</string>
+    <string name="rotation_direction_landscape">Landscape left</string>
+    <string name="rotation_direction_reverse_landscape">Landscape right</string>
+    <string name="settings_auto_rotate_screen">Auto-rotate</string>
+    <string name="settings_rotation_condition">Condition</string>
+    <string name="rotation_condition_external_only">External IR only</string>
+    <string name="rotation_condition_always">Always</string>
+    <string name="settings_rotation_scope">Scope</string>
+    <string name="rotation_scope_remote_and_matching">Remote screens</string>
+    <string name="rotation_scope_all_screens">All screens</string>
+    <string name="screen_rotate_screen">Rotate screen</string>
+    <string name="screen_restore_orientation">Restore screen orientation</string>
+    <string name="rotation_prompt_title">Rotate screen?</string>
+    <string name="rotation_prompt_message">An external IR device is connected. Rotate the screen upside down so you can point the transmitter toward the appliance?</string>
+    <string name="rotation_prompt_dont_ask_again">Don\'t ask again</string>
+    <string name="rotation_prompt_confirm">Rotate</string>
+    <string name="rotation_prompt_cancel">Not now</string>
+</resources>

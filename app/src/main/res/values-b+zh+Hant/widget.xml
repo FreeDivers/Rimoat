@@ -1,0 +1,10 @@
+<resources>
+    <string name="widget_single_name">單鍵遙控</string>
+    <string name="widget_panel_name">遙控面板</string>
+    <string name="widget_status_name">電器狀態</string>
+    <string name="widget_single_description">選擇一個常用按鍵，在桌面直接遙控</string>
+    <string name="widget_panel_description">把不同遙控器的常用按鍵放在一起</string>
+    <string name="widget_status_description">檢視電器設定，快速調整常用功能</string>
+    <string name="widget_error_title">暫時無法顯示</string>
+    <string name="widget_error_action">點按重新設定</string>
+</resources>

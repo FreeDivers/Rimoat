@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="migration_ir_import">Import infrared file</string>
+    <string name="migration_ir_formats">Supports Flipper .ir files (raw, NEC, NECext). Unsupported signals are listed before import.</string>
+    <string name="migration_ir_invalid">This infrared file is invalid or exceeds supported limits.</string>
+    <string name="migration_no_snapshot">No recovery snapshot is available yet.</string>
+    <string name="migration_preferences_failed">Unable to save the selected preferences.</string>
+    <string name="migration_export_options">Back up local data</string>
+    <string name="migration_dynamic_colors">Color theme</string>
+    <string name="migration_pure_black">Pure black background</string>
+    <string name="migration_import_title">Review import</string>
+    <string name="migration_summary">New: %1$d   Conflicts: %2$d   Skipped: %3$d   Replaced: %4$d</string>
+    <string name="migration_rooms">Rooms in file: %1$d</string>
+    <string name="migration_snapshot_note">A local snapshot is saved before import. Export it from Back up local data if needed. System widget IDs, USB permissions and device connections are not transferred.</string>
+    <string name="migration_keep">Keep existing</string>
+    <string name="migration_overwrite">Replace existing</string>
+    <string name="migration_copy">Import a copy</string>
+    <string name="migration_conflict_action">%1$s: %2$s</string>
+    <string name="migration_skipped_signal">Skipped %1$s (%2$s): unsupported protocol</string>
+    <string name="migration_preferences_title">Apply preferences</string>
+    <string name="migration_import_confirm">Import</string>
+    <string name="migration_choose_file">Choose file</string>
+    <string name="panel_group_ac_actions">Extended controls</string>
+    <string name="panel_group_raw_keys">Additional buttons</string>
+    <string name="panel_group_presets">Presets</string>
+</resources>

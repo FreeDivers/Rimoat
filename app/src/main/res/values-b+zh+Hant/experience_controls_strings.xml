@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_unavailable_tapped">%1$s目前無法使用</string>
+    <string name="control_show_reason">原因</string>
+    <string name="control_unavailable_action">查看%1$s無法使用的原因</string>
+    <string name="control_learning_help">可透過學習原遙控器的訊號補充此按鍵，需要相容的紅外接收器。學到的冷氣訊號只代表錄製時的設定，不能涵蓋所有溫度或模式。</string>
+    <string name="control_reason_missing_signal_details">此方案沒有提供此功能的訊號。可透過學習原遙控器的訊號補充此按鍵，需要相容的紅外接收器。</string>
+    <string name="control_enter_learning">學習模式</string>
+    <string name="control_reason_temperature_minimum">已達最低溫度 16 °C。</string>
+    <string name="control_reason_temperature_maximum">已達最高溫度 30 °C。</string>
+    <string name="panel_edit_title">編輯遙控器</string>
+    <string name="panel_restore_default">還原預設配置</string>
+    <string name="panel_restore_confirm">還原預設順序並顯示全部按鍵？已儲存的訊號會保留。</string>
+    <string name="panel_move_before">前移%1$s</string>
+    <string name="panel_move_after">後移%1$s</string>
+    <string name="panel_show_control">顯示%1$s</string>
+    <string name="panel_group_controls">常用按鍵</string>
+    <string name="panel_group_extensions">擴充按鍵</string>
+    <string name="panel_group_navigation">導覽按鍵</string>
+    <string name="shortcut_unavailable">此遙控器已無法使用</string>
+</resources>

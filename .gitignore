@@ -1,0 +1,51 @@
+# Local IDE, SDK and build state
+*.iml
+.gradle/
+.gradle-local/
+.kotlin/
+/.idea/
+.vscode/
+/local.properties
+build/
+.externalNativeBuild/
+.cxx/
+/captures/
+
+# Installable artifacts and local credentials
+*.apk
+*.apkm
+*.xapk
+*.aab
+*.jks
+*.keystore
+*.pem
+*.p12
+*.pfx
+keystore.properties
+!keystore.properties.example
+.env
+.env.*
+!.env.example
+
+# Python, SQLite and temporary caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Logs, memory dumps, editor swaps and OS metadata
+*.log
+*.hprof
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+._*

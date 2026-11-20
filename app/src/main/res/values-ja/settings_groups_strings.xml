@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_group_appearance">外観</string>
+    <string name="settings_group_remotes">リモコン</string>
+    <string name="settings_group_data">バックアップと読み込み</string>
+    <string name="settings_group_rotation">画面の回転</string>
+    <string name="settings_group_application">アプリ</string>
+    <string name="settings_rotation_direction">回転方向</string>
+    <string name="rotation_direction_reverse_portrait">上下反転</string>
+    <string name="rotation_direction_sensor_portrait">双方向縦</string>
+    <string name="rotation_direction_landscape">左横向き</string>
+    <string name="rotation_direction_reverse_landscape">右横向き</string>
+    <string name="settings_auto_rotate_screen">自動回転</string>
+    <string name="settings_rotation_condition">条件</string>
+    <string name="rotation_condition_external_only">外部接続時のみ</string>
+    <string name="rotation_condition_always">常に</string>
+    <string name="settings_rotation_scope">対象画面</string>
+    <string name="rotation_scope_remote_and_matching">リモコン画面</string>
+    <string name="rotation_scope_all_screens">全画面</string>
+    <string name="screen_rotate_screen">画面を回転</string>
+    <string name="screen_restore_orientation">画面の向きを戻す</string>
+    <string name="rotation_prompt_title">画面を回転しますか？</string>
+    <string name="rotation_prompt_message">外部赤外線デバイスが接続されています。赤外線ポートを家電に向けやすいよう画面を回転しますか？</string>
+    <string name="rotation_prompt_dont_ask_again">次回から表示しない</string>
+    <string name="rotation_prompt_confirm">回転する</string>
+    <string name="rotation_prompt_cancel">回転しない</string>
+</resources>

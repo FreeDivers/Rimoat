@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_unavailable_tapped">%1$s当前不可用</string>
+    <string name="control_show_reason">原因</string>
+    <string name="control_unavailable_action">查看%1$s不可用的原因</string>
+    <string name="control_learning_help">可通过学习原遥控器的信号补充此按键，需要兼容的红外接收器。学到的空调信号只代表录制时的设定，不能覆盖所有温度或模式。</string>
+    <string name="control_reason_missing_signal_details">此方案没有提供此功能的信号。可通过学习原遥控器的信号补充此按键，需要兼容的红外接收器。</string>
+    <string name="control_enter_learning">学习模式</string>
+    <string name="control_reason_temperature_minimum">已达最低温度 16 °C。</string>
+    <string name="control_reason_temperature_maximum">已达最高温度 30 °C。</string>
+    <string name="panel_edit_title">编辑遥控器</string>
+    <string name="panel_restore_default">恢复默认布局</string>
+    <string name="panel_restore_confirm">恢复默认顺序并显示全部按键？已保存的信号会保留。</string>
+    <string name="panel_move_before">前移%1$s</string>
+    <string name="panel_move_after">后移%1$s</string>
+    <string name="panel_show_control">显示%1$s</string>
+    <string name="panel_group_controls">常用按键</string>
+    <string name="panel_group_extensions">扩展按键</string>
+    <string name="panel_group_navigation">导航按键</string>
+    <string name="shortcut_unavailable">此遥控器已不可用</string>
+</resources>

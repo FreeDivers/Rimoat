@@ -1,0 +1,27 @@
+<!-- Locale-specific widget picker titles and descriptions for launcher previews. -->
+<resources>
+  <string name="widget_picker_en_single_description" translatable="false">Control a device from your home screen with one button</string>
+  <string name="widget_picker_en_single_name" translatable="false">Single button</string>
+  <string name="widget_picker_en_panel_description" translatable="false">Keep favorite buttons from different remotes together</string>
+  <string name="widget_picker_en_panel_name" translatable="false">Remote panel</string>
+  <string name="widget_picker_en_status_description" translatable="false">View device settings and adjust common controls</string>
+  <string name="widget_picker_en_status_name" translatable="false">Device settings</string>
+  <string name="widget_picker_ja_single_description" translatable="false">よく使うボタンでホーム画面から操作</string>
+  <string name="widget_picker_ja_single_name" translatable="false">ワンボタンリモコン</string>
+  <string name="widget_picker_ja_panel_description" translatable="false">複数のリモコンのボタンをひとつに</string>
+  <string name="widget_picker_ja_panel_name" translatable="false">リモコンパネル</string>
+  <string name="widget_picker_ja_status_description" translatable="false">機器の設定を確認してすばやく操作</string>
+  <string name="widget_picker_ja_status_name" translatable="false">機器の設定</string>
+  <string name="widget_picker_hans_single_description" translatable="false">选择一个常用按键，在桌面直接遥控</string>
+  <string name="widget_picker_hans_single_name" translatable="false">单键遥控</string>
+  <string name="widget_picker_hans_panel_description" translatable="false">把不同遥控器的常用按键放在一起</string>
+  <string name="widget_picker_hans_panel_name" translatable="false">遥控面板</string>
+  <string name="widget_picker_hans_status_description" translatable="false">查看电器设定，快速调整常用功能</string>
+  <string name="widget_picker_hans_status_name" translatable="false">电器状态</string>
+  <string name="widget_picker_hant_single_description" translatable="false">選擇一個常用按鍵，在桌面直接遙控</string>
+  <string name="widget_picker_hant_single_name" translatable="false">單鍵遙控</string>
+  <string name="widget_picker_hant_panel_description" translatable="false">把不同遙控器的常用按鍵放在一起</string>
+  <string name="widget_picker_hant_panel_name" translatable="false">遙控面板</string>
+  <string name="widget_picker_hant_status_description" translatable="false">檢視電器設定，快速調整常用功能</string>
+  <string name="widget_picker_hant_status_name" translatable="false">電器狀態</string>
+</resources>

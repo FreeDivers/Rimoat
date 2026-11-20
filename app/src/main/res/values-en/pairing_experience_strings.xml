@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pairing_result_valid">Effective</string>
+    <string name="pairing_result_invalid">No response</string>
+    <string name="pairing_result_untested">Untested</string>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_unavailable_tapped">%1$s is unavailable</string>
+    <string name="control_show_reason">Reason</string>
+    <string name="control_unavailable_action">Check why %1$s is unavailable</string>
+    <string name="control_learning_help">You can record a signal from your original remote in learning mode. A compatible receiver is required. Learned AC signals represent the recorded setting, not every temperature or mode.</string>
+    <string name="control_reason_missing_signal_details">This code set does not include a signal for this function. You can learn a signal from your original remote to add this control; a compatible IR receiver is required.</string>
+    <string name="control_enter_learning">Learning mode</string>
+    <string name="control_reason_temperature_minimum">Already at the 16 °C minimum.</string>
+    <string name="control_reason_temperature_maximum">Already at the 30 °C maximum.</string>
+    <string name="panel_edit_title">Edit remote</string>
+    <string name="panel_restore_default">Restore default layout</string>
+    <string name="panel_restore_confirm">Restore the default order and show all controls? Saved signals are kept.</string>
+    <string name="panel_move_before">Move %1$s earlier</string>
+    <string name="panel_move_after">Move %1$s later</string>
+    <string name="panel_show_control">Show %1$s</string>
+    <string name="panel_group_controls">Controls</string>
+    <string name="panel_group_extensions">More controls</string>
+    <string name="panel_group_navigation">Navigation</string>
+    <string name="shortcut_unavailable">This remote is no longer available</string>
+</resources>

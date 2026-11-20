@@ -1,0 +1,589 @@
+package org.qinyan.rimoat.ui.learning
+
+import android.content.Context
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import android.content.ContextWrapper
+import org.qinyan.rimoat.R
+import org.qinyan.rimoat.data.DeviceCategory
+import org.qinyan.rimoat.data.RemoteProfile
+import org.qinyan.rimoat.data.SignalType
+import org.qinyan.rimoat.hardware.IrSignal
+import org.qinyan.rimoat.hardware.IrTransmitterManager
+import org.qinyan.rimoat.hardware.learning.IrLearnerManager
+import org.qinyan.rimoat.i18n.UiText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class CustomRemoteWizardViewModelTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private val stores = ViewModelStore()
+    private val trackedModels = mutableListOf<ViewModel>()
+    private fun <T : ViewModel> tracked(vm: T): T = vm.also { stores.put("vm${trackedModels.size}", it); trackedModels.add(it) }
+    private lateinit var learnerManager: IrLearnerManager
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        learnerManager = IrLearnerManager(context = null)
+        learnerManager.mockLearner.setSimulatedDelayMs(0L)
+    }
+
+    @After
+    fun tearDown() {
+        learnerManager.cancel()
+        stores.clear()
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (trackedModels.any { it.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.isCompleted == false }) {
+            testDispatcher.scheduler.advanceUntilIdle()
+            check(System.nanoTime() < deadline) { "ViewModel jobs did not finish" }
+            Thread.sleep(10)
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+        Dispatchers.resetMain()
+    }
+
+    private fun awaitCondition(timeoutMs: Long = 2000L, condition: () -> Boolean): Boolean {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            testDispatcher.scheduler.advanceUntilIdle()
+            if (condition()) return true
+            Thread.sleep(10)
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+        return condition()
+    }
+
+    @Test
+    fun testInitialState() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.CUSTOM
+        ))
+
+        val state = viewModel.uiState.value
+        assertEquals(WizardStep.SETUP, state.step)
+        assertEquals(DeviceCategory.CUSTOM, state.category)
+        assertTrue(state.remoteName.isEmpty())
+        assertTrue(state.keyQueue.isNotEmpty())
+        assertEquals(0, state.currentIndex)
+        assertEquals(0, state.learnedCount)
+        assertFalse(state.canFinishEarly)
+    }
+
+    @Test
+    fun testCategoryChangeUpdatesKeyQueueOnSetupStep() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.CUSTOM
+        ))
+
+        viewModel.setCategory(DeviceCategory.TV)
+        assertEquals(DeviceCategory.TV, viewModel.uiState.value.category)
+        assertTrue(viewModel.uiState.value.keyQueue.any { it.label == "静音" })
+
+        viewModel.setCategory(DeviceCategory.AC)
+        assertEquals(DeviceCategory.AC, viewModel.uiState.value.category)
+        assertTrue(viewModel.uiState.value.keyQueue.any { it.label == "扫风" })
+
+        viewModel.setCategory(DeviceCategory.FAN)
+        assertEquals(DeviceCategory.FAN, viewModel.uiState.value.category)
+        assertTrue(viewModel.uiState.value.keyQueue.any { it.label == "摇头" })
+
+        viewModel.setCategory(DeviceCategory.PROJECTOR)
+        assertEquals(DeviceCategory.PROJECTOR, viewModel.uiState.value.category)
+        assertTrue(viewModel.uiState.value.keyQueue.any { it.label == "对焦+" })
+    }
+
+    @Test
+    fun testProceedToLearningValidation() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+
+        // Blank name should fail
+        viewModel.setRemoteName("   ")
+        val proceedingFailed = viewModel.proceedToLearning()
+        assertFalse(proceedingFailed)
+        assertEquals(WizardStep.SETUP, viewModel.uiState.value.step)
+        assertEquals(UiText.Resource(R.string.screen_enter_name), viewModel.uiState.value.errorMessage)
+
+        // Valid name should succeed
+        viewModel.setRemoteName("客厅索尼电视")
+        val proceedingSucceeded = viewModel.proceedToLearning()
+        assertTrue(proceedingSucceeded)
+        assertEquals(WizardStep.LEARNING, viewModel.uiState.value.step)
+        assertEquals(0, viewModel.uiState.value.currentIndex)
+    }
+
+    @Test
+    fun testStartAndCancelLearning() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("电视测试")
+        viewModel.proceedToLearning()
+
+        viewModel.startLearningCurrentKey()
+        assertEquals(KeyLearnStatus.LEARNING, viewModel.uiState.value.currentKey?.status)
+
+        viewModel.cancelCurrentKeyLearning()
+        assertEquals(KeyLearnStatus.PENDING, viewModel.uiState.value.currentKey?.status)
+    }
+
+    @Test
+    fun testCapturedStateUpdatesCurrentKey() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("电视测试")
+        viewModel.proceedToLearning()
+
+        val sampleSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560, 560, 1690))
+        learnerManager.mockLearner.triggerManualSignal(sampleSignal)
+
+        viewModel.startLearningCurrentKey()
+        val captured = awaitCondition { viewModel.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED }
+        assertTrue(captured)
+
+        val currentKey = viewModel.uiState.value.currentKey
+        assertNotNull(currentKey)
+        assertEquals(KeyLearnStatus.CAPTURED, currentKey?.status)
+        assertNotNull(currentKey?.capturedSignal)
+        assertEquals(6, currentKey?.pulseCount)
+        assertTrue(currentKey!!.durationMs > 0)
+    }
+
+    @Test
+    fun testConfirmKeyAdvancesQueueAndIncrementsLearnedCount() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("电视测试")
+        viewModel.proceedToLearning()
+
+        val sampleSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560, 560, 1690))
+        learnerManager.mockLearner.triggerManualSignal(sampleSignal)
+
+        viewModel.startLearningCurrentKey()
+        val captured = awaitCondition { viewModel.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED }
+        assertTrue(captured)
+
+        viewModel.confirmCurrentKey()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        assertEquals(1, viewModel.uiState.value.learnedCount)
+        assertTrue(viewModel.uiState.value.canFinishEarly)
+        assertEquals(KeyLearnStatus.LEARNED, viewModel.uiState.value.keyQueue[0].status)
+    }
+
+    @Test
+    fun testSkipKeyAdvancesQueueWithoutLearning() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("电视测试")
+        viewModel.proceedToLearning()
+
+        viewModel.skipCurrentKey()
+
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        assertEquals(0, viewModel.uiState.value.learnedCount)
+        assertEquals(KeyLearnStatus.SKIPPED, viewModel.uiState.value.keyQueue[0].status)
+    }
+
+    @Test
+    fun testAddCustomKey() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.CUSTOM
+        ))
+        val originalSize = viewModel.uiState.value.keyQueue.size
+
+        viewModel.addCustomKey("  低音增强  ")
+        val updatedQueue = viewModel.uiState.value.keyQueue
+        assertEquals(originalSize + 1, updatedQueue.size)
+        assertEquals("低音增强", updatedQueue.last().label)
+    }
+
+    @Test
+    fun testFinishEarlyAndSaveRemote() {
+        var createdProfile: RemoteProfile? = null
+
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("主卧电视")
+        viewModel.setBrand("TCL")
+        viewModel.proceedToLearning()
+
+        val sampleSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560, 560, 1690))
+        learnerManager.mockLearner.triggerManualSignal(sampleSignal)
+
+        viewModel.startLearningCurrentKey()
+        val captured = awaitCondition { viewModel.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED }
+        assertTrue(captured)
+
+        viewModel.confirmCurrentKey()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Finish early into REVIEW
+        assertTrue(viewModel.uiState.value.canFinishEarly)
+        viewModel.finishEarly()
+        assertEquals(WizardStep.REVIEW, viewModel.uiState.value.step)
+
+        viewModel.saveRemote { profile ->
+            createdProfile = profile
+        }
+        assertTrue(awaitCondition { createdProfile != null })
+
+        assertNotNull(createdProfile)
+        assertEquals("主卧电视", createdProfile?.name)
+        assertEquals("TCL", createdProfile?.brand)
+        assertEquals(DeviceCategory.TV, createdProfile?.category)
+        assertEquals(1, createdProfile?.buttons?.size)
+
+        val btn = createdProfile?.buttons?.firstOrNull()
+        assertNotNull(btn)
+        assertEquals("电源", btn?.label)
+        assertEquals(SignalType.RAW, btn?.signalType)
+        assertEquals(38000, btn?.frequencyHz)
+        assertEquals(listOf(9000, 4500, 560, 560, 560, 1690), btn?.rawPattern)
+    }
+
+    @Test
+    fun testHandleBackStateTransitions() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("返回测试")
+
+        // In SETUP -> back should return false
+        assertFalse(viewModel.handleBack())
+
+        // Proceed to LEARNING
+        viewModel.proceedToLearning()
+        assertEquals(WizardStep.LEARNING, viewModel.uiState.value.step)
+        assertEquals(0, viewModel.uiState.value.currentIndex)
+
+        // At index 0 in LEARNING -> back should return true and go to SETUP
+        assertTrue(viewModel.handleBack())
+        assertEquals(WizardStep.SETUP, viewModel.uiState.value.step)
+
+        // Proceed to LEARNING and advance index
+        viewModel.proceedToLearning()
+        viewModel.skipCurrentKey()
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+
+        // Returning to setup preserves progress in this session.
+        assertTrue(viewModel.handleBack())
+        assertEquals(WizardStep.SETUP, viewModel.uiState.value.step)
+        viewModel.proceedToLearning()
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        assertEquals(KeyLearnStatus.SKIPPED, viewModel.uiState.value.keyQueue.first().status)
+
+        // Add 1 learned key and finish early to REVIEW
+        val sampleSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560, 560, 1690))
+        learnerManager.mockLearner.triggerManualSignal(sampleSignal)
+        viewModel.startLearningCurrentKey()
+        awaitCondition { viewModel.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED }
+        viewModel.confirmCurrentKey()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.finishEarly()
+        assertEquals(WizardStep.REVIEW, viewModel.uiState.value.step)
+
+        // In REVIEW -> back should return true and go to LEARNING
+        assertTrue(viewModel.handleBack())
+        assertEquals(WizardStep.LEARNING, viewModel.uiState.value.step)
+    }
+
+    private fun createMockContext(): Context {
+        return object : ContextWrapper(null) {
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? = null
+        }
+    }
+
+    @Test
+    fun testTransmitCurrentKey_success() {
+        val transmitterManager = IrTransmitterManager(context = createMockContext())
+        transmitterManager.mockTransmitter.simulateDelayMs = 0L
+
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            transmitterManager = transmitterManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("测试遥控")
+        viewModel.proceedToLearning()
+
+        val sampleSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560))
+        learnerManager.mockLearner.triggerManualSignal(sampleSignal)
+        viewModel.startLearningCurrentKey()
+        awaitCondition { viewModel.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED }
+
+        viewModel.testTransmitCurrentKey()
+        val finished = awaitCondition { !viewModel.uiState.value.isTestingTransmit && viewModel.uiState.value.testFeedbackMessage != null }
+        assertTrue(finished)
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isTestingTransmit)
+        assertEquals(UiText.Resource(R.string.screen_simulated_send), state.testFeedbackMessage)
+    }
+
+    @Test
+    fun testTransmitCurrentKey_hardwareFailure() {
+        val transmitterManager = IrTransmitterManager(context = createMockContext())
+        transmitterManager.mockTransmitter.simulateDelayMs = 0L
+        transmitterManager.mockTransmitter.shouldFail = true
+        transmitterManager.mockTransmitter.failureReason = "Carrier frequency unsupported"
+
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            transmitterManager = transmitterManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("测试失败遥控")
+        viewModel.proceedToLearning()
+
+        val sampleSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560))
+        learnerManager.mockLearner.triggerManualSignal(sampleSignal)
+        viewModel.startLearningCurrentKey()
+        awaitCondition { viewModel.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED }
+
+        viewModel.testTransmitCurrentKey()
+        val finished = awaitCondition { !viewModel.uiState.value.isTestingTransmit && viewModel.uiState.value.testFeedbackMessage != null }
+        assertTrue(finished)
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isTestingTransmit)
+        assertEquals(
+            UiText.resource(R.string.screen_send_error_t, UiText.Dynamic("Carrier frequency unsupported")),
+            state.testFeedbackMessage
+        )
+    }
+
+    @Test
+    fun testTransmitCurrentKey_nullTransmitterManager() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            transmitterManager = null,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("无发射器遥控")
+        viewModel.proceedToLearning()
+
+        val sampleSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560))
+        learnerManager.mockLearner.triggerManualSignal(sampleSignal)
+        viewModel.startLearningCurrentKey()
+        awaitCondition { viewModel.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED }
+
+        viewModel.testTransmitCurrentKey()
+        val finished = awaitCondition { !viewModel.uiState.value.isTestingTransmit && viewModel.uiState.value.testFeedbackMessage != null }
+        assertTrue(finished)
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isTestingTransmit)
+        assertEquals(
+            UiText.resource(R.string.screen_send_error_t, UiText.Resource(R.string.screen_transmitter_unavailable)),
+            state.testFeedbackMessage
+        )
+    }
+
+    @Test
+    fun testSaveRemote_resetsViewModelStateForNewSession() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("客厅旧电视")
+        viewModel.proceedToLearning()
+
+        val sampleSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560, 560, 560))
+        learnerManager.mockLearner.triggerManualSignal(sampleSignal)
+        viewModel.startLearningCurrentKey()
+        awaitCondition { viewModel.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED }
+        viewModel.confirmCurrentKey()
+
+        viewModel.finishEarly()
+        assertEquals(WizardStep.REVIEW, viewModel.uiState.value.step)
+
+        var savedProfile: RemoteProfile? = null
+        viewModel.saveRemote { profile ->
+            savedProfile = profile
+        }
+
+        val finished = awaitCondition { savedProfile != null }
+        assertTrue("Remote should be saved", finished)
+        assertNotNull(savedProfile)
+
+        // Verify that after save, ViewModel state has been reset to fresh SETUP step
+        val resetState = viewModel.uiState.value
+        assertEquals("Wizard step must be reset to SETUP after saving", WizardStep.SETUP, resetState.step)
+        assertEquals("Remote name must be cleared", "", resetState.remoteName)
+        assertEquals("Current key index must be 0", 0, resetState.currentIndex)
+        assertEquals("No keys should be marked learned in fresh queue", 0, resetState.learnedCount)
+    }
+
+    @Test
+    fun testExplicitReset() {
+        val viewModel = tracked(CustomRemoteWizardViewModel(
+            learnerManager = learnerManager,
+            initialCategory = DeviceCategory.TV
+        ))
+        viewModel.setRemoteName("测试重置")
+        viewModel.proceedToLearning()
+        assertEquals(WizardStep.LEARNING, viewModel.uiState.value.step)
+
+        viewModel.reset(DeviceCategory.FAN)
+        val state = viewModel.uiState.value
+        assertEquals(WizardStep.SETUP, state.step)
+        assertEquals(DeviceCategory.FAN, state.category)
+        assertEquals("", state.remoteName)
+        assertEquals(0, state.currentIndex)
+    }
+    @Test fun cancellationAndBackKeepPreviouslyLearnedKeys() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager))
+        vm.setRemoteName("学习结果")
+        vm.proceedToLearning()
+        vm.startLearningCurrentKey()
+        assertTrue(awaitCondition { vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
+        val signal = vm.uiState.value.currentKey!!.capturedSignal
+        vm.onScreenStopped()
+        assertEquals(KeyLearnStatus.CAPTURED, vm.uiState.value.currentKey?.status)
+        vm.confirmCurrentKey()
+        vm.handleBack()
+        vm.cancelCurrentKeyLearning()
+        assertEquals(1, vm.uiState.value.learnedCount)
+        assertEquals(signal, vm.uiState.value.keyQueue.first().capturedSignal)
+        vm.handleBack()
+        assertEquals(1, vm.uiState.value.learnedCount)
+    }
+
+    @Test fun skippedAndPendingKeysCannotBecomeLearnedWithoutSignal() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager))
+        vm.setRemoteName("跳过")
+        vm.proceedToLearning()
+        vm.confirmCurrentKey()
+        assertEquals(0, vm.uiState.value.currentIndex)
+        vm.skipCurrentKey()
+        vm.selectKey(0)
+        vm.confirmCurrentKey()
+        assertEquals(1, vm.uiState.value.currentIndex)
+        assertEquals(KeyLearnStatus.SKIPPED, vm.uiState.value.keyQueue.first().status)
+        assertEquals(0, vm.uiState.value.learnedCount)
+        var saved = false
+        vm.saveRemote { saved = true }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(saved)
+    }
+
+    @Test fun revisitingLearningKeepsSignalsUntilExplicitReset() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager))
+        vm.setRemoteName("重新学习")
+        vm.proceedToLearning()
+        vm.startLearningCurrentKey()
+        assertTrue(awaitCondition { vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
+        vm.confirmCurrentKey()
+        vm.finishEarly()
+        vm.returnToLearning()
+        assertEquals(1, vm.uiState.value.learnedCount)
+        vm.handleBack()
+        vm.proceedToLearning()
+        assertEquals(1, vm.uiState.value.learnedCount)
+        vm.reset()
+        assertEquals(0, vm.uiState.value.learnedCount)
+        assertEquals(0, vm.uiState.value.currentIndex)
+        assertTrue(vm.uiState.value.keyQueue.all { it.status == KeyLearnStatus.PENDING && it.capturedSignal == null })
+    }
+
+    @Test fun oldCaptureCannotPopulateANewWizardOrNewKey() {
+        val first = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager))
+        first.setRemoteName("第一个")
+        first.proceedToLearning()
+        first.startLearningCurrentKey()
+        assertTrue(awaitCondition { first.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
+        val second = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager))
+        second.setRemoteName("第二个")
+        second.proceedToLearning()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(KeyLearnStatus.PENDING, second.uiState.value.currentKey?.status)
+        second.skipCurrentKey()
+        assertEquals(KeyLearnStatus.PENDING, second.uiState.value.currentKey?.status)
+        assertEquals(null, second.uiState.value.currentKey?.capturedSignal)
+    }
+
+    @Test fun leavingWhileListeningAllowsRetryAndDoesNotStayLearning() {
+        learnerManager.mockLearner.setSimulatedDelayMs(10000)
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager))
+        vm.setRemoteName("旋转")
+        vm.proceedToLearning()
+        vm.startLearningCurrentKey()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.onScreenStopped()
+        assertEquals(KeyLearnStatus.PENDING, vm.uiState.value.currentKey?.status)
+        learnerManager.mockLearner.setSimulatedDelayMs(0)
+        vm.startLearningCurrentKey()
+        assertTrue(awaitCondition { vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
+    }
+
+    @Test fun limitsMatchBackupAndPersistence() {
+        val vm = tracked(CustomRemoteWizardViewModel())
+        vm.setRemoteName("长".repeat(120))
+        assertEquals(100, vm.uiState.value.remoteName.length)
+        val initial = vm.uiState.value.keyQueue.size
+        vm.addCustomKey("长".repeat(101))
+        assertEquals(initial, vm.uiState.value.keyQueue.size)
+        repeat(260) { vm.addCustomKey("按键$it") }
+        assertEquals(256, vm.uiState.value.keyQueue.size)
+        assertEquals(UiText.Resource(R.string.screen_key_limits), vm.uiState.value.errorMessage)
+    }
+
+    @Test fun startLearning_nullLearnerManager_setsLocalizedReceiverUnavailableError() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = null, initialCategory = DeviceCategory.TV))
+        vm.setRemoteName("无接收器测试")
+        vm.proceedToLearning()
+        vm.startLearningCurrentKey()
+        val finished = awaitCondition { vm.uiState.value.errorMessage != null }
+        assertTrue(finished)
+        assertEquals(KeyLearnStatus.PENDING, vm.uiState.value.currentKey?.status)
+        assertEquals(
+            UiText.resource(R.string.screen_learning_error_e, UiText.Resource(R.string.screen_receiver_unavailable)),
+            vm.uiState.value.errorMessage
+        )
+    }
+
+    @Test fun saveRemote_withoutLearnedKeys_setsNeedLearnedKeyUiText() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.TV))
+        vm.setRemoteName("未学习按键测试")
+        vm.proceedToLearning()
+        var saved = false
+        vm.saveRemote { saved = true }
+        assertFalse(saved)
+        assertEquals(UiText.Resource(R.string.screen_need_learned_key), vm.uiState.value.errorMessage)
+    }
+
+}
+

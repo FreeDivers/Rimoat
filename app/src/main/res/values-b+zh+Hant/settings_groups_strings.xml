@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_group_appearance">外觀</string>
+    <string name="settings_group_remotes">遙控器</string>
+    <string name="settings_group_data">備份與匯入</string>
+    <string name="settings_group_rotation">螢幕旋轉</string>
+    <string name="settings_group_application">應用程式</string>
+    <string name="settings_rotation_direction">旋轉方向</string>
+    <string name="rotation_direction_reverse_portrait">反向直向</string>
+    <string name="rotation_direction_sensor_portrait">雙向直向</string>
+    <string name="rotation_direction_landscape">左橫向</string>
+    <string name="rotation_direction_reverse_landscape">右橫向</string>
+    <string name="settings_auto_rotate_screen">自動旋轉</string>
+    <string name="settings_rotation_condition">觸發條件</string>
+    <string name="rotation_condition_external_only">外置接入時</string>
+    <string name="rotation_condition_always">始終</string>
+    <string name="settings_rotation_scope">適用介面</string>
+    <string name="rotation_scope_remote_and_matching">遙控介面</string>
+    <string name="rotation_scope_all_screens">所有介面</string>
+    <string name="screen_rotate_screen">旋轉螢幕</string>
+    <string name="screen_restore_orientation">恢復螢幕方向</string>
+    <string name="rotation_prompt_title">是否旋轉手機螢幕？</string>
+    <string name="rotation_prompt_message">偵測到外置紅外線設備已接入，是否將畫面旋轉以便將外置紅外線介面朝向電器操作？</string>
+    <string name="rotation_prompt_dont_ask_again">不再提示</string>
+    <string name="rotation_prompt_confirm">旋轉</string>
+    <string name="rotation_prompt_cancel">暫不旋轉</string>
+</resources>

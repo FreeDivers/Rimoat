@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="migration_ir_import">赤外線ファイルを読み込む</string>
+    <string name="migration_ir_formats">Flipper .ir ファイル（raw、NEC、NECext）に対応しています。非対応の信号は読み込み前に表示されます。</string>
+    <string name="migration_ir_invalid">赤外線ファイルが無効か、対応範囲を超えています。</string>
+    <string name="migration_no_snapshot">復元用スナップショットはまだありません。</string>
+    <string name="migration_preferences_failed">選択した設定を保存できません。</string>
+    <string name="migration_export_options">ローカルデータをバックアップ</string>
+    <string name="migration_dynamic_colors">カラーテーマ</string>
+    <string name="migration_pure_black">完全な黒の背景</string>
+    <string name="migration_import_title">読み込み内容を確認</string>
+    <string name="migration_summary">新規：%1$d　競合：%2$d　スキップ：%3$d　置換：%4$d</string>
+    <string name="migration_rooms">ファイル内の部屋：%1$d</string>
+    <string name="migration_snapshot_note">読み込み前にローカルスナップショットを保存します。「ローカルデータをバックアップ」から書き出せます。システムウィジェット ID、USB の許可、機器の接続情報は移行しません。</string>
+    <string name="migration_keep">既存を保持</string>
+    <string name="migration_overwrite">既存を置換</string>
+    <string name="migration_copy">コピーを読み込む</string>
+    <string name="migration_conflict_action">%1$s：%2$s</string>
+    <string name="migration_skipped_signal">%1$s（%2$s）をスキップ：非対応のプロトコル</string>
+    <string name="migration_preferences_title">設定を適用</string>
+    <string name="migration_import_confirm">読み込む</string>
+    <string name="migration_choose_file">ファイルを選択</string>
+    <string name="panel_group_ac_actions">拡張コントロール</string>
+    <string name="panel_group_raw_keys">追加ボタン</string>
+    <string name="panel_group_presets">プリセット</string>
+</resources>

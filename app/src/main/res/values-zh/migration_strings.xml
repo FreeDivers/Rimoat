@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="migration_ir_import">导入红外文件</string>
+    <string name="migration_ir_formats">支持 Flipper .ir 文件（raw、NEC、NECext），不支持的信号会在导入前列出。</string>
+    <string name="migration_ir_invalid">红外文件无效或超出支持的范围。</string>
+    <string name="migration_no_snapshot">尚无可用的恢复快照。</string>
+    <string name="migration_preferences_failed">无法保存所选偏好。</string>
+    <string name="migration_export_options">备份本地数据</string>
+    <string name="migration_dynamic_colors">配色主题</string>
+    <string name="migration_pure_black">纯黑背景</string>
+    <string name="migration_import_title">确认导入内容</string>
+    <string name="migration_summary">新增：%1$d　冲突：%2$d　跳过：%3$d　覆盖：%4$d</string>
+    <string name="migration_rooms">文件中的房间：%1$d</string>
+    <string name="migration_snapshot_note">导入前会保存本地快照，需要时可从“备份本地数据”导出。系统小组件 ID、USB 授权和设备连接不会迁移。</string>
+    <string name="migration_keep">保留现有</string>
+    <string name="migration_overwrite">覆盖现有</string>
+    <string name="migration_copy">导入副本</string>
+    <string name="migration_conflict_action">%1$s：%2$s</string>
+    <string name="migration_skipped_signal">跳过 %1$s（%2$s）：不支持此协议</string>
+    <string name="migration_preferences_title">应用偏好</string>
+    <string name="migration_import_confirm">导入</string>
+    <string name="migration_choose_file">选择文件</string>
+    <string name="panel_group_ac_actions">扩展控件</string>
+    <string name="panel_group_raw_keys">附加按键</string>
+    <string name="panel_group_presets">预设</string>
+</resources>

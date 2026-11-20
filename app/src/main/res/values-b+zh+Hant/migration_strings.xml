@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="migration_ir_import">匯入紅外線檔案</string>
+    <string name="migration_ir_formats">支援 Flipper .ir 檔案（raw、NEC、NECext），不支援的訊號會在匯入前列出。</string>
+    <string name="migration_ir_invalid">紅外線檔案無效或超出支援範圍。</string>
+    <string name="migration_no_snapshot">尚無可用的復原快照。</string>
+    <string name="migration_preferences_failed">無法儲存所選偏好。</string>
+    <string name="migration_export_options">備份本機資料</string>
+    <string name="migration_dynamic_colors">配色主題</string>
+    <string name="migration_pure_black">純黑背景</string>
+    <string name="migration_import_title">確認匯入內容</string>
+    <string name="migration_summary">新增：%1$d　衝突：%2$d　略過：%3$d　覆寫：%4$d</string>
+    <string name="migration_rooms">檔案中的房間：%1$d</string>
+    <string name="migration_snapshot_note">匯入前會儲存本機快照，需要時可從「備份本機資料」匯出。系統小工具 ID、USB 授權和裝置連線不會遷移。</string>
+    <string name="migration_keep">保留現有</string>
+    <string name="migration_overwrite">覆寫現有</string>
+    <string name="migration_copy">匯入副本</string>
+    <string name="migration_conflict_action">%1$s：%2$s</string>
+    <string name="migration_skipped_signal">略過 %1$s（%2$s）：不支援此協定</string>
+    <string name="migration_preferences_title">套用偏好</string>
+    <string name="migration_import_confirm">匯入</string>
+    <string name="migration_choose_file">選擇檔案</string>
+    <string name="panel_group_ac_actions">擴充控制項</string>
+    <string name="panel_group_raw_keys">附加按鍵</string>
+    <string name="panel_group_presets">預設</string>
+</resources>

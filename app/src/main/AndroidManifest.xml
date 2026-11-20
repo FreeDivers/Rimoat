@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.TRANSMIT_IR" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <uses-feature
+        android:name="android.hardware.ConsumerIr"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
+    <application
+        android:name=".IrRemoteApplication"
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.IrRemote">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.App.Starting">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".widget.WidgetConfigurationActivity" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
+        </activity>
+
+        <receiver android:name=".widget.SingleRemoteWidgetReceiver" android:exported="false" android:label="@string/widget_single_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_single_info" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_single_info_hidden" />
+        </receiver>
+        <receiver android:name=".widget.RemotePanelWidgetReceiver" android:exported="false" android:label="@string/widget_panel_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_panel_info" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_panel_info_hidden" />
+        </receiver>
+        <receiver android:name=".widget.DeviceStatusWidgetReceiver" android:exported="false" android:label="@string/widget_status_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_status_info" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_status_info_hidden" />
+        </receiver>
+
+        <receiver
+            android:name=".hardware.learning.UsbDeviceReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.qinyan.rimoat.USB_PERMISSION" />
+                <action android:name="android.hardware.usb.action.USB_DEVICE_DETACHED" />
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/device_filter" />
+        </receiver>
+
+        <!-- BEGIN generated localized widget receivers -->
+        <receiver android:name=".widget.EnSingleRemoteWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_en_single_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_single_info_en_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_single_info_en" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_single_info_en_hidden" />
+        </receiver>
+        <receiver android:name=".widget.EnRemotePanelWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_en_panel_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_panel_info_en_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_panel_info_en" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_panel_info_en_hidden" />
+        </receiver>
+        <receiver android:name=".widget.EnDeviceStatusWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_en_status_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_status_info_en_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_status_info_en" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_status_info_en_hidden" />
+        </receiver>
+        <receiver android:name=".widget.JaSingleRemoteWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_ja_single_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_single_info_ja_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_single_info_ja" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_single_info_ja_hidden" />
+        </receiver>
+        <receiver android:name=".widget.JaRemotePanelWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_ja_panel_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_panel_info_ja_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_panel_info_ja" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_panel_info_ja_hidden" />
+        </receiver>
+        <receiver android:name=".widget.JaDeviceStatusWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_ja_status_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_status_info_ja_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_status_info_ja" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_status_info_ja_hidden" />
+        </receiver>
+        <receiver android:name=".widget.HansSingleRemoteWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_hans_single_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_single_info_hans_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_single_info_hans" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_single_info_hans_hidden" />
+        </receiver>
+        <receiver android:name=".widget.HansRemotePanelWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_hans_panel_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_panel_info_hans_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_panel_info_hans" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_panel_info_hans_hidden" />
+        </receiver>
+        <receiver android:name=".widget.HansDeviceStatusWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_hans_status_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_status_info_hans_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_status_info_hans" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_status_info_hans_hidden" />
+        </receiver>
+        <receiver android:name=".widget.HantSingleRemoteWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_hant_single_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_single_info_hant_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_single_info_hant" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_single_info_hant_hidden" />
+        </receiver>
+        <receiver android:name=".widget.HantRemotePanelWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_hant_panel_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_panel_info_hant_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_panel_info_hant" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_panel_info_hant_hidden" />
+        </receiver>
+        <receiver android:name=".widget.HantDeviceStatusWidgetReceiver" android:enabled="@bool/widget_localized_picker_supported" android:exported="false" android:label="@string/widget_picker_hant_status_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_status_info_hant_hidden" />
+            <meta-data android:name="org.qinyan.rimoat.widget.visible" android:resource="@xml/widget_status_info_hant" />
+            <meta-data android:name="org.qinyan.rimoat.widget.hidden" android:resource="@xml/widget_status_info_hant_hidden" />
+        </receiver>
+        <!-- END generated localized widget receivers -->
+    </application>
+
+</manifest>
+

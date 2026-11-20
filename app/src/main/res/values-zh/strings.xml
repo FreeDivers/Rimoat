@@ -1,0 +1,33 @@
+<resources>
+    <string name="about_title">关于</string>
+    <string name="about_version">版本 %1$s</string>
+    <string name="about_repository">项目仓库地址</string>
+    <string name="about_repository_unavailable">无法打开浏览器</string>
+    <string name="about_license">开放源代码许可</string>
+    <string name="licenses_search">搜索开源库</string>
+    <string name="licenses_title">开源许可</string>
+    <string name="licenses_empty">未找到匹配的开源库</string>
+    <string name="licenses_unavailable">无法读取开源许可</string>
+    <string name="licenses_debug_only">仅调试版本</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_back">返回</string>
+    <string name="settings_backup_all">备份全部遥控器</string>
+    <string name="settings_import_backup">导入本地备份</string>
+    <string name="settings_trash">回收站</string>
+    <string name="settings_rooms">房间</string>
+    <string name="settings_theme">主题配色</string>
+    <string name="settings_color_mode">颜色模式</string>
+    <string name="settings_switch_pure_black">深色模式使用纯黑背景</string>
+    <string name="settings_language">应用语言</string>
+    <string name="settings_about">关于</string>
+    <string name="cancel">取消</string>
+    <string name="merge">合并</string>
+    <string name="done">完成</string>
+    <string name="theme_default_green">默认绿色</string>
+    <string name="theme_dynamic">系统动态配色</string>
+    <string name="theme_dynamic_android12">系统动态配色（Android 12+）</string>
+    <string name="color_mode_system">跟随系统</string>
+    <string name="color_mode_light">浅色</string>
+    <string name="color_mode_dark">深色</string>
+    <string name="language_system">跟随系统</string>
+</resources>

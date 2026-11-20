@@ -1,0 +1,34 @@
+<resources>
+    <string name="about_title">About</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_repository">Project repository</string>
+    <string name="about_repository_unavailable">Unable to open browser</string>
+    <string name="about_license">Open source licenses</string>
+    <string name="licenses_search">Search open source libraries</string>
+    <string name="licenses_title">Open source licenses</string>
+    <string name="licenses_empty">No matching libraries</string>
+    <string name="licenses_unavailable">Unable to read open source licenses</string>
+    <string name="licenses_debug_only">Debug builds only</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">Back</string>
+    <string name="settings_backup_all">Back up all remotes</string>
+    <string name="settings_import_backup">Import local backup</string>
+    <string name="settings_trash">Trash</string>
+    <string name="settings_rooms">Rooms</string>
+    <string name="settings_theme">Theme colors</string>
+    <string name="settings_color_mode">Color mode</string>
+    <string name="settings_switch_pure_black">Pure black in dark mode</string>
+    <string name="settings_language">App language</string>
+    <string name="settings_about">About</string>
+    <string name="cancel">Cancel</string>
+    <string name="merge">Merge</string>
+    <string name="done">Done</string>
+    <string name="theme_default_green">Default green</string>
+    <string name="theme_dynamic">System dynamic colors</string>
+    <string name="theme_dynamic_android12">System dynamic colors (Android 12+)</string>
+    <string name="color_mode_system">Follow system</string>
+    <string name="color_mode_light">Light</string>
+    <string name="color_mode_dark">Dark</string>
+    <string name="language_system">Follow system</string>
+    <string name="settings_language_traditional_chinese" translatable="false">繁體中文</string>
+</resources>

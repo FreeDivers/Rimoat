@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_group_appearance">外观</string>
+    <string name="settings_group_remotes">遥控器</string>
+    <string name="settings_group_data">备份与导入</string>
+    <string name="settings_group_rotation">屏幕旋转</string>
+    <string name="settings_group_application">应用</string>
+    <string name="settings_rotation_direction">旋转方向</string>
+    <string name="rotation_direction_reverse_portrait">反向竖屏</string>
+    <string name="rotation_direction_sensor_portrait">双向竖屏</string>
+    <string name="rotation_direction_landscape">左横屏</string>
+    <string name="rotation_direction_reverse_landscape">右横屏</string>
+    <string name="settings_auto_rotate_screen">自动旋转</string>
+    <string name="settings_rotation_condition">触发条件</string>
+    <string name="rotation_condition_external_only">外置接入时</string>
+    <string name="rotation_condition_always">始终</string>
+    <string name="settings_rotation_scope">适用界面</string>
+    <string name="rotation_scope_remote_and_matching">遥控界面</string>
+    <string name="rotation_scope_all_screens">所有界面</string>
+    <string name="screen_rotate_screen">旋转屏幕</string>
+    <string name="screen_restore_orientation">恢复屏幕方向</string>
+    <string name="rotation_prompt_title">是否旋转手机屏幕？</string>
+    <string name="rotation_prompt_message">检测到外置红外设备已接入，是否将画面旋转以便将外置红外接口对准电器操作？</string>
+    <string name="rotation_prompt_dont_ask_again">不再提示</string>
+    <string name="rotation_prompt_confirm">旋转</string>
+    <string name="rotation_prompt_cancel">暂不旋转</string>
+</resources>

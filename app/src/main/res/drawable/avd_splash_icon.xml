@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+        <group android:name="fill_layer">
+            <path android:name="fill_body" android:fillType="evenOdd" android:fillColor="@color/ic_launcher_fg_primary" android:fillAlpha="0" android:pathData="M46,44 L62,44 C66,44 68,46 68,50 L68,74 C68,78 66,80 62,80 L46,80 C42,80 40,78 40,74 L40,50 C40,46 42,44 46,44 Z M54,51 C50,51 48,53 48,57 C48,61 50,63 54,63 C58,63 60,61 60,57 C60,53 58,51 54,51 Z M47,69 L51,69 L51,73 L47,73 Z M57,69 L61,69 L61,73 L57,73 Z" />
+            <path android:name="fill_signal_outer" android:fillType="evenOdd" android:fillColor="@color/ic_launcher_fg_accent" android:fillAlpha="0" android:pathData="M34,35 C44,25 64,25 74,35 L72,37 C62,29 46,29 36,37 Z" />
+            <path android:name="fill_signal_inner" android:fillType="evenOdd" android:fillColor="@color/ic_launcher_fg_accent" android:fillAlpha="0" android:pathData="M42,40 C49,34 59,34 66,40 L64,42 C58,38 50,38 44,42 Z" />
+        </group>
+        <group android:name="stroke_layer">
+            <path android:name="stroke_body" android:fillColor="@android:color/transparent" android:strokeColor="@color/ic_launcher_fg_primary" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round" android:trimPathEnd="0" android:pathData="M46,44 L62,44 C66,44 68,46 68,50 L68,74 C68,78 66,80 62,80 L46,80 C42,80 40,78 40,74 L40,50 C40,46 42,44 46,44 Z" />
+            <path android:name="stroke_signal_outer" android:fillColor="@android:color/transparent" android:strokeColor="@color/ic_launcher_fg_primary" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round" android:trimPathEnd="0" android:pathData="M34,35 C44,25 64,25 74,35 L72,37 C62,29 46,29 36,37 Z" />
+            <path android:name="stroke_signal_inner" android:fillColor="@android:color/transparent" android:strokeColor="@color/ic_launcher_fg_primary" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round" android:trimPathEnd="0" android:pathData="M42,40 C49,34 59,34 66,40 L64,42 C58,38 50,38 44,42 Z" />
+        </group>
+    </vector>
+    </aapt:attr>
+    <target android:name="fill_body">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0" android:valueTo="1" android:valueType="floatType" android:startOffset="300" android:duration="250" android:interpolator="@android:interpolator/linear" />
+        </aapt:attr>
+    </target>
+    <target android:name="stroke_body">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="trimPathEnd" android:valueFrom="0" android:valueTo="1" android:valueType="floatType" android:startOffset="0" android:duration="420" android:interpolator="@android:interpolator/fast_out_slow_in" />
+        </aapt:attr>
+    </target>
+    <target android:name="fill_signal_outer">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0" android:valueTo="1" android:valueType="floatType" android:startOffset="300" android:duration="250" android:interpolator="@android:interpolator/linear" />
+        </aapt:attr>
+    </target>
+    <target android:name="stroke_signal_outer">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="trimPathEnd" android:valueFrom="0" android:valueTo="1" android:valueType="floatType" android:startOffset="0" android:duration="420" android:interpolator="@android:interpolator/fast_out_slow_in" />
+        </aapt:attr>
+    </target>
+    <target android:name="fill_signal_inner">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0" android:valueTo="1" android:valueType="floatType" android:startOffset="300" android:duration="250" android:interpolator="@android:interpolator/linear" />
+        </aapt:attr>
+    </target>
+    <target android:name="stroke_signal_inner">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="trimPathEnd" android:valueFrom="0" android:valueTo="1" android:valueType="floatType" android:startOffset="0" android:duration="420" android:interpolator="@android:interpolator/fast_out_slow_in" />
+        </aapt:attr>
+    </target>
+</animated-vector>
