@@ -1,11 +1,15 @@
 package org.qinyan.rimoat.data
 
-import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
 import android.content.Context
 import android.net.Uri
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.qinyan.rimoat.R
+import org.qinyan.rimoat.i18n.AppStrings
+import java.io.IOException
+
+internal class BackupWriteException(cause: Exception) : IOException(cause)
 
 class BackupFileStore(private val context: Context) {
     suspend fun read(uri: Uri): List<RemoteProfile> = readDocument(uri).backup.remotes
@@ -30,7 +34,19 @@ class BackupFileStore(private val context: Context) {
         } else ImportDocument(RemoteBackupCodec.decodeBackup(text))
     }
     suspend fun write(uri: Uri, text: String) = withContext(Dispatchers.IO) {
-        context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray(Charsets.UTF_8)); it.flush() }
-            ?: error(AppStrings.get(R.string.msg_file_write_failed, "无法写入所选位置"))
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        try {
+            // Opening a document for truncation can change it before the first write.
+            val output = context.contentResolver.openOutputStream(uri, "wt")
+                ?: throw IOException("No output stream for the selected document")
+            output.use {
+                it.write(bytes)
+                it.flush()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw BackupWriteException(e)
+        }
     }
 }

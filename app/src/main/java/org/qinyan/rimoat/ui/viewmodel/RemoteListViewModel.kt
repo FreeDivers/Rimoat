@@ -181,6 +181,7 @@ class RemoteListViewModel(
         viewModelScope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
+            catch (_: BackupWriteException) { _operationError.value = UiText.resource(R.string.backup_export_write_failed) }
             catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_file_operation_failed, e.uiTextDetail(R.string.msg_file_unavailable)) }
             finally { _transferBusy.value = false }
         }

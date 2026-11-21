@@ -51,7 +51,7 @@
     <string name="msg_remote_file_replace_failed">リモコンファイルを置き換えられません。元のファイルは保持されています。</string>
     <string name="msg_backup_too_large">バックアップが 8 MB を超えています</string>
     <string name="msg_file_read_failed">選択したファイルを読み込めません</string>
-    <string name="msg_file_write_failed">選択した場所に書き込めません</string>
+    <string name="backup_export_write_failed">エクスポートに失敗しました。選択したファイルは空になったか、一部しか書き込まれていない可能性があります。新しいファイル名で再度エクスポートしてください。</string>
     <string name="msg_ac_encoder_unavailable">この機器では完全なエアコンエンコーダーを読み込めません</string>
     <string name="msg_backup_format_unsupported">対応していないバックアップ形式またはバージョンです</string>
     <string name="msg_backup_profile_count">バックアップにはリモコンを 1～%1$s 件含める必要があります</string>

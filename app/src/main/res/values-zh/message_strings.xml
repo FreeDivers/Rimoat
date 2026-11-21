@@ -51,7 +51,7 @@
     <string name="msg_remote_file_replace_failed">无法替换遥控器文件，原文件已保留</string>
     <string name="msg_backup_too_large">备份超过 8 MB</string>
     <string name="msg_file_read_failed">无法读取所选文件</string>
-    <string name="msg_file_write_failed">无法写入所选位置</string>
+    <string name="backup_export_write_failed">导出失败。所选文件可能已被清空或只写入了一部分，请用新文件名重新导出。</string>
     <string name="msg_ac_encoder_unavailable">此设备无法加载完整空调编码器</string>
     <string name="msg_backup_format_unsupported">不支持此备份格式或版本</string>
     <string name="msg_backup_profile_count">备份须包含 1–%1$s 个遥控器</string>
