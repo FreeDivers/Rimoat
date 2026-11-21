@@ -187,8 +187,8 @@ class IrTransmitterManager(
      * 2. If user selected a specific transmitter type -> use that transmitter
      * 3. Priority Auto-resolution:
      *    - Supported USB dongles, then serial IR modules
-     *    - 3.5mm Audio IR
      *    - Native BuiltIn IR
+     *    - 3.5mm Audio IR
      *    - Fallback -> MockIrTransmitter
      */
     private fun resolveActiveTransmitter(): IrTransmitter {
@@ -214,8 +214,8 @@ class IrTransmitterManager(
             tiqiaaReady -> tiqiaaTransmitter
             elkSmartReady -> elkSmartTransmitter
             serialReady -> usbSerialTransmitter
-            audioReady -> audioTransmitter
             builtInReady -> builtInTransmitter
+            audioReady -> audioTransmitter
             else -> mockTransmitter
         }
     }

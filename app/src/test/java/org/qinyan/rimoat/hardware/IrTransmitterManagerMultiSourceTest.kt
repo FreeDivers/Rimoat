@@ -1,24 +1,110 @@
 package org.qinyan.rimoat.hardware
 
+import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
+import android.hardware.ConsumerIrManager
+import android.media.AudioManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import org.robolectric.shadow.api.Shadow
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class, shadows = [FakeConsumerIrManager::class])
 @OptIn(ExperimentalCoroutinesApi::class)
 class IrTransmitterManagerMultiSourceTest {
 
     private fun createMockContext(): Context {
-        return object : ContextWrapper(null) {
+        return object : ContextWrapper(RuntimeEnvironment.getApplication()) {
             override fun getApplicationContext(): Context = this
             override fun getSystemService(name: String): Any? = null
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun configureWiredAudio(hasEmitter: Boolean): Application {
+        val app = RuntimeEnvironment.getApplication()
+        val irManager = app.getSystemService(Context.CONSUMER_IR_SERVICE) as ConsumerIrManager
+        Shadow.extract<FakeConsumerIrManager>(irManager).hasEmitter = hasEmitter
+        val audioManager = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioManager.isWiredHeadsetOn = true
+        return app
+    }
+
+    @Test
+    fun autoPrefersBuiltInIrWhenWiredAudioIsAlsoAvailable() = runTest {
+        val app = configureWiredAudio(hasEmitter = true)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val manager = IrTransmitterManager(app, scope)
+        try {
+            manager.refreshHardware()
+            assertTrue(manager.builtInTransmitter.isReady.value)
+            assertTrue(manager.audioTransmitter.isReady.value)
+            assertEquals(TransmitterType.BUILT_IN, manager.currentTransmitterType())
+            assertEquals(TransmitterType.BUILT_IN, manager.activeTransmitter.value.type)
+
+            val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560))
+            val receipt = manager.transmitWithReceipt(listOf(signal)).getOrThrow()
+            assertFalse(receipt.simulated)
+            assertEquals(TransmitterType.BUILT_IN, manager.lastTransmitLog.value?.transmitterType)
+            val irManager = app.getSystemService(Context.CONSUMER_IR_SERVICE) as ConsumerIrManager
+            val hardware = Shadow.extract<FakeConsumerIrManager>(irManager)
+            assertEquals(signal.frequencyHz, hardware.lastFrequency)
+            assertArrayEquals(signal.patternMicros, hardware.lastPattern)
+        } finally {
+            manager.release()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun manualAudioSelectionOverridesAvailableBuiltInIr() = runTest {
+        val app = configureWiredAudio(hasEmitter = true)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val manager = IrTransmitterManager(app, scope)
+        try {
+            manager.refreshHardware()
+            manager.selectTransmitterType(TransmitterType.AUDIO)
+            assertEquals(TransmitterType.AUDIO, manager.currentTransmitterType())
+            assertEquals(TransmitterType.AUDIO, manager.activeTransmitter.value.type)
+
+            manager.selectTransmitterType(null)
+            assertEquals(TransmitterType.BUILT_IN, manager.currentTransmitterType())
+            assertEquals(TransmitterType.BUILT_IN, manager.activeTransmitter.value.type)
+        } finally {
+            manager.release()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun autoFallsBackToWiredAudioWhenBuiltInIrIsUnavailable() = runTest {
+        val app = configureWiredAudio(hasEmitter = false)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val manager = IrTransmitterManager(app, scope)
+        try {
+            manager.refreshHardware()
+            assertFalse(manager.builtInTransmitter.isReady.value)
+            assertTrue(manager.audioTransmitter.isReady.value)
+            assertEquals(TransmitterType.AUDIO, manager.currentTransmitterType())
+            assertEquals(TransmitterType.AUDIO, manager.activeTransmitter.value.type)
+        } finally {
+            manager.release()
+            scope.cancel()
         }
     }
 

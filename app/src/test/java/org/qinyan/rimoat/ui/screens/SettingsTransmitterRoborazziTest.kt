@@ -1,7 +1,13 @@
 package org.qinyan.rimoat.ui.screens
 
 import android.app.Application
+import android.content.Context
+import android.hardware.ConsumerIrManager
+import android.media.AudioManager
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
@@ -38,9 +44,11 @@ import org.qinyan.rimoat.data.BackupFileStore
 import org.qinyan.rimoat.data.RemoteRepository
 import org.qinyan.rimoat.data.ThemePreferences
 import org.qinyan.rimoat.hardware.IrTransmitterManager
+import org.qinyan.rimoat.hardware.FakeConsumerIrManager
 import org.qinyan.rimoat.hardware.TransmitterType
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.ui.components.HardwareStatusButton
+import org.qinyan.rimoat.ui.components.TransmitterSelectionBottomSheet
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import org.robolectric.RobolectricTestRunner
@@ -48,12 +56,14 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
+import org.robolectric.shadow.api.Shadow
 
 @RunWith(RobolectricTestRunner::class)
 @Config(
     sdk = [35],
     qualifiers = "zh-rCN-w411dp-h891dp-mdpi",
-    application = Application::class
+    application = Application::class,
+    shadows = [FakeConsumerIrManager::class]
 )
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @LooperMode(LooperMode.Mode.PAUSED)
@@ -67,6 +77,70 @@ class SettingsTransmitterRoborazziTest {
             imageIoFormat = LosslessWebPImageIoFormat()
         )
     )
+
+    @Test
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Suppress("DEPRECATION")
+    fun automaticChannelPrefersBuiltInWithHeadsetAndPreservesManualAudioSelection() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val consumerIr = app.getSystemService(Context.CONSUMER_IR_SERVICE) as ConsumerIrManager
+        Shadow.extract<FakeConsumerIrManager>(consumerIr).hasEmitter = true
+        val audioManager = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioManager.isWiredHeadsetOn = true
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val manager = IrTransmitterManager(app, scope)
+        manager.setForceMockMode(false)
+        manager.selectTransmitterType(null)
+
+        try {
+            manager.refreshHardware()
+            composeRule.waitUntil(10_000) {
+                manager.transmitterType.value == TransmitterType.BUILT_IN &&
+                    manager.availableTransmitters.value.any { it.type == TransmitterType.AUDIO }
+            }
+            composeRule.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    TransmitterSelectionBottomSheet(
+                        transmitterManager = manager,
+                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                        onDismissRequest = {}
+                    )
+                }
+            }
+
+            val autoLabel = app.getString(R.string.control_auto_select)
+            val builtInLabel = app.getString(R.string.control_builtin_accessory)
+            val audioLabel = app.getString(R.string.control_audio_accessory)
+            composeRule.onNode(hasText(autoLabel) and hasClickAction()).assertIsSelected()
+            composeRule.onNode(hasText(builtInLabel) and !hasClickAction()).assertIsDisplayed()
+            assertEquals(TransmitterType.BUILT_IN, manager.currentTransmitterType())
+            composeRule.onNode(isDialog()).captureRoboImage(
+                filePath = "src/test/screenshots/transmitter_auto_builtin_with_headset.webp",
+                roborazziOptions = screenshotOptions
+            )
+
+            composeRule.onNode(hasText(audioLabel) and hasClickAction()).performClick()
+            composeRule.waitUntil(10_000) { manager.transmitterType.value == TransmitterType.AUDIO }
+            composeRule.onNode(hasText(audioLabel) and hasClickAction()).assertIsSelected()
+            composeRule.onNode(hasText(audioLabel) and !hasClickAction()).assertIsDisplayed()
+            assertEquals(TransmitterType.AUDIO, manager.currentTransmitterType())
+            composeRule.onNode(isDialog()).captureRoboImage(
+                filePath = "src/test/screenshots/transmitter_manual_audio_with_builtin.webp",
+                roborazziOptions = screenshotOptions
+            )
+
+            composeRule.onNode(hasText(autoLabel) and hasClickAction()).performClick()
+            composeRule.waitUntil(10_000) { manager.transmitterType.value == TransmitterType.BUILT_IN }
+            composeRule.onNode(hasText(autoLabel) and hasClickAction()).assertIsSelected()
+            composeRule.onNode(hasText(builtInLabel) and !hasClickAction()).assertIsDisplayed()
+            assertNull(manager.selectedTransmitterType.value)
+            assertEquals(TransmitterType.BUILT_IN, manager.currentTransmitterType())
+        } finally {
+            manager.release()
+            runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
+        }
+    }
 
     @Test
     fun settingsShowsTransmitterChannelPickerInsteadOfMockModeSwitch() {
