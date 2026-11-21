@@ -1,5 +1,8 @@
 package org.qinyan.rimoat.ui.screens
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import org.qinyan.rimoat.i18n.localizedLabel
 
 import org.qinyan.rimoat.i18n.localizedButtonLabel
@@ -21,15 +24,10 @@ import org.qinyan.rimoat.ui.components.RemoteFunctionGrid
 import org.qinyan.rimoat.ui.components.ActionTooltip
 import org.qinyan.rimoat.ui.components.CenteredContent
 import org.qinyan.rimoat.ui.components.LocalCompactRemoteButtons
-import org.qinyan.rimoat.ui.components.RecordedItem
-import org.qinyan.rimoat.ui.components.isWideLayout
-import org.qinyan.rimoat.ui.components.recordItems
-import org.qinyan.rimoat.ui.components.replay
+import org.qinyan.rimoat.ui.components.rememberWideLayout
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.VerticalDivider
 import org.qinyan.rimoat.ui.theme.Spacing
 
 import org.qinyan.rimoat.ui.motion.ExpandSection
@@ -188,6 +186,13 @@ private fun RemoteControlContent(
     onBack: () -> Unit,
     onEdit: () -> Unit
 ) {
+    val wide = rememberWideLayout()
+    var selectedControlPage by androidx.compose.runtime.saveable.rememberSaveable(viewModel.remoteId) { mutableStateOf(0) }
+    var showNumberPad by androidx.compose.runtime.saveable.rememberSaveable(viewModel.remoteId) { mutableStateOf(false) }
+    val primaryScroll = rememberScrollState()
+    val secondaryScroll = rememberScrollState()
+    val regularListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val moreListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val remote by viewModel.remoteProfile.collectAsStateWithLifecycle()
     val isRepositoryLoaded by viewModel.isRepositoryLoaded.collectAsStateWithLifecycle()
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -201,6 +206,7 @@ private fun RemoteControlContent(
     val isDemonstrating by viewModel.isDemonstrating.collectAsStateWithLifecycle()
     val isTransmitting by viewModel.isTransmitting.collectAsStateWithLifecycle()
     val screenActive = LocalMotionActive.current
+    val hostActivity = androidx.compose.ui.platform.LocalContext.current.findActivity()
     var visitRecorded by remember(viewModel) { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(screenActive, viewModel) {
         if (screenActive && !visitRecorded) {
@@ -211,8 +217,10 @@ private fun RemoteControlContent(
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(viewModel) {
         onDispose {
-            viewModel.setLearningMode(false)
-            if (viewModel.learningDialogButton.value != null) viewModel.dismissLearningDialog()
+            if (hostActivity?.isChangingConfigurations != true) {
+                viewModel.setLearningMode(false)
+                if (viewModel.learningDialogButton.value != null) viewModel.dismissLearningDialog()
+            }
         }
     }
     androidx.compose.runtime.DisposableEffect(viewModel, lifecycleOwner, screenActive) {
@@ -228,6 +236,7 @@ private fun RemoteControlContent(
     }
     val isLearningMode by viewModel.isLearningMode.collectAsStateWithLifecycle()
     val learningDialogButton by viewModel.learningDialogButton.collectAsStateWithLifecycle()
+    val capturedLearningSignal by viewModel.capturedLearningSignal.collectAsStateWithLifecycle()
     val operationError by viewModel.operationError.collectAsStateWithLifecycle()
     val learningError by viewModel.learningError.collectAsStateWithLifecycle()
     val isSavingButton by viewModel.isSavingButton.collectAsStateWithLifecycle()
@@ -399,6 +408,8 @@ private fun RemoteControlContent(
                         transmitterManager = transmitterMgr,
                         isSaving = isSavingButton,
                         saveError = learningError?.resolve(context),
+                        initialCapturedSignal = capturedLearningSignal?.takeIf { it.first == buttonToLearn.id }?.second,
+                        onCaptureChanged = { signal -> viewModel.updateLearningCapture(buttonToLearn.id, signal) },
                         onDismissRequest = { viewModel.dismissLearningDialog() },
                         onSaveLearnedButton = { btn, signal ->
                             viewModel.saveLearnedButton(btn, signal)
@@ -446,7 +457,6 @@ private fun RemoteControlContent(
                 } else {
                     extraLabels.size
                 }
-                val wide = isWideLayout(maxWidth, maxHeight)
                 val inline = !isLearningMode && compactExtensionsFit(
                     rowGroups = inlineGroups,
                     width = if (wide) maxWidth / 2 else maxWidth,
@@ -454,9 +464,28 @@ private fun RemoteControlContent(
                     extensionCount = inlineCount
                 )
                 val hasMore = if (dynamicAc) extraLabels.isNotEmpty() || isLearningMode else extras.isNotEmpty()
-                RemoteControlPages(hasMore = hasMore && !inline) { morePage ->
-                CompositionLocalProvider(LocalCompactRemoteButtons provides (wide && !morePage)) {
-                val acSideBySide = wide && !morePage && dynamicAc
+                if (wide) {
+                    LandscapeRemotePanel(
+                        profile = profile, acState = acState, isDemonstrating = isDemonstrating,
+                        availableAcActions = availableAcActions, unavailableReasons = unavailableReasons,
+                        isLearningMode = isLearningMode, isTransmitting = isTransmitting,
+                        selectedPage = selectedControlPage, onPageSelected = { selectedControlPage = it },
+                        showNumberPad = showNumberPad, onNumberPadChange = { showNumberPad = it },
+                        onSendButton = viewModel::sendButton, onLearnButton = viewModel::startLearningButton,
+                        onRepeatButton = viewModel::repeatButton, onUnavailable = explainUnavailable,
+                        onTogglePower = viewModel::toggleAcPower, onTempUp = viewModel::increaseTemp,
+                        onTempDown = viewModel::decreaseTemp, onCycleMode = viewModel::cycleAcMode,
+                        onCycleWind = viewModel::cycleAcFanSpeed, onAction = viewModel::performAcAction,
+                        onLoadChoices = viewModel::availableAcChoices, onSelectChoice = viewModel::selectAcState,
+                        onResend = viewModel::resendAcSettings, onPreset = viewModel::applyAcPreset,
+                        transmitterType = transmitterType,
+                        singleConfiguredKey = remote?.buttons?.size == 1,
+                        primaryScroll = primaryScroll, secondaryScroll = secondaryScroll
+                    )
+                } else {
+                RemoteControlPages(hasMore = hasMore && !inline, selectedPage = selectedControlPage,
+                    onPageSelected = { selectedControlPage = it }) { morePage ->
+                CompositionLocalProvider(LocalCompactRemoteButtons provides false) {
                 val panelItems: LazyListScope.() -> Unit = {
                     when (profile.category) {
                         DeviceCategory.TV -> {
@@ -467,6 +496,7 @@ private fun RemoteControlContent(
                                 isLearningMode = isLearningMode,
                                 onRepeatButton = { viewModel.repeatButton(it) }, morePage = morePage,
                                 inlineExtensions = inline,
+                                showNumberPad = showNumberPad, onNumberPadChange = { showNumberPad = it },
                                 onUnavailable = { explainUnavailable(it, AcUnavailableReason.MISSING_SIGNAL) }
                             )
                         }
@@ -474,38 +504,6 @@ private fun RemoteControlContent(
                             if (profile.useStaticAcButtons || profile.acProtocolId == null) {
                                 genericRemoteItems(profile, viewModel::sendButton, viewModel::startLearningButton, isLearningMode, viewModel::repeatButton, morePage, inline, { explainUnavailable(it, AcUnavailableReason.MISSING_SIGNAL) })
                             } else remoteItem("ac_controls") {
-                            val showSidePresets = acSideBySide && inline && !isLearningMode
-                            val compactPresets: (@Composable () -> Unit)? = if (!showSidePresets) null else ({
-                                val labels = listOf(stringResource(R.string.screen_resend), stringResource(R.string.screen_cool_preset), stringResource(R.string.screen_heat_preset))
-                                val visiblePresets = (0..2).filter { "preset:$it" !in profile.panelLayout.hidden }.sortedBy { profile.panelLayout.rank("preset:$it") }
-                                if (visiblePresets.isNotEmpty()) {
-                                    FlowRow(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        visiblePresets.forEach { index ->
-                                            FilledTonalButton(
-                                                onClick = {
-                                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                                    when(index) {
-                                                    0 -> viewModel.resendAcSettings()
-                                                    1 -> viewModel.applyAcPreset(org.qinyan.rimoat.data.AcSettings(temperature = 26))
-                                                    else -> viewModel.applyAcPreset(org.qinyan.rimoat.data.AcSettings(temperature = 24, mode = org.qinyan.rimoat.data.AcMode.HEAT))
-                                                } },
-                                                enabled = !isTransmitting,
-                                                modifier = Modifier.heightIn(min = 48.dp),
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                            ) {
-                                                Icon(when(index) { 0 -> Icons.Rounded.Refresh; 1 -> Icons.Rounded.AcUnit; else -> Icons.Rounded.WbSunny },
-                                                    contentDescription = null, modifier = Modifier.size(18.dp))
-                                                Spacer(Modifier.width(6.dp))
-                                                Text(labels[index], maxLines = 1, style = MaterialTheme.typography.labelMedium)
-                                            }
-                                        }
-                                    }
-                                }
-                            })
                             AcRemoteLayout(
                                 profile = profile,
                                 acState = acState,
@@ -519,8 +517,6 @@ private fun RemoteControlContent(
                                 unavailableReasons = unavailableReasons,
                                 onUnavailable = explainUnavailable,
                                 inlineExtensions = inline,
-                                sideBySide = acSideBySide,
-                                presetContent = compactPresets,
                                 onAction = { action, minutes -> viewModel.performAcAction(action, minutes) },
                                 onLoadChoices = viewModel::availableAcChoices,
                                 onSelectChoice = viewModel::selectAcState,
@@ -529,7 +525,7 @@ private fun RemoteControlContent(
                                 isLearningMode = isLearningMode,
                                 onRepeatButton = viewModel::repeatButton, morePage = morePage
                             )
-                            if ((morePage || inline) && !isLearningMode && !showSidePresets) {
+                            if ((morePage || inline) && !isLearningMode) {
                                 Spacer(Modifier.height(Spacing.medium))
                                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                                     val labels = listOf(stringResource(R.string.screen_resend), stringResource(R.string.screen_cool_preset), stringResource(R.string.screen_heat_preset))
@@ -584,44 +580,14 @@ private fun RemoteControlContent(
                         Spacer(modifier = Modifier.height(Spacing.section))
                     }
                 }
-                if (wide && !morePage && profile.category == DeviceCategory.TV) {
-                    TvLandscapeLayout(
-                        profile = profile,
-                        onSendButton = { viewModel.sendButton(it) },
-                        onLearnButton = { viewModel.startLearningButton(it) },
-                        isLearningMode = isLearningMode,
-                        onRepeatButton = { viewModel.repeatButton(it) },
-                        inlineExtensions = inline,
-                        onUnavailable = { explainUnavailable(it, AcUnavailableReason.MISSING_SIGNAL) }
-                    )
-                } else {
-                    val leftKeys = if (wide && !morePage) wideLeftPaneKeys(profile, isLearningMode) else emptySet()
-                    val panes = if (leftKeys.isEmpty()) null else {
-                        val (left, right) = recordItems(panelItems).filter { it.key != "footer" }.partition { it.key in leftKeys }
-                        if (left.isEmpty() || right.isEmpty()) null else left to right
-                    }
-                    if (panes != null) {
-                        val fanSplit = profile.category == DeviceCategory.FAN
-                        CenteredContent(Modifier.fillMaxSize(), maxWidth = if (fanSplit) 760.dp else 920.dp) {
-                            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                                PanelPane(panes.first, Modifier.weight(if (fanSplit) 0.34f else 0.5f))
-                                VerticalDivider(
-                                    modifier = Modifier.fillMaxHeight(0.65f),
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                )
-                                PanelPane(panes.second, Modifier.weight(if (fanSplit) 0.66f else 0.5f))
-                            }
-                        }
-                    } else {
-                        CenteredContent(Modifier.fillMaxSize(), maxWidth = if (acSideBySide) 880.dp else 600.dp) {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = if (acSideBySide) Arrangement.Center else Arrangement.Top
-                            ) { panelItems() }
-                        }
-                    }
+                CenteredContent(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = if (morePage) moreListState else regularListState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) { panelItems() }
+                }
                 }
                 }
                 }
@@ -640,245 +606,12 @@ private fun RemoteControlContent(
     }
 }
 
-/** Panel sections kept on the left pane of the two-pane landscape layout; the rest go right. */
-private fun wideLeftPaneKeys(profile: RemoteProfile, learning: Boolean): Set<String> {
-    fun isPower(b: RemoteButton) = b.iconName == "power" || b.id.contains("power") || b.label.contains("电源") || b.label == "开关"
-    return when (profile.category) {
-        DeviceCategory.TV -> {
-            val standard = tvStandardButtons(profile)
-            if (learning || standard.take(8).any { it != null }) setOf("tv_section_0", "tv_section_1") else emptySet()
-        }
-        DeviceCategory.AC -> emptySet()
-        DeviceCategory.FAN -> if (profile.buttons.any(::isPower)) setOf("fan_power") else emptySet()
-        else -> {
-            val hasDpad = genericDirectionButtons(profile.buttons).keys.containsAll(listOf("上", "下", "左", "右"))
-            if (profile.buttons.any(::isPower) || hasDpad) setOf("generic_header") else emptySet()
-        }
-    }
-}
-
-@Composable
-private fun PanelPane(items: List<RecordedItem>, modifier: Modifier) {
-    LazyColumn(
-        modifier = modifier.fillMaxHeight(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) { replay(items) }
-}
-
-/** Ergonomic 3-zone landscape TV deck: D-Pad left, Power/Nav center, Volume/Channel rockers right. */
-@Composable
-private fun TvLandscapeLayout(
-    profile: RemoteProfile,
-    onSendButton: (RemoteButton) -> Unit,
-    onLearnButton: ((RemoteButton) -> Unit)? = null,
-    isLearningMode: Boolean = false,
-    onRepeatButton: ((RemoteButton) -> Unit)? = null,
-    inlineExtensions: Boolean = false,
-    onUnavailable: ((RemoteButton) -> Unit)? = null
-) {
-    val standard = tvStandardButtons(profile)
-    val powerBtn = standard[0]
-    val sourceBtn = standard[1]
-    val muteBtn = standard[2]
-    val upBtn = standard[3]
-    val downBtn = standard[4]
-    val leftBtn = standard[5]
-    val rightBtn = standard[6]
-    val okBtn = standard[7]
-    val backBtn = standard[8]
-    val homeBtn = standard[9]
-    val menuBtn = standard[10]
-    val volUpBtn = standard[11]
-    val volDownBtn = standard[12]
-    val chUpBtn = standard[13]
-    val chDownBtn = standard[14]
-
-    val topKeys = listOfNotNull(powerBtn) + listOfNotNull(sourceBtn, muteBtn).sortedBy { profile.panelLayout.rank(panelKey(it)) }
-    val navKeys = listOfNotNull(backBtn, homeBtn, menuBtn).sortedBy { profile.panelLayout.rank(panelKey(it)) }
-    val hasDpad = isLearningMode || listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).isNotEmpty()
-    val hasRockers = listOfNotNull(volUpBtn, volDownBtn, chUpBtn, chDownBtn).isNotEmpty()
-    val numericIds = (0..9).mapNotNull { number -> profile.buttons.firstOrNull { it.label == "$number" || it.id == "tv_num_$number" }?.id }.toSet()
-    val hasNumpad = numericIds.isNotEmpty() || isLearningMode
-    val extraButtons = if (inlineExtensions) remoteExtraButtons(profile) else emptyList()
-    var showNumpad by androidx.compose.runtime.saveable.rememberSaveable(profile.id) { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Column(Modifier.widthIn(max = 920.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (hasDpad) {
-                    DpadController(
-                        onUnavailable = onUnavailable?.let { explain -> { label ->
-                            explain(listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).firstOrNull { it.label == label }
-                                ?: RemoteButton(id = "direction_$label", label = label))
-                        } },
-                        onRepeat = { label -> listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).firstOrNull { it.label == label }?.let { onRepeatButton?.invoke(it) } },
-                        onUp = { upBtn?.let { onSendButton(it) } },
-                        onDown = { downBtn?.let { onSendButton(it) } },
-                        onLeft = { leftBtn?.let { onSendButton(it) } },
-                        onRight = { rightBtn?.let { onSendButton(it) } },
-                        onOk = { okBtn?.takeIf { it.hasSignal }?.let(onSendButton) },
-                        isLearningMode = isLearningMode,
-                        availableKeys = listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).filter { it.hasSignal }.map { it.label }.toSet(),
-                        onLearn = onLearnButton?.let { learn -> { label ->
-                            val button = listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).firstOrNull { it.label == label }
-                                ?: RemoteButton(id = "direction_$label", label = label)
-                            learn(button)
-                        } }
-                    )
-                }
-
-                if (topKeys.isNotEmpty() || navKeys.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        if (topKeys.isNotEmpty()) {
-                            RemoteFunctionGrid(topKeys, onSendButton, onLearnButton, isLearningMode, onRepeatButton, onUnavailable = onUnavailable)
-                        }
-                        if (navKeys.isNotEmpty()) {
-                            RemoteFunctionGrid(navKeys, onSendButton, onLearnButton, isLearningMode, onRepeatButton, onUnavailable = onUnavailable)
-                        }
-                    }
-                }
-
-                if (hasRockers || hasNumpad) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (hasRockers) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                if (volUpBtn != null || volDownBtn != null) {
-                                    Column(Modifier.width(88.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        if (volUpBtn != null) {
-                                            RemoteButtonView(
-                                                label = AppStrings.get(R.string.screen_volume_up, "音量+"),
-                                                iconName = "volume_up",
-                                                onClick = { onSendButton(volUpBtn) },
-                                                enabled = isLearningMode || volUpBtn.hasSignal,
-                                                onUnavailable = onUnavailable?.let { explain -> { explain(volUpBtn) } },
-                                                onRepeat = onRepeatButton?.let { action -> { action(volUpBtn) } },
-                                                onLongClick = onLearnButton?.let { { it(volUpBtn) } },
-                                                isLearningMode = isLearningMode,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                        Spacer(Modifier.height(Spacing.small))
-                                        if (volDownBtn != null) {
-                                            RemoteButtonView(
-                                                label = AppStrings.get(R.string.screen_volume_down, "音量-"),
-                                                iconName = "volume_down",
-                                                onClick = { onSendButton(volDownBtn) },
-                                                enabled = isLearningMode || volDownBtn.hasSignal,
-                                                onUnavailable = onUnavailable?.let { explain -> { explain(volDownBtn) } },
-                                                onRepeat = onRepeatButton?.let { action -> { action(volDownBtn) } },
-                                                onLongClick = onLearnButton?.let { { it(volDownBtn) } },
-                                                isLearningMode = isLearningMode,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                    }
-                                }
-                                if (chUpBtn != null || chDownBtn != null) {
-                                    Column(Modifier.width(88.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        if (chUpBtn != null) {
-                                            RemoteButtonView(
-                                                label = AppStrings.get(R.string.screen_channel_up, "频道+"),
-                                                iconName = "arrow_drop_up",
-                                                onClick = { onSendButton(chUpBtn) },
-                                                enabled = isLearningMode || chUpBtn.hasSignal,
-                                                onUnavailable = onUnavailable?.let { explain -> { explain(chUpBtn) } },
-                                                onRepeat = onRepeatButton?.let { action -> { action(chUpBtn) } },
-                                                onLongClick = onLearnButton?.let { { it(chUpBtn) } },
-                                                isLearningMode = isLearningMode,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                        Spacer(Modifier.height(Spacing.small))
-                                        if (chDownBtn != null) {
-                                            RemoteButtonView(
-                                                label = AppStrings.get(R.string.screen_channel_down, "频道-"),
-                                                iconName = "arrow_drop_down",
-                                                onClick = { onSendButton(chDownBtn) },
-                                                enabled = isLearningMode || chDownBtn.hasSignal,
-                                                onUnavailable = onUnavailable?.let { explain -> { explain(chDownBtn) } },
-                                                onRepeat = onRepeatButton?.let { action -> { action(chDownBtn) } },
-                                                onLongClick = onLearnButton?.let { { it(chDownBtn) } },
-                                                isLearningMode = isLearningMode,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if (hasNumpad) {
-                            ActionTooltip(if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers, "收起数字键") else AppStrings.get(R.string.screen_expand_numbers, "展开数字键")) {
-                                FilledTonalIconToggleButton(
-                                    checked = showNumpad,
-                                    onCheckedChange = { showNumpad = it },
-                                    modifier = Modifier.size(48.dp)
-                                ) {
-                                    Icon(if (showNumpad) Icons.Rounded.KeyboardHide else Icons.Rounded.Dialpad,
-                                        contentDescription = if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers, "收起数字键") else AppStrings.get(R.string.screen_expand_numbers, "展开数字键"),
-                                        modifier = Modifier.size(24.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (hasNumpad) {
-                ExpandSection(visible = showNumpad) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.small),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        val numRows = listOf(listOf("1", "2", "3", "4", "5"), listOf("6", "7", "8", "9", "0"))
-                        for (row in numRows) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                for (num in row) {
-                                    val numBtn = profile.buttons.firstOrNull { it.label == num || it.id == "tv_num_$num" }
-                                        ?: RemoteButton(id = "num_$num", label = num)
-                                    RemoteButtonView(
-                                        label = num,
-                                        onClick = { if (numBtn.hasSignal) onSendButton(numBtn) },
-                                        onRepeat = onRepeatButton?.let { action -> { action(numBtn) } },
-                                        enabled = numBtn.hasSignal || isLearningMode,
-                                        onUnavailable = onUnavailable?.let { explain -> { explain(numBtn) } },
-                                        onLongClick = onLearnButton?.let { { it(numBtn) } },
-                                        isLearningMode = isLearningMode,
-                                        modifier = Modifier.width(56.dp),
-                                        diameter = 56.dp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (extraButtons.isNotEmpty()) {
-                Spacer(Modifier.height(Spacing.large))
-                RemoteFunctionGrid(extraButtons, onSendButton, onLearnButton, isLearningMode, onRepeatButton, onUnavailable = onUnavailable)
-            }
-        }
+private fun Context.findActivity(): Activity? {
+    var context = this
+    while (true) {
+        if (context is Activity) return context
+        if (context !is ContextWrapper) return null
+        context = context.baseContext
     }
 }
 
@@ -899,7 +632,9 @@ internal fun LazyListScope.tvRemoteItems(
     onRepeatButton: ((RemoteButton) -> Unit)? = null,
     morePage: Boolean = false,
     inlineExtensions: Boolean = false,
-    onUnavailable: ((RemoteButton) -> Unit)? = null
+    onUnavailable: ((RemoteButton) -> Unit)? = null,
+    showNumberPad: Boolean? = null,
+    onNumberPadChange: ((Boolean) -> Unit)? = null
 ) {
     val standard = tvStandardButtons(profile)
     val powerBtn = standard[0]
@@ -1051,12 +786,13 @@ internal fun LazyListScope.tvRemoteItems(
         val hasNumpad = numericIds.isNotEmpty() || isLearningMode
         if (!hasNumpad && extraButtons.isEmpty()) return@remoteItem
         if (hasNumpad) {
-        var showNumpad by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+        var localNumberPad by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+        val showNumpad = showNumberPad ?: localNumberPad
         // 5. Collapsible Numpad Toggle
         ActionTooltip(if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers, "收起数字键") else AppStrings.get(R.string.screen_expand_numbers, "展开数字键")) {
         FilledTonalIconToggleButton(
             checked = showNumpad,
-            onCheckedChange = { showNumpad = it },
+            onCheckedChange = { onNumberPadChange?.invoke(it) ?: run { localNumberPad = it } },
             modifier = Modifier.size(48.dp)
         ) {
             Icon(if (showNumpad) Icons.Rounded.KeyboardHide else Icons.Rounded.Dialpad,
@@ -1117,6 +853,8 @@ internal fun LazyListScope.tvRemoteItems(
 /**
  * Air Conditioner Layout: Status Screen -> Power/Temp -> Modes & Fan Controls
  */
+enum class AcLayoutPart { ALL, TEMPERATURE, FUNCTIONS, EXTENSIONS }
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AcRemoteLayout(
@@ -1140,6 +878,7 @@ fun AcRemoteLayout(
     inlineExtensions: Boolean = false,
     sideBySide: Boolean = false,
     presetContent: (@Composable () -> Unit)? = null,
+    part: AcLayoutPart = AcLayoutPart.ALL,
     unavailableReasons: Map<AcAction, AcUnavailableReason> = emptyMap(),
     onUnavailable: (RemoteButton, AcUnavailableReason) -> Unit = { _, _ -> }
 ) {
@@ -1261,15 +1000,25 @@ fun AcRemoteLayout(
             onRepeat = onRepeatButton?.let { { it(button) } },
             onLongClick = onLearnButton?.let { { it(button) } }, isLearningMode = isLearningMode)
     }
-    if (!morePage) {
+    if (part == AcLayoutPart.TEMPERATURE) {
+        temperatureCard()
+        return
+    }
+    if (!morePage && part != AcLayoutPart.EXTENSIONS) {
         val displayButtons = mainActions.map { actionButtons.getValue(it) } +
             if (inlineExtensions) extensionGroups.flatten() else emptyList()
         val buttonRows: @Composable () -> Unit = {
-            displayButtons.chunked(3).forEach { row ->
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val columns = org.qinyan.rimoat.ui.components.extensionColumns(displayButtons.map { localizedButtonLabel(it) }, maxWidth)
+                .coerceAtMost(displayButtons.size.coerceAtLeast(1))
+            Column {
+            displayButtons.chunked(columns).forEach { row ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { renderExtensionButton(it) }
-                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
+            }
+            }
             }
         }
         if (sideBySide) {
@@ -1282,8 +1031,10 @@ fun AcRemoteLayout(
                 Column(Modifier.weight(0.54f)) { buttonRows() }
             }
         } else {
-            temperatureCard()
-            Spacer(Modifier.height(Spacing.page))
+            if (part == AcLayoutPart.ALL) {
+                temperatureCard()
+                Spacer(Modifier.height(Spacing.page))
+            }
             buttonRows()
         }
     }
@@ -1294,7 +1045,7 @@ fun AcRemoteLayout(
             })
     }
 
-    if (morePage) {
+    if (morePage || part == AcLayoutPart.EXTENSIONS) {
         extensionGroups.filter { it.isNotEmpty() }.forEachIndexed { index, extendedButtons ->
             if (index > 0) Spacer(Modifier.height(24.dp))
             RemoteFunctionGroups(extendedButtons, onSendButton, onLearnButton, isLearningMode, onRepeatButton,
@@ -1307,7 +1058,7 @@ fun AcRemoteLayout(
 /**
  * Fan Appliance Layout: Power -> Speed -> Oscillation -> Timer -> Mode
  */
-private fun LazyListScope.fanRemoteItems(
+internal fun LazyListScope.fanRemoteItems(
     profile: RemoteProfile,
     onSendButton: (RemoteButton) -> Unit,
     onLearnButton: ((RemoteButton) -> Unit)? = null,
@@ -1354,7 +1105,7 @@ private fun LazyListScope.fanRemoteItems(
 /**
  * Generic Grid Remote Layout for Audio, Projector, and Custom Profiles
  */
-private fun LazyListScope.genericRemoteItems(
+internal fun LazyListScope.genericRemoteItems(
     profile: RemoteProfile,
     onSendButton: (RemoteButton) -> Unit,
     onLearnButton: ((RemoteButton) -> Unit)? = null,

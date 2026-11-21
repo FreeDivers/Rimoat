@@ -25,6 +25,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.hardware.serial.SerialIrModule
@@ -75,12 +77,15 @@ internal fun SerialIrSettingsForm(
     var saving by remember { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val wide = rememberWideLayout()
+    val configuration = LocalConfiguration.current
     MotionAlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        modifier = modifier,
+        modifier = if (wide) modifier.fillMaxWidth(.96f).widthIn(max = 960.dp) else modifier,
+        properties = DialogProperties(usePlatformDefaultWidth = !wide),
         title = { Text(AppStrings.get(R.string.control_serial_config, "串口模块配置")) },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            val modules: @Composable () -> Unit = {
                 Column(Modifier.selectableGroup()) {
                     SerialIrModule.entries.forEach { option ->
                         SingleChoiceListItem(
@@ -93,6 +98,8 @@ internal fun SerialIrSettingsForm(
                         )
                     }
                 }
+            }
+            val parameters: @Composable () -> Unit = {
                 SerialFormSection(visible = module != SerialIrModule.UNCONFIGURED) {
                     HorizontalDivider()
                     Column {
@@ -174,6 +181,21 @@ internal fun SerialIrSettingsForm(
                 }, label = "SerialFormError") { message ->
                     if (message != null) Text(message, modifier = Modifier.padding(top = 12.dp),
                         color = MaterialTheme.colorScheme.error)
+                }
+            }
+            BoxWithConstraints(Modifier.fillMaxWidth().heightIn(
+                max = (configuration.screenHeightDp.dp - 160.dp).coerceAtLeast(80.dp))) {
+                if (maxWidth >= 480.dp) {
+                    TwoPaneLayout(primaryFraction = .4f, primary = {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { modules() }
+                    }, secondary = {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { parameters() }
+                    })
+                } else {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        modules()
+                        parameters()
+                    }
                 }
             }
         },

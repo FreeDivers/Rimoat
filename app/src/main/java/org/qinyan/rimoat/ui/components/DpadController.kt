@@ -64,7 +64,8 @@ fun DpadController(
     onLearn: ((String) -> Unit)? = null,
     availableKeys: Set<String> = setOf("上", "下", "左", "右", "OK"),
     onRepeat: ((String) -> Unit)? = null,
-    onUnavailable: ((String) -> Unit)? = null
+    onUnavailable: ((String) -> Unit)? = null,
+    visibleKeys: Set<String> = setOf("上", "下", "左", "右", "OK")
 ) {
     Surface(modifier = modifier.size(size.coerceAtLeast(216.dp)).semantics { isTraversalGroup = true }, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainer) {
         Box(Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
@@ -72,7 +73,7 @@ fun DpadController(
                 Triple("上", Alignment.TopCenter, onUp), Triple("下", Alignment.BottomCenter, onDown),
                 Triple("左", androidx.compose.ui.AbsoluteAlignment.CenterLeft, onLeft), Triple("右", androidx.compose.ui.AbsoluteAlignment.CenterRight, onRight),
                 Triple("OK", Alignment.Center, onOk)
-            ).forEach { (label, alignment, send) ->
+            ).filter { it.first in visibleKeys }.forEach { (label, alignment, send) ->
                 DpadKey(
                     label = label,
                     onClick = send,
@@ -154,7 +155,7 @@ private fun DpadKey(
     val scale = animateFloatAsState(if (pressed) 0.97f else 1f, AppMotion.tween(if (pressed) 90 else 140), label = "DpadPress")
     val click = {
         if (!enabled && onUnavailable != null) diagnose()
-        if (active && enabled && !holdCancelled && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+        if (active && enabled && (isLearningMode || !holdCancelled) && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             if (isLearningMode) {
                 clickHaptic()
                 onLearn()

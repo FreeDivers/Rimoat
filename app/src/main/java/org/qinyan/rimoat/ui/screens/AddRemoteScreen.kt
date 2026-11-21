@@ -2,6 +2,8 @@ package org.qinyan.rimoat.ui.screens
 
 import androidx.compose.foundation.layout.fillMaxHeight
 import org.qinyan.rimoat.ui.components.contentWidth
+import org.qinyan.rimoat.ui.components.TwoPaneLayout
+import org.qinyan.rimoat.ui.components.rememberWideLayout
 import org.qinyan.rimoat.R
 
 import org.qinyan.rimoat.i18n.asString
@@ -171,6 +173,7 @@ fun AddRemoteScreen(
             ) { Text(stringResource(R.string.screen_cancel)) }
         }
     )
+    val wide = rememberWideLayout()
     val blocked = uiState.isSaving || uiState.isSendingTest
     // Keep the brand position outside the animated step so returning from matching restores it.
     val brandListState = rememberSaveable(
@@ -209,7 +212,7 @@ fun AddRemoteScreen(
                 }
             },
             bottomBar = {
-                if (stepState.step == AddRemoteStep.WIZARD) Column(Modifier.navigationBarsPadding()) {
+                if (stepState.step == AddRemoteStep.WIZARD && !wide) Column(Modifier.navigationBarsPadding()) {
                     CodeMatchingActions(stepState, onMatched = {
                         HapticHelper.performRemoteClick(haptic, context)
                         viewModel.proceedToConfirm()
@@ -323,7 +326,7 @@ fun AddRemoteScreen(
                                 viewModel.prevModel()
                             },
                             onConfirmTest = viewModel::confirmTest,
-                            showActions = false,
+                            showActions = wide,
                             onMatched = {
                                 HapticHelper.performRemoteClick(haptic, context)
                                 viewModel.proceedToConfirm()
@@ -377,28 +380,15 @@ fun CategorySelectionView(
 
     val context = LocalContext.current
     val textMeasurer = rememberTextMeasurer()
+    val categoryGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val labelStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
     val categoryLabels = categories.map { it to it.displayName(context) }
     val labelWidth = categoryLabels.maxOfOrNull { (_, label) ->
         textMeasurer.measure(label, labelStyle, softWrap = false).size.width
     } ?: 0
     val minimumCardWidth = with(LocalDensity.current) { labelWidth.toDp() } + 24.dp
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val availableWidth = (maxWidth - 32.dp).coerceAtLeast(0.dp)
-        val columns = ((availableWidth + Spacing.medium) / (minimumCardWidth + Spacing.medium)).toInt().coerceIn(1, 3)
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
-            verticalArrangement = Arrangement.spacedBy(Spacing.medium),
-            modifier = Modifier.contentWidth(720.dp).fillMaxHeight()
-        ) {
-            item(
-                key = "learn_physical_hero",
-                span = { GridItemSpan(maxLineSpan) },
-                contentType = "hero"
-            ) {
-                // Hero Card: Custom Learned Remote Wizard
+    val wide = rememberWideLayout()
+    val learnEntry: @Composable () -> Unit = {
                 Card(
                     onClick = onCustomWizardClick,
 
@@ -448,15 +438,36 @@ fun CategorySelectionView(
                         )
                     }
                 }
-            }
-            items(categoryLabels, key = { (cat, _) -> cat.id }) { (cat, label) ->
-                CategoryGridCard(
-                    category = cat,
-                    label = label,
-                    onClick = { onCategoryClick(cat) }
-                )
+    }
+    val categoriesContent: @Composable () -> Unit = {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val availableWidth = (maxWidth - 32.dp).coerceAtLeast(0.dp)
+            val columns = ((availableWidth + Spacing.medium) / (minimumCardWidth + Spacing.medium)).toInt().coerceIn(1, 3)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                state = categoryGridState,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+                verticalArrangement = Arrangement.spacedBy(Spacing.medium),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (!wide) item(key = "learn_physical_hero", span = { GridItemSpan(maxLineSpan) }) { learnEntry() }
+                items(categoryLabels, key = { (cat, _) -> cat.id }) { (cat, label) ->
+                    CategoryGridCard(category = cat, label = label, onClick = { onCategoryClick(cat) })
+                }
             }
         }
+    }
+    if (wide) {
+        TwoPaneLayout(
+            modifier = Modifier.fillMaxSize(), primaryFraction = .4f, primaryMaxWidth = 320.dp,
+            primary = {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { learnEntry() }
+            },
+            secondary = categoriesContent
+        )
+    } else {
+        Box(Modifier.contentWidth(720.dp).fillMaxHeight()) { categoriesContent() }
     }
 }
 
@@ -538,15 +549,10 @@ fun ConfirmRemoteView(
     val icon = getCategoryIcon(state.selectedCategory?.code ?: "tv")
     val canSave = state.customRemoteName.isNotBlank() && !state.isLoading && !state.isSaving
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(0.dp)
-    ) {
+    val wide = rememberWideLayout()
+    val primaryScroll = rememberScrollState()
+    val secondaryScroll = rememberScrollState()
+    val summary: @Composable () -> Unit = {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.primaryContainer,
@@ -577,6 +583,9 @@ fun ConfirmRemoteView(
 
         Spacer(modifier = Modifier.height(Spacing.section))
 
+
+    }
+    val form: @Composable () -> Unit = {
         OutlinedTextField(
             value = state.customRemoteName,
             onValueChange = { if (it.length <= 100) onNameChange(it) },
@@ -591,7 +600,11 @@ fun ConfirmRemoteView(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        state.error?.let {
+            Text(it.asString(), color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 12.dp))
+        }
+        Spacer(modifier = Modifier.height(24.dp))
 
         Button(
 
@@ -623,5 +636,20 @@ fun ConfirmRemoteView(
                 )
             }
         }
+    }
+    if (wide) {
+        TwoPaneLayout(
+            modifier = modifier.fillMaxSize().imePadding(), primaryFraction = .4f,
+            primary = {
+                Column(Modifier.fillMaxSize().verticalScroll(primaryScroll).padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) { summary() }
+            },
+            secondary = {
+                Column(Modifier.fillMaxSize().verticalScroll(secondaryScroll).padding(8.dp)) { form() }
+            }
+        )
+    } else {
+        Column(modifier.fillMaxSize().imePadding().verticalScroll(secondaryScroll).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally) { summary(); form() }
     }
 }

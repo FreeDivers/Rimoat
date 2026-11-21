@@ -45,8 +45,11 @@ internal fun LearningKeyWorkspace(
     available: Boolean, receiveConfirmed: Boolean, mock: Boolean,
     onMock: (Boolean) -> Unit, onSelect: (Int) -> Unit, onAdd: () -> Unit,
     onRecord: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    actions: @Composable () -> Unit = {}
 ) {
+    val primaryScroll = rememberScrollState()
+    val secondaryScroll = rememberScrollState()
     val key = page.currentKey ?: return
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -183,14 +186,21 @@ internal fun LearningKeyWorkspace(
         }
         }
     }
+    val wide = rememberWideLayout()
     BoxWithConstraints(modifier) {
-        if (isWideLayout(maxWidth, maxHeight)) {
-            Row(Modifier.fillMaxSize()) {
-                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) { status() }
-                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) { keyGrid() }
-            }
+        if (wide) {
+            TwoPaneLayout(Modifier.fillMaxSize(),
+                primary = {
+                    Column(Modifier.fillMaxSize().verticalScroll(primaryScroll).padding(8.dp)) {
+                        status()
+                        actions()
+                    }
+                },
+                secondary = {
+                    Column(Modifier.fillMaxSize().verticalScroll(secondaryScroll).padding(8.dp)) { keyGrid() }
+                })
         } else {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Column(Modifier.fillMaxSize().verticalScroll(primaryScroll).padding(horizontal = 20.dp, vertical = 8.dp)) {
                 status()
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(Modifier.height(16.dp))
@@ -203,13 +213,15 @@ internal fun LearningKeyWorkspace(
 @Composable
 internal fun LearningKeyActions(
     page: CustomRemoteWizardUiState, available: Boolean, onRecord: () -> Unit,
-    onCancel: () -> Unit, onSkip: () -> Unit, onConfirm: () -> Unit, onTest: () -> Unit
+    onCancel: () -> Unit, onSkip: () -> Unit, onConfirm: () -> Unit, onTest: () -> Unit,
+    inPane: Boolean = false
 ) {
     val key = page.currentKey ?: return
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     Surface(color = MaterialTheme.colorScheme.surface) {
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+        Row(Modifier.fillMaxWidth().then(if (inPane) Modifier else Modifier.navigationBarsPadding())
+            .padding(horizontal = if (inPane) 0.dp else 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
             when (key.status) {
                 KeyLearnStatus.LEARNING -> OutlinedButton(
@@ -224,10 +236,10 @@ internal fun LearningKeyActions(
                     }
                     Button(
                         onClick = { HapticHelper.performRemoteClick(haptic, context); onConfirm() },
-                        Modifier.weight(1f, fill = false).heightIn(min = 56.dp),
+                        Modifier.weight(1f).heightIn(min = 56.dp),
                         enabled = !page.isTestingTransmit,
 
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                     ) { Text(stringResource(R.string.screen_confirm_continue), textAlign = TextAlign.Center) }
                 }
                 else -> {
@@ -235,7 +247,7 @@ internal fun LearningKeyActions(
                         onClick = { HapticHelper.performSelection(haptic, context); onSkip() },
                         Modifier.heightIn(min = 48.dp)
                     ) { Text(stringResource(R.string.screen_skip)) }
-                    Button(onRecord, Modifier.weight(1f, fill = false).heightIn(min = 56.dp), enabled = available) { Text(stringResource(R.string.screen_record_signal)) }
+                    Button(onRecord, Modifier.weight(1f).heightIn(min = 56.dp), enabled = available) { Text(stringResource(R.string.screen_record_signal)) }
                 }
             }
         }

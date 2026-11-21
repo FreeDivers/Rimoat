@@ -29,6 +29,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import org.qinyan.rimoat.ui.components.contentWidth
 import org.qinyan.rimoat.ui.components.recordItems
+import org.qinyan.rimoat.ui.components.replay
+import org.qinyan.rimoat.ui.components.TwoPaneLayout
+import org.qinyan.rimoat.ui.components.rememberWideLayout
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
@@ -66,6 +70,10 @@ import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsClick: () -> Unit = {}, onTrashClick: () -> Unit = {}, onAboutClick: () -> Unit = {}) {
+    val twoColumn = rememberWideLayout()
+    val appearanceScroll = rememberLazyListState()
+    val managementScroll = rememberLazyListState()
+    val portraitScroll = rememberLazyListState()
     val screenActive = LocalMotionActive.current
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -140,9 +148,8 @@ fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsCl
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (transferBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                val twoColumn = maxWidth >= 720.dp
                 val settingsItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
-                item { SettingsSection(stringResource(R.string.settings_group_appearance)) {
+                item("appearance") { SettingsSection(stringResource(R.string.settings_group_appearance)) {
                     val colorModeChoices = listOf(
                         AppColorMode.SYSTEM to R.string.color_mode_system,
                         AppColorMode.LIGHT to R.string.color_mode_light,
@@ -214,11 +221,11 @@ fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsCl
                         }
                     )
                 } }
-                item { SettingsSection(stringResource(R.string.settings_group_remotes)) {
+                item("remotes") { SettingsSection(stringResource(R.string.settings_group_remotes)) {
                     SettingsAction(stringResource(R.string.settings_rooms), Icons.Rounded.MeetingRoom, onClick = onRoomsClick)
                     SettingsAction(stringResource(R.string.settings_trash), Icons.Rounded.DeleteOutline, onClick = onTrashClick)
                 } }
-                item { SettingsSection(stringResource(R.string.settings_group_data)) {
+                item("data") { SettingsSection(stringResource(R.string.settings_group_data)) {
                     SettingsAction(stringResource(R.string.settings_backup_all), Icons.Rounded.FileUpload, enabled = !transferBusy,
                         onClick = { exportLauncher.launch("Rimoat-backup.json") })
                     SettingsAction(stringResource(R.string.settings_import_backup), Icons.Rounded.FileDownload, enabled = !transferBusy,
@@ -226,7 +233,7 @@ fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsCl
                     SettingsAction(stringResource(R.string.migration_ir_import), Icons.Rounded.FileDownload, enabled = !transferBusy,
                         onClick = { showIrFormats = true })
                 } }
-                item { SettingsSection(stringResource(R.string.settings_group_rotation)) {
+                item("rotation") { SettingsSection(stringResource(R.string.settings_group_rotation)) {
                     val directionChoices = listOf(
                         ScreenRotationDirection.REVERSE_PORTRAIT to R.string.rotation_direction_reverse_portrait,
                         ScreenRotationDirection.SENSOR_PORTRAIT to R.string.rotation_direction_sensor_portrait,
@@ -303,7 +310,7 @@ fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsCl
                         }
                     }
                 } }
-                item { SettingsSection(stringResource(R.string.settings_group_application)) {
+                item("application") { SettingsSection(stringResource(R.string.settings_group_application)) {
                     SettingsValueRow(
                         title = stringResource(R.string.control_ir_channel),
                         icon = Icons.Rounded.SettingsInputAntenna,
@@ -318,27 +325,21 @@ fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsCl
                 }
                 if (twoColumn) {
                     val sections = recordItems(settingsItems)
-                    val left = sections.filterIndexed { index, _ -> index == 0 || index == 2 }
-                    val right = sections.filterIndexed { index, _ -> index != 0 && index != 2 }
-                    LazyColumn(
-                        Modifier.contentWidth(960.dp),
-                        contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        item("settings_two_column") {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Top) {
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                                    left.forEach { it.content.invoke(this@item) }
-                                }
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                                    right.forEach { it.content.invoke(this@item) }
-                                }
-                            }
-                        }
-                    }
+                    val left = sections.filter { it.key == "appearance" || it.key == "data" }
+                    val right = sections.filter { it.key != "appearance" && it.key != "data" }
+                    TwoPaneLayout(primary = {
+                        LazyColumn(Modifier.fillMaxSize(), state = appearanceScroll,
+                            contentPadding = PaddingValues(bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(20.dp)) { replay(left) }
+                    }, secondary = {
+                        LazyColumn(Modifier.fillMaxSize(), state = managementScroll,
+                            contentPadding = PaddingValues(bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(20.dp)) { replay(right) }
+                    })
                 } else {
                     LazyColumn(
                         Modifier.contentWidth(),
+                        state = portraitScroll,
                         contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         content = settingsItems
@@ -502,6 +503,25 @@ private fun SettingsValueRow(
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .heightIn(min = 64.dp),
     ) {
+        if (maxWidth < 300.dp || titleMinimum + valueMinimum > maxWidth - 84.dp - trailingWidth) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, Modifier.size(24.dp), tint = secondaryColor)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, style = titleStyle)
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                        Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(value, Modifier.weight(1f), color = secondaryColor, style = valueStyle)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(trailingIcon, null, Modifier.size(trailingIconSize), tint = secondaryColor)
+                        }
+                        trailingOverlay()
+                    }
+                }
+            }
+            return@BoxWithConstraints
+        }
         // Recover inert space before splitting a word at large font scales. The
         // whole row remains the touch target; neither text column moves below the other.
         val minimumTextWidth = titleMinimum + valueMinimum

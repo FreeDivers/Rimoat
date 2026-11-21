@@ -85,12 +85,7 @@ fun TransmitterSelectionBottomSheet(
             Text(AppStrings.get(R.string.control_ir_channel, "红外发射通道"), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             TextButton(onClick = { scope.launch { sheetState.hide(); onDismissRequest() } }) { Text(AppStrings.get(R.string.control_done, "完成")) }
         }
-        Column(
-            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            ActiveChannelSummary(currentActive, ready)
+        val choices: @Composable () -> Unit = {
             Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ChannelChoice(AppStrings.get(R.string.control_auto_select, "自动选择"), Icons.Rounded.AutoMode, automatic, onClick = { select(null) })
                 if (usable.isNotEmpty()) {
@@ -139,6 +134,26 @@ fun TransmitterSelectionBottomSheet(
                     Icon(Icons.Rounded.Settings, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text(AppStrings.get(R.string.control_serial_config, "串口模块配置"))
+                }
+            }
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+            if (maxWidth >= 480.dp) {
+                TwoPaneLayout(primaryFraction = .4f, primaryMaxWidth = 320.dp,
+                    primary = {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                            ActiveChannelSummary(currentActive, ready)
+                        }
+                    }, secondary = {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(20.dp)) { choices() }
+                    })
+            } else {
+                Column(Modifier.verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp).padding(bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    ActiveChannelSummary(currentActive, ready)
+                    choices()
                 }
             }
         }

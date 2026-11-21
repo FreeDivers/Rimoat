@@ -1,8 +1,20 @@
 package org.qinyan.rimoat.ui.components
 
+import android.os.Build
+import android.view.WindowManager
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyItemScope
@@ -11,6 +23,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -22,6 +42,56 @@ val ContentMaxWidth: Dp = 600.dp
 
 /** Landscape phones, tablets and split windows: noticeably wider than tall and at least 480dp wide. */
 fun isWideLayout(width: Dp, height: Dp): Boolean = width >= 480.dp && width.value > height.value * 1.2f
+
+/** Uses window bounds so opening the IME does not switch a portrait form to two panes. */
+@Composable
+fun rememberWideLayout(): Boolean {
+    val configuration = LocalConfiguration.current
+    if (LocalInspectionMode.current) return isWideLayout(configuration.screenWidthDp.dp, configuration.screenHeightDp.dp)
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val direction = LocalLayoutDirection.current
+    val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+    val bounds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        context.getSystemService(WindowManager::class.java)?.currentWindowMetrics?.bounds
+    } else null
+    return with(density) {
+        if (bounds != null && bounds.width() > 0 && bounds.height() > 0) {
+            isWideLayout(
+                (bounds.width() - safeInsets.getLeft(this, direction) - safeInsets.getRight(this, direction)).toDp(),
+                (bounds.height() - safeInsets.getTop(this) - safeInsets.getBottom(this)).toDp()
+            )
+        } else {
+            // Legacy configuration dimensions already exclude stable decor and do not shrink for IME.
+            isWideLayout(configuration.screenWidthDp.dp, configuration.screenHeightDp.dp)
+        }
+    }
+}
+
+/** Each bounded pane owns its scrolling and task actions. */
+@Composable
+fun TwoPaneLayout(
+    modifier: Modifier = Modifier,
+    primaryFraction: Float = .5f,
+    primaryMaxWidth: Dp = Dp.Infinity,
+    primary: @Composable () -> Unit,
+    secondary: @Composable () -> Unit,
+) {
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val spacing = if (maxWidth < 600.dp) 8.dp else 16.dp
+        val available = (maxWidth - spacing * 3).coerceAtLeast(0.dp)
+        val primaryWidth = (available * primaryFraction.coerceIn(.3f, .7f)).coerceAtMost(primaryMaxWidth)
+        Row(
+            Modifier.fillMaxSize().padding(horizontal = spacing, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(spacing)
+        ) {
+            Box(Modifier.width(primaryWidth).fillMaxHeight().testTag("two_pane_primary")
+                .semantics { isTraversalGroup = true }) { primary() }
+            Box(Modifier.weight(1f).fillMaxHeight().testTag("two_pane_secondary")
+                .semantics { isTraversalGroup = true }) { secondary() }
+        }
+    }
+}
 
 /** Caps this element's width and centers it; the surrounding container keeps its full size. */
 fun Modifier.contentWidth(max: Dp = ContentMaxWidth): Modifier =

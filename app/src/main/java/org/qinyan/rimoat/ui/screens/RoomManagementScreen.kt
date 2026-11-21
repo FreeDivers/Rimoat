@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -24,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.qinyan.rimoat.ui.components.*
@@ -49,13 +52,32 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     var removing by rememberSaveable { mutableStateOf<String?>(null) }
     var movingRemote by rememberSaveable { mutableStateOf<String?>(null) }
+    val wide = rememberWideLayout()
+    val roomsScroll = rememberLazyListState()
+    val assigningRoomsScroll = rememberLazyListState()
+    val membersScroll = rememberLazyListState()
+    val assignmentScroll = rememberLazyListState()
+    var previousAssigning by remember { mutableStateOf(assigning) }
+    val currentRoom = if (wide) selected?.takeIf { it.isBlank() || it in rooms } ?: rooms.firstOrNull().orEmpty() else selected
+    LaunchedEffect(wide, rooms) {
+        if (wide && selected != currentRoom) { selected = currentRoom; assigning = false }
+    }
+    LaunchedEffect(assigning) {
+        if (previousAssigning != assigning) {
+            if (assigning) assigningRoomsScroll.scrollToItem(roomsScroll.firstVisibleItemIndex, roomsScroll.firstVisibleItemScrollOffset)
+            else roomsScroll.scrollToItem(assigningRoomsScroll.firstVisibleItemIndex, assigningRoomsScroll.firstVisibleItemScrollOffset)
+            previousAssigning = assigning
+        }
+    }
     LaunchedEffect(active, error, displayedError) { if (active && displayedError != null) { snackbar.showSnackbar(displayedError, duration = SnackbarDuration.Long); viewModel.clearError() } }
-    val page = RoomPage(selected, assigning)
-    fun back() { if (assigning) assigning = false else if (selected != null) selected = null else onBack() }
-    MotionContent(page, contentKey = { "${it.room != null}:${it.assigning}" },
+    val page = RoomPage(currentRoom, assigning)
+    fun back() { if (assigning) assigning = false else if (wide) onBack() else if (selected != null) selected = null else onBack() }
+    MotionContent(page, contentKey = { if (wide) "wide:${it.assigning}" else "${it.room != null}:${it.assigning}" },
         isBack = { from, to -> to.room == null || (from.assigning && !to.assigning) },
-        backTarget = if (assigning) RoomPage(selected) else if (selected != null) RoomPage(null) else null,
+        backTarget = if (assigning) RoomPage(currentRoom) else if (!wide && selected != null) RoomPage(null) else null,
         onBack = ::back) { destination ->
+        val roomListState = if (destination.assigning) assigningRoomsScroll else roomsScroll
+        val memberListState = if (destination.assigning) assignmentScroll else membersScroll
         val room = destination.room
         val members = remotes.filter { it.room == room }
         Scaffold(topBar = {
@@ -63,33 +85,46 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
                 navigationIcon = { ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), ::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back, "返回")) } },
                 actions = {
-                    if (room == null) ActionIconButton(AppStrings.get(R.string.screen_new_room, "新建房间"), { oldName = null; name = ""; edit = true }) {
+                    if (!wide && room == null) ActionIconButton(AppStrings.get(R.string.screen_new_room, "新建房间"), { oldName = null; name = ""; edit = true }) {
                         Icon(Icons.Rounded.Add, AppStrings.get(R.string.screen_new_room, "新建房间"))
                     }
                 })
         }, bottomBar = {
-            if (room != null && room.isNotBlank()) Surface {
+            if (!wide && room != null && room.isNotBlank()) Surface {
                 Button(onClick = { assigning = !destination.assigning },
                     modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp).heightIn(min = 48.dp)) {
                     Text(if (destination.assigning) AppStrings.get(R.string.screen_done, "完成") else AppStrings.get(R.string.screen_assign_remotes, "分配遥控器"))
                 }
             }
         }, snackbarHost = { AppSnackbarHost(snackbar) }) { padding ->
-            LazyColumn(Modifier.padding(padding).contentWidth().fillMaxHeight(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (room == null) {
+            val roomItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+                    if (wide && !destination.assigning) item(key = "new_room") {
+                        OutlinedButton(
+                            onClick = { oldName = null; name = ""; edit = true },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Rounded.Add, null, Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(AppStrings.get(R.string.screen_new_room, "新建房间"))
+                        }
+                    }
                     items(rooms + "", key = { "room_$it" }) { item ->
                         val count = remotes.count { it.room == item }
-                        Card(onClick = { selected = item }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), modifier = Modifier.fillMaxWidth().animateItem(
+                        val isSelected = wide && item == room
+                        val color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
+                        Card(onClick = { selected = item; assigning = false }, colors = CardDefaults.cardColors(containerColor = color), modifier = Modifier.fillMaxWidth().semantics { this.selected = isSelected }.animateItem(
                             fadeInSpec = AppMotion.tween(160), placementSpec = AppMotion.tween(220), fadeOutSpec = AppMotion.tween(120))) {
                             ListItem(headlineContent = { Text(item.ifBlank { AppStrings.get(R.string.screen_unassigned, "未分配") }, style = MaterialTheme.typography.titleMedium) },
                                 supportingContent = { Text(AppStrings.get(R.string.screen_remote_count, "%1\$d 个遥控器", count)) },
                                 leadingContent = { Icon(if (item.isBlank()) Icons.Rounded.DevicesOther else Icons.Rounded.MeetingRoom, null) },
                                 trailingContent = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
-                                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                                colors = ListItemDefaults.colors(containerColor = color),
                                 modifier = Modifier.padding(vertical = 8.dp))
                         }
                     }
-                } else if (destination.assigning) {
+            }
+            val detailItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+                if (room != null && destination.assigning) {
                     item { Text(room, style = MaterialTheme.typography.titleMedium) }
                     if (remotes.isEmpty()) item(key = "assign_empty") {
                         Text(AppStrings.get(R.string.screen_no_remotes, "暂无遥控器"), color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -101,7 +136,7 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                             leadingContent = { Icon(getCategoryIcon(remote.category), null) }, trailingContent = { Checkbox(checked, null) },
                             modifier = Modifier.clip(MaterialTheme.shapes.medium).toggleable(checked, role = Role.Checkbox) { viewModel.moveToRoom(remote.id, if (it) room else "") })
                     }
-                } else {
+                } else if (room != null) {
                     if (room.isNotBlank()) item {
                         FlowRow(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton({ oldName = room; name = room; edit = true }) {
@@ -124,6 +159,21 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                             modifier = Modifier.animateItem(fadeInSpec = AppMotion.tween(160), placementSpec = AppMotion.tween(220), fadeOutSpec = AppMotion.tween(120)))
                     }
                 }
+                if (wide && !room.isNullOrBlank()) item(key = "assign_action") {
+                    Button(onClick = { assigning = !destination.assigning }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Text(AppStrings.get(if (destination.assigning) R.string.screen_done else R.string.screen_assign_remotes, if (destination.assigning) "完成" else "分配遥控器"))
+                    }
+                }
+            }
+            if (wide) TwoPaneLayout(Modifier.fillMaxSize().padding(padding), primaryFraction = .4f, primaryMaxWidth = 320.dp,
+                primary = {
+                    LazyColumn(Modifier.fillMaxSize(), state = roomListState, verticalArrangement = Arrangement.spacedBy(12.dp), content = roomItems)
+                }, secondary = {
+                    LazyColumn(Modifier.fillMaxSize(), state = memberListState, verticalArrangement = Arrangement.spacedBy(12.dp), content = detailItems)
+                })
+            else LazyColumn(Modifier.padding(padding).contentWidth().fillMaxHeight(), state = if (room == null) roomListState else memberListState,
+                contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (room == null) roomItems() else detailItems()
             }
         }
     }
@@ -133,7 +183,11 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
         dismissButton = { TextButton({ edit = false }) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } })
     if (active) removing?.let { room -> MotionAlertDialog(onDismissRequest = { removing = null }, title = { Text(AppStrings.get(R.string.screen_remove_room_question, "移除%1\$s？", room)) },
         text = { Text(AppStrings.get(R.string.screen_keep_unassigned, "遥控器将保留在未分配中")) },
-        confirmButton = { TextButton({ viewModel.editRoom(room, null) { removing = null; selected = null } }) { Text(AppStrings.get(R.string.screen_remove, "移除"), color = MaterialTheme.colorScheme.error) } },
+        confirmButton = { TextButton({
+            val remaining = rooms.filterNot { it == room }
+            val next = remaining.getOrNull(rooms.indexOf(room).coerceAtMost((remaining.size - 1).coerceAtLeast(0))).orEmpty()
+            viewModel.editRoom(room, null) { removing = null; selected = if (wide) next else null; assigning = false }
+        }) { Text(AppStrings.get(R.string.screen_remove, "移除"), color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton({ removing = null }) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } }) }
     if (active) movingRemote?.let { id -> MotionAlertDialog(onDismissRequest = { movingRemote = null }, title = { Text(AppStrings.get(R.string.screen_move_to_room, "移入房间")) },
         text = { LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rooms + "") { room ->

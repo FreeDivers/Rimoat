@@ -92,6 +92,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
     var keyName by rememberSaveable { mutableStateOf("") }
     var pickBrand by rememberSaveable { mutableStateOf(false) }
     val brandContext = androidx.compose.ui.platform.LocalContext.current
+    val wide = rememberWideLayout()
     val active = LocalMotionActive.current
     DisposableEffect(viewModel) { onDispose { viewModel.onScreenStopped() } }
     org.qinyan.rimoat.ui.CancelOperationsOnStop(viewModel::onScreenStopped)
@@ -196,7 +197,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }, bottomBar = {
-            if (page.step == WizardStep.LEARNING) LearningKeyActions(page, available,
+            if (page.step == WizardStep.LEARNING && !wide) LearningKeyActions(page, available,
                 onRecord = { HapticHelper.performStartListening(haptic, context); viewModel.startLearningCurrentKey() },
                 onCancel = viewModel::cancelCurrentKeyLearning,
                 onSkip = viewModel::skipCurrentKey,
@@ -205,104 +206,11 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
         }) { padding ->
             if (page.isRestoring) Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             else when (page.step) {
-                WizardStep.SETUP -> Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).contentWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    val textMeasurer = rememberTextMeasurer()
-                    val categoryLabelStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                    val categoryLabels = DeviceCategory.entries.map { it to it.label() }
-                    val labelWidth = categoryLabels.maxOfOrNull { (_, label) ->
-                        textMeasurer.measure(label, categoryLabelStyle, softWrap = false).size.width
-                    } ?: 0
-                    val minimumCardWidth = with(LocalDensity.current) { labelWidth.toDp() } + 24.dp
-                    val brandFocusRequester = remember { FocusRequester() }
-                    val keyboard = LocalSoftwareKeyboardController.current
-                    val focusManager = LocalFocusManager.current
-                    val nameError = if (page.errorMessage != null && page.remoteName.isBlank()) page.errorMessage.asString() else null
-
-                    Text(
-                        stringResource(R.string.screen_appliance_type),
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.semantics { heading() }
-                    )
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        val columns = ((maxWidth + 8.dp) / (minimumCardWidth + 8.dp)).toInt().coerceIn(1, 3)
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            categoryLabels.chunked(columns).forEach { row ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    row.forEach { (category, label) ->
-                                        val selected = page.category == category
-                                        Card(
-                                            onClick = {
-                                                HapticHelper.performSelection(haptic, context)
-                                                viewModel.setCategory(category)
-                                            },
-
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .heightIn(min = 88.dp)
-                                                .semantics(mergeDescendants = true) {
-                                                    role = Role.Button
-                                                    this.selected = selected
-                                                },
-                                            colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow)
-                                        ) {
-                                            Column(Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                                Icon(getCategoryIcon(category), null, Modifier.size(28.dp))
-                                                Spacer(Modifier.height(8.dp))
-                                                Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-                                            }
-                                        }
-                                    }
-                                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
-                                }
-                            }
-                        }
-                    }
-                    OutlinedTextField(
-                        value = page.remoteName,
-                        onValueChange = viewModel::setRemoteName,
-                        modifier = Modifier.fillMaxWidth().semantics { nameError?.let { error(it) } },
-                        label = { Text(stringResource(R.string.screen_remote_name)) },
-                        singleLine = true,
-                        isError = nameError != null,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                        keyboardActions = KeyboardActions(onNext = { brandFocusRequester.requestFocus() })
-                    )
-                    OutlinedTextField(
-                        value = page.brand,
-                        onValueChange = viewModel::setBrand,
-                        modifier = Modifier.fillMaxWidth().focusRequester(brandFocusRequester),
-                        label = { Text(stringResource(R.string.screen_brand_optional)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = {
-                            keyboard?.hide()
-                            focusManager.clearFocus()
-                        }),
-                        trailingIcon = {
-                            ActionIconButton(stringResource(R.string.screen_choose_catalog_brand), {
-                                keyboard?.hide()
-                                pickBrand = true
-                            }) { Icon(Icons.Rounded.ListAlt, contentDescription = null) }
-                        }
-                    )
-                    page.errorMessage?.let {
-                        Text(
-                            it.asString(),
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            keyboard?.hide()
-                            HapticHelper.performRemoteClick(haptic, context)
-                            viewModel.proceedToLearning()
-                        },
-
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                    ) { Text(stringResource(R.string.screen_start_learning)) }
-                }
+                WizardStep.SETUP -> LearningSetupContent(
+                    page, viewModel::setCategory, viewModel::setRemoteName, viewModel::setBrand,
+                    onPickBrand = { pickBrand = true }, onStart = { viewModel.proceedToLearning() },
+                    modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)
+                )
                 WizardStep.LEARNING -> LearningKeyWorkspace(
                     page = page, learner = learner, learnerType = learnerType,
                     available = available, receiveConfirmed = confirmed, mock = mock,
@@ -310,7 +218,15 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                     onSelect = viewModel::selectKey,
                     onAdd = { keyName = ""; addKey = true },
                     onRecord = { HapticHelper.performStartListening(haptic, context); viewModel.startLearningCurrentKey() },
-                    modifier = Modifier.fillMaxSize().padding(padding)
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    actions = {
+                        LearningKeyActions(page, available,
+                            onRecord = { HapticHelper.performStartListening(haptic, context); viewModel.startLearningCurrentKey() },
+                            onCancel = viewModel::cancelCurrentKeyLearning, onSkip = viewModel::skipCurrentKey,
+                            onConfirm = viewModel::confirmCurrentKey,
+                            onTest = { HapticHelper.performTestEmit(haptic, context); viewModel.testTransmitCurrentKey() },
+                            inPane = true)
+                    }
                 )
                 WizardStep.REVIEW -> LearningReviewContent(page, viewModel::returnToLearning,
                     { viewModel.saveRemote(onRemoteCreated) }, Modifier.fillMaxSize().padding(padding))
@@ -370,70 +286,197 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
     }
 }
 
-/** Metadata and learned keys share a scroll area, leaving actions reachable on short screens. */
+/** Setup categories and the editable draft share one state across window sizes. */
+@Composable
+internal fun LearningSetupContent(
+    page: CustomRemoteWizardUiState,
+    onCategory: (DeviceCategory) -> Unit,
+    onNameChange: (String) -> Unit,
+    onBrandChange: (String) -> Unit,
+    onPickBrand: () -> Unit,
+    onStart: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val wide = rememberWideLayout()
+    val primaryScroll = rememberScrollState()
+    val secondaryScroll = rememberScrollState()
+    val textMeasurer = rememberTextMeasurer()
+    val categoryLabelStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+    val categoryLabels = DeviceCategory.entries.map { it to it.label() }
+    val labelWidth = categoryLabels.maxOfOrNull { (_, label) ->
+        textMeasurer.measure(label, categoryLabelStyle, softWrap = false).size.width
+    } ?: 0
+    val minimumCardWidth = with(LocalDensity.current) { labelWidth.toDp() } + 24.dp
+    val brandFocusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    val nameError = if (page.errorMessage != null && page.remoteName.isBlank()) page.errorMessage.asString() else null
+
+
+    val types: @Composable () -> Unit = {
+        Text(
+            stringResource(R.string.screen_appliance_type),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.semantics { heading() }
+        )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val columns = ((maxWidth + 8.dp) / (minimumCardWidth + 8.dp)).toInt().coerceIn(1, 3)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                categoryLabels.chunked(columns).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { (category, label) ->
+                            val selected = page.category == category
+                            Card(
+                                onClick = {
+                                    HapticHelper.performSelection(haptic, context)
+                                    onCategory(category)
+                                },
+
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 88.dp)
+                                    .semantics(mergeDescendants = true) {
+                                        role = Role.Button
+                                        this.selected = selected
+                                    },
+                                colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow)
+                            ) {
+                                Column(Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                    Icon(getCategoryIcon(category), null, Modifier.size(28.dp))
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+
+    }
+    val form: @Composable () -> Unit = {
+        OutlinedTextField(
+            value = page.remoteName,
+            onValueChange = onNameChange,
+            modifier = Modifier.fillMaxWidth().semantics { nameError?.let { error(it) } },
+            label = { Text(stringResource(R.string.screen_remote_name)) },
+            singleLine = true,
+            isError = nameError != null,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { brandFocusRequester.requestFocus() })
+        )
+        OutlinedTextField(
+            value = page.brand,
+            onValueChange = onBrandChange,
+            modifier = Modifier.fillMaxWidth().focusRequester(brandFocusRequester),
+            label = { Text(stringResource(R.string.screen_brand_optional)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = {
+                keyboard?.hide()
+                focusManager.clearFocus()
+            }),
+            trailingIcon = {
+                ActionIconButton(stringResource(R.string.screen_choose_catalog_brand), {
+                    keyboard?.hide()
+                    onPickBrand()
+                }) { Icon(Icons.Rounded.ListAlt, contentDescription = null) }
+            }
+        )
+        page.errorMessage?.let {
+            Text(
+                it.asString(),
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
+        }
+        Button(
+            onClick = {
+                keyboard?.hide()
+                HapticHelper.performRemoteClick(haptic, context)
+                onStart()
+            },
+
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) { Text(stringResource(R.string.screen_start_learning)) }
+    }
+    if (wide) {
+        TwoPaneLayout(modifier.fillMaxSize().imePadding(),
+            primary = {
+                Column(Modifier.fillMaxSize().verticalScroll(primaryScroll).padding(8.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)) { types() }
+            },
+            secondary = {
+                Column(Modifier.fillMaxSize().verticalScroll(secondaryScroll).padding(8.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)) { form() }
+            })
+    } else {
+        Column(modifier.fillMaxSize().imePadding().verticalScroll(secondaryScroll).contentWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            types(); form()
+        }
+    }
+}
+
+/** Review keeps metadata and saving beside the complete learned-key list. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: () -> Unit,
     onSave: () -> Unit, modifier: Modifier = Modifier) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
-    Column(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item {
-                Text(
-                    page.remoteName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.semantics { heading() }
-                )
-            }
-            item {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(page.category.label(), style = MaterialTheme.typography.bodyMedium)
-                    if (page.brand.isNotBlank()) Text(page.brand, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-            item {
-                Text(
-                    stringResource(R.string.screen_learned_count, page.learnedCount),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.semantics { heading() }
-                )
-            }
-            items(page.keyQueue.filter { it.status == KeyLearnStatus.LEARNED }, key = { it.id }) { key ->
-                ListItem(headlineContent = { Text(key.displayLabel()) }, leadingContent = { Icon(getIconVector(key.iconName) ?: Icons.Rounded.Tune, null) },
-                    trailingContent = { Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary) })
-            }
-            page.errorMessage?.let { error ->
-                item {
-                    Text(
-                        error.asString(),
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                    )
-                }
-            }
+    val wide = rememberWideLayout()
+    val summary: @Composable () -> Unit = {
+        Text(page.remoteName, style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.semantics { heading() })
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(page.category.label(), style = MaterialTheme.typography.bodyMedium)
+            if (page.brand.isNotBlank()) Text(page.brand, style = MaterialTheme.typography.bodyMedium)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = {
-                    HapticHelper.performSelection(haptic, context)
-                    onContinue()
-                },
-                enabled = !page.isSaving,
-
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-            ) { Text(stringResource(R.string.screen_continue_learning)) }
-            Button(
-                onClick = {
-                    HapticHelper.performSaveSuccess(haptic, context)
-                    onSave()
-                },
-                enabled = page.learnedCount > 0 && !page.isSaving,
-
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-            ) {
-                Text(if (page.isSaving) stringResource(R.string.screen_saving) else stringResource(R.string.screen_save))
-            }
+        Text(stringResource(R.string.screen_learned_count, page.learnedCount),
+            color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { heading() })
+    }
+    val actions: @Composable () -> Unit = {
+        page.errorMessage?.let { error ->
+            Text(error.asString(), color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        }
+        OutlinedButton(
+            onClick = { HapticHelper.performSelection(haptic, context); onContinue() },
+            enabled = !page.isSaving, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) { Text(stringResource(R.string.screen_continue_learning)) }
+        Button(
+            onClick = { HapticHelper.performSaveSuccess(haptic, context); onSave() },
+            enabled = page.learnedCount > 0 && !page.isSaving,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) { Text(if (page.isSaving) stringResource(R.string.screen_saving) else stringResource(R.string.screen_save)) }
+    }
+    val learned: LazyListScope.() -> Unit = {
+        items(page.keyQueue.filter { it.status == KeyLearnStatus.LEARNED }, key = { it.id }) { key ->
+            ListItem(headlineContent = { Text(key.displayLabel()) },
+                leadingContent = { Icon(getIconVector(key.iconName) ?: Icons.Rounded.Tune, null) },
+                trailingContent = { Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary) })
+        }
+    }
+    if (wide) {
+        TwoPaneLayout(modifier.fillMaxSize(), primaryFraction = .4f,
+            primary = {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) { summary(); actions() }
+            },
+            secondary = {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp), content = learned)
+            })
+    } else {
+        LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { summary() } }
+            learned()
+            item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { actions() } }
         }
     }
 }

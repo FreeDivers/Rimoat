@@ -16,9 +16,12 @@ import kotlinx.coroutines.launch
 /** The indicator and gestures use one PagerState; each page owns its vertical scroll state. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RemoteControlPages(hasMore: Boolean, labels: List<String> = listOf(localizedLabel("常规功能"), localizedLabel("更多功能")), content: @Composable (more: Boolean) -> Unit) {
+fun RemoteControlPages(hasMore: Boolean, labels: List<String> = listOf(localizedLabel("常规功能"), localizedLabel("更多功能")),
+    selectedPage: Int = 0, onPageSelected: (Int) -> Unit = {}, content: @Composable (more: Boolean) -> Unit) {
     if (!hasMore) { content(false); return }
-    val pager = rememberPagerState(pageCount = { 2 })
+    val pager = rememberPagerState(initialPage = selectedPage, pageCount = { 2 })
+    LaunchedEffect(selectedPage) { if (pager.currentPage != selectedPage) pager.scrollToPage(selectedPage) }
+    LaunchedEffect(pager.currentPage) { onPageSelected(pager.currentPage) }
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
         SecondaryTabRow(selectedTabIndex = pager.currentPage, containerColor = MaterialTheme.colorScheme.surface) {

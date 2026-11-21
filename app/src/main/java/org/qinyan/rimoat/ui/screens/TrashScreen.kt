@@ -7,12 +7,14 @@ import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.i18n.rememberLocalizedDateTimeFormatter
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
 import org.qinyan.rimoat.ui.components.contentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Restore
@@ -22,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -41,6 +44,14 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
     val displayedError = error?.asString()
     val busy by viewModel.trashBusy.collectAsStateWithLifecycle()
     var deleteEntryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedEntryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
+    val wide = rememberWideLayout()
+    val listState = rememberLazyListState()
+    val detailScroll = rememberScrollState()
+    val entries = trash.orEmpty()
+    val selectedEntry = entries.firstOrNull { it.entryId == selectedEntryId } ?: entries.getOrNull(selectedIndex.coerceAtMost((entries.size - 1).coerceAtLeast(0)))
+    LaunchedEffect(entries) { selectedEntryId = selectedEntry?.entryId }
     val active = LocalMotionActive.current
     val snackbar = remember { SnackbarHostState() }
     val date = rememberLocalizedDateTimeFormatter(includeDate = true)
@@ -50,10 +61,14 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
         ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back, "返回")) }
     }) }, snackbarHost = { AppSnackbarHost(snackbar) }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-        LazyColumn(Modifier.contentWidth().fillMaxHeight(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val list: @Composable () -> Unit = {
+        LazyColumn(if (wide) Modifier.fillMaxSize() else Modifier.contentWidth().fillMaxHeight(), state = listState, contentPadding = if (wide) PaddingValues(0.dp) else PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(trash.orEmpty(), key = { it.entryId }) { entry ->
-                Card(Modifier.animateItem(fadeInSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(240), placementSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(280), fadeOutSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(220)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                val color = if (wide && entry.entryId == selectedEntry?.entryId) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
+                Card(modifier = Modifier.clip(MaterialTheme.shapes.medium)
+                    .then(if (wide) Modifier.clickable { selectedEntryId = entry.entryId; selectedIndex = entries.indexOf(entry) } else Modifier)
+                    .animateItem(fadeInSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(240), placementSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(280), fadeOutSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(220)),
+                    colors = CardDefaults.cardColors(containerColor = color)) {
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         val inlineActions = maxWidth >= 360.dp && LocalDensity.current.fontScale < 1.5f
                         val actions: @Composable () -> Unit = {
@@ -64,9 +79,9 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                         Column {
                             ListItem(headlineContent = { Text(entry.profile.name) }, supportingContent = { Text(date.format(Date(entry.deletedAt))) },
                                 leadingContent = { Icon(getCategoryIcon(entry.profile.category), null) },
-                                trailingContent = if (inlineActions) actions else null,
-                                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow))
-                            if (!inlineActions) {
+                                trailingContent = if (!wide && inlineActions) actions else null,
+                                colors = ListItemDefaults.colors(containerColor = color))
+                            if (!wide && !inlineActions) {
                                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                                     horizontalArrangement = Arrangement.End) { actions() }
                             }
@@ -75,6 +90,22 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                 }
             }
         }
+        }
+        if (wide && entries.isNotEmpty()) TwoPaneLayout(Modifier.fillMaxSize(), primaryFraction = .4f, primaryMaxWidth = 320.dp,
+            primary = list, secondary = {
+                selectedEntry?.let { entry ->
+                    Column(Modifier.fillMaxSize().verticalScroll(detailScroll).padding(8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(entry.profile.name, style = MaterialTheme.typography.headlineSmall)
+                        Icon(getCategoryIcon(entry.profile.category), null)
+                        if (entry.profile.brand.isNotBlank()) Text(entry.profile.brand, style = MaterialTheme.typography.bodyLarge)
+                        if (entry.profile.room.isNotBlank()) Text(entry.profile.room)
+                        Text(date.format(Date(entry.deletedAt)), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TrashEntryActions(entry.profile.name, !busy,
+                            onRestore = { viewModel.restoreDeleted(entry.profile.id, entry.entryId) },
+                            onDelete = { deleteEntryId = entry.entryId })
+                    }
+                }
+            }) else list()
         val status = when {
             trash == null -> R.string.screen_loading
             trash.orEmpty().isEmpty() -> R.string.screen_trash_empty

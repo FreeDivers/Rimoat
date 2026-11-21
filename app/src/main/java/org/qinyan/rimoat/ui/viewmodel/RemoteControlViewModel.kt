@@ -61,6 +61,8 @@ class RemoteControlViewModel(
 
     private val _learningDialogButton = MutableStateFlow<RemoteButton?>(null)
     val learningDialogButton: StateFlow<RemoteButton?> = _learningDialogButton.asStateFlow()
+    private val _capturedLearningSignal = MutableStateFlow<Pair<String, IrSignal.Raw>?>(null)
+    val capturedLearningSignal: StateFlow<Pair<String, IrSignal.Raw>?> = _capturedLearningSignal.asStateFlow()
 
     fun toggleLearningMode() {
         _isLearningMode.value = !_isLearningMode.value
@@ -88,7 +90,14 @@ class RemoteControlViewModel(
         learningSession++
         _learningError.value = null
         _operationError.value = null
+        _capturedLearningSignal.value = null
         _learningDialogButton.value = button
+    }
+
+    fun updateLearningCapture(buttonId: String, signal: IrSignal.Raw?) {
+        if (_learningDialogButton.value?.id == buttonId) {
+            _capturedLearningSignal.value = signal?.let { buttonId to it }
+        }
     }
 
     fun dismissLearningDialog() {
@@ -96,6 +105,7 @@ class RemoteControlViewModel(
         learningSession++
         _learningError.value = null
         _operationError.value = null
+        _capturedLearningSignal.value = null
         _learningDialogButton.value = null
     }
 

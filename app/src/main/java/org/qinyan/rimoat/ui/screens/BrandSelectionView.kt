@@ -2,6 +2,10 @@ package org.qinyan.rimoat.ui.screens
 
 import androidx.compose.foundation.layout.fillMaxHeight
 import org.qinyan.rimoat.ui.components.contentWidth
+import org.qinyan.rimoat.ui.components.TwoPaneLayout
+import org.qinyan.rimoat.ui.components.rememberWideLayout
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import org.qinyan.rimoat.R
 
 import androidx.compose.foundation.clickable
@@ -76,8 +80,10 @@ fun BrandSelectionView(
     val groups = remember(brands, preferEnglish, precomputed) {
         precomputed ?: groupBrandsByIndex(brands, preferEnglish)
     }
+    val wide = rememberWideLayout()
+    val density = LocalDensity.current
     val showPopular = searchQuery.isBlank()
-    val positions = remember(groups, showPopular) { brandHeaderPositions(groups, if (showPopular) 1 else 0) }
+    val positions = remember(groups, showPopular, wide) { brandHeaderPositions(groups, if (showPopular && !wide) 1 else 0) }
     val letters = remember(positions) { ('A'..'Z').toList() + if ('#' in positions) listOf('#') else emptyList() }
     val popularNames = remember(category?.code) {
         when (category?.code) {
@@ -94,40 +100,8 @@ fun BrandSelectionView(
         matches.take(if (matches.size >= 6) 6 else 4)
     }
 
-    Column(Modifier.fillMaxSize().background(containerColor).imePadding().contentWidth(720.dp).fillMaxHeight()) {
-        org.qinyan.rimoat.ui.components.RemoteSearchBar(
-            query = searchQuery,
-            onQueryChange = onSearchChange,
-            placeholder = stringResource(R.string.screen_brand_search),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        key(category?.id, searchQuery) {
-            val activeLetter by remember(positions, listState) {
-                derivedStateOf {
-                    positions.entries.lastOrNull { it.value <= listState.firstVisibleItemIndex }?.key
-                }
-            }
-            var viewportHeight by remember { mutableIntStateOf(0) }
-            val density = LocalDensity.current
-            // Even a short final section must be able to reach the sticky-header position.
-            val bottomSpace = with(density) {
-                (viewportHeight.toDp() - 40.dp - (64 * (groups.lastOrNull()?.brands?.size ?: 0)).dp)
-                    .coerceAtLeast(16.dp)
-            }
-            Box(Modifier.fillMaxWidth().weight(1f).onSizeChanged { viewportHeight = it.height }) {
-                if (brands.isNotEmpty()) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize().padding(end = 56.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(start = 16.dp, end = 12.dp, bottom = bottomSpace)
-                    ) {
-                        if (showPopular) item(key = "popular", contentType = "popular") {
-                            Column(Modifier.animateItem(
-                                fadeInSpec = AppMotion.tween(160), placementSpec = AppMotion.tween(220),
-                                fadeOutSpec = AppMotion.tween(100)
-                            ).padding(bottom = 12.dp)) {
+    val popularContent: @Composable () -> Unit = {
+                            Column(Modifier.padding(bottom = 12.dp)) {
                                 Text(
                                     stringResource(R.string.screen_popular_brands),
                                     style = MaterialTheme.typography.labelLarge,
@@ -175,7 +149,38 @@ fun BrandSelectionView(
                                     }
                                 }
                             }
-                        }
+    }
+    val searchContent: @Composable () -> Unit = {
+        org.qinyan.rimoat.ui.components.RemoteSearchBar(
+            query = searchQuery,
+            onQueryChange = onSearchChange,
+            placeholder = stringResource(R.string.screen_brand_search),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+        )
+    }
+    val results: @Composable ColumnScope.() -> Unit = {
+        key(category?.id, searchQuery) {
+            val activeLetter by remember(positions, listState) {
+                derivedStateOf {
+                    positions.entries.lastOrNull { it.value <= listState.firstVisibleItemIndex }?.key
+                }
+            }
+            var viewportHeight by remember { mutableIntStateOf(0) }
+            val density = LocalDensity.current
+            // Even a short final section must be able to reach the sticky-header position.
+            val bottomSpace = with(density) {
+                (viewportHeight.toDp() - 40.dp - (64 * (groups.lastOrNull()?.brands?.size ?: 0)).dp)
+                    .coerceAtLeast(16.dp)
+            }
+            Box(Modifier.fillMaxWidth().weight(1f).onSizeChanged { viewportHeight = it.height }) {
+                if (brands.isNotEmpty()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize().padding(end = 56.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 12.dp, bottom = bottomSpace)
+                    ) {
+                        if (showPopular && !wide) item(key = "popular", contentType = "popular") { popularContent() }
                         groups.forEach { group ->
                             stickyHeader(key = "header_${group.letter}", contentType = "header") {
                                 Surface(color = containerColor) {
@@ -228,6 +233,28 @@ fun BrandSelectionView(
             }
         }
     }
+    if (wide) {
+        TwoPaneLayout(
+            modifier = Modifier.fillMaxSize().background(containerColor).imePadding(),
+            primaryFraction = .4f, primaryMaxWidth = 320.dp,
+            primary = {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    category?.let {
+                        Text(it.displayName(brandContext), style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(8.dp).semantics { heading() })
+                    }
+                    searchContent()
+                    if (showPopular) Box(Modifier.padding(horizontal = 8.dp)) { popularContent() }
+                }
+            },
+            secondary = { Column(Modifier.fillMaxSize()) { results() } }
+        )
+    } else {
+        Column(Modifier.fillMaxSize().background(containerColor).imePadding().contentWidth(720.dp)) {
+            searchContent()
+            results()
+        }
+    }
 }
 
 @Composable
@@ -238,27 +265,29 @@ private fun BrandListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+    val compact = maxWidth < 280.dp
     Row(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clip(MaterialTheme.shapes.medium)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = if (compact) 8.dp else 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(if (compact) 32.dp else 48.dp), contentAlignment = Alignment.Center) {
             BrandMark(brand)
         }
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(if (compact) 8.dp else 16.dp))
         Text(
             text = displayName,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
-        Spacer(Modifier.width(16.dp))
-        Icon(
+        Spacer(Modifier.width(if (compact) 8.dp else 16.dp))
+        if (!compact) Icon(
             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -268,6 +297,8 @@ private fun BrandListItem(
 }
 
 /** Typographic brand identifiers; no invented logo assets or decorative category badges. */
+}
+
 @Composable
 private fun BrandMark(brand: IrBrand) {
     val mark = remember(brand.brandIdx, brand.nameEn, brand.pinyin, brand.nameCn) { brandMonogram(brand) }

@@ -41,7 +41,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.FilterChip
-import org.qinyan.rimoat.ui.components.isWideLayout
+import org.qinyan.rimoat.ui.components.rememberWideLayout
+import org.qinyan.rimoat.ui.components.TwoPaneLayout
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -102,6 +106,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -139,8 +147,33 @@ fun RemoteListScreen(
     onAddRemoteClick: () -> Unit,
     onSettingsClick: () -> Unit = {}
 ) {
+    val wide = rememberWideLayout()
+    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+    val filtersScroll = rememberScrollState()
+    var previousWide by rememberSaveable { mutableStateOf(wide) }
+    var anchorRemoteId by rememberSaveable { mutableStateOf<String?>(null) }
+    var anchorOffset by rememberSaveable { mutableStateOf(0) }
     val screenActive = LocalMotionActive.current
     val remotes by viewModel.filteredRemotes.collectAsStateWithLifecycle()
+    val currentRemotes by rememberUpdatedState(remotes)
+    LaunchedEffect(wide) {
+        if (previousWide != wide) {
+            val loaded = snapshotFlow { currentRemotes }.first { it.isNotEmpty() }
+            val index = loaded.indexOfFirst { it.id == anchorRemoteId }.coerceAtLeast(0)
+            if (wide) gridState.scrollToItem(index, anchorOffset) else listState.scrollToItem(index, anchorOffset)
+            previousWide = wide
+        }
+        snapshotFlow {
+            if (wide) gridState.layoutInfo.visibleItemsInfo.firstOrNull()?.let { it.key to gridState.firstVisibleItemScrollOffset }
+            else listState.layoutInfo.visibleItemsInfo.firstOrNull()?.let { it.key to listState.firstVisibleItemScrollOffset }
+        }.collect { position ->
+            if (position?.first is String) {
+                anchorRemoteId = position.first as String
+                anchorOffset = position.second
+            }
+        }
+    }
     val allRemotes by viewModel.allRemotes.collectAsStateWithLifecycle()
     val trulyEmpty = allRemotes.isEmpty()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -224,7 +257,7 @@ fun RemoteListScreen(
             )
         },
         floatingActionButton = {
-            FadeVisibility(visible = !trulyEmpty) {
+            FadeVisibility(visible = !trulyEmpty && !wide) {
                 ExtendedFloatingActionButton(
                     onClick = { if (!trulyEmpty) onAddRemoteClick() },
                     modifier = Modifier
@@ -242,7 +275,6 @@ fun RemoteListScreen(
         }
     ) { padding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
-            val wide = isWideLayout(maxWidth, maxHeight)
             val searchBar: @Composable (Modifier) -> Unit = { barModifier ->
                 org.qinyan.rimoat.ui.components.RemoteSearchBar(
                     query = searchQuery,
@@ -278,6 +310,7 @@ fun RemoteListScreen(
                     EmptyStateView(
                         isSearch = !trulyEmpty,
                         hasSearchQuery = searchQuery.isNotBlank(),
+                        showAddAction = !wide,
                         actionsEnabled = remotes.isEmpty(),
                         onResetSearch = {
                             if (searchQuery.isNotBlank()) viewModel.setSearchQuery("")
@@ -291,32 +324,35 @@ fun RemoteListScreen(
                 }
             }
             if (wide) {
-                // Filters stay in a left pane so the whole height belongs to the remote list.
-                Row(Modifier.fillMaxSize()) {
-                    ExpandSection(visible = !trulyEmpty) {
-                        Row(Modifier.fillMaxHeight()) {
-                            Column(Modifier.width(308.dp).fillMaxHeight().verticalScroll(rememberScrollState())) {
-                                searchBar(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                TwoPaneLayout(primaryFraction = .4f, primaryMaxWidth = 320.dp, primary = {
+                    Column(Modifier.fillMaxSize().testTag("home_filters").verticalScroll(filtersScroll),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!trulyEmpty) {
+                                searchBar(Modifier)
                                 CategoryFilterChips(
                                     selectedCategory = selectedCategory,
                                     onSelectCategory = { viewModel.selectCategory(it) }
                                 )
                                 roomAndSortBar()
-                            }
-                            androidx.compose.material3.VerticalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                            )
+                        }
+                        Spacer(Modifier.weight(1f))
+                        androidx.compose.material3.Button(onClick = onAddRemoteClick, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Rounded.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.screen_add_remote))
                         }
                     }
-                    Column(Modifier.weight(1f)) {
+                }, secondary = {
+                    Column(Modifier.fillMaxSize()) {
                         ExpandSection(visible = transferBusy) {
                             androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         }
                         Box(Modifier.fillMaxSize()) {
                             LazyVerticalGrid(
                                 columns = GridCells.Adaptive(240.dp),
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
+                                state = gridState,
+                                modifier = Modifier.fillMaxSize().testTag("home_results"),
+                                contentPadding = PaddingValues(bottom = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(Spacing.small),
                                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
                             ) {
@@ -330,7 +366,7 @@ fun RemoteListScreen(
                             emptyState()
                         }
                     }
-                }
+                })
             } else {
                 Column(Modifier.fillMaxSize()) {
                     ExpandSection(visible = !trulyEmpty) {
@@ -350,7 +386,8 @@ fun RemoteListScreen(
                     // Remotes List
                     Box(Modifier.fillMaxSize()) {
                         LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().testTag("home_results"),
+                            state = listState,
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(Spacing.small)
                         ) {
@@ -442,7 +479,7 @@ private fun CategoryFilterChips(
     onSelectCategory: (DeviceCategory?) -> Unit
 ) {
     FlowRow(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -450,7 +487,7 @@ private fun CategoryFilterChips(
             FilterChip(
                 selected = selectedCategory == category,
                 onClick = { onSelectCategory(category) },
-                label = { Text(label, maxLines = 1) }
+                label = { Text(label) }
             )
         }
     }
@@ -689,7 +726,8 @@ private fun EmptyStateView(
     onResetSearch: () -> Unit,
     onAddRemote: () -> Unit,
     hasSearchQuery: Boolean,
-    actionsEnabled: Boolean
+    actionsEnabled: Boolean,
+    showAddAction: Boolean = true,
 ) {
     Column(
         modifier = Modifier
@@ -716,7 +754,7 @@ private fun EmptyStateView(
             TextButton(onClick = onResetSearch, enabled = actionsEnabled) {
                 Text(AppStrings.get(if (hasSearchQuery) R.string.screen_clear_search else R.string.screen_reset_filters))
             }
-        } else {
+        } else if (showAddAction) {
             androidx.compose.material3.Button(onClick = onAddRemote, enabled = actionsEnabled) {
                 Text(AppStrings.get(R.string.screen_add_remote, "添加遥控器"))
             }

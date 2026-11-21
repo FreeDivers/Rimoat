@@ -8,6 +8,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridItemInfo
@@ -37,6 +39,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextAlign
@@ -60,7 +63,7 @@ private data class PanelGroup(@StringRes val title: Int, val entries: List<Panel
 
 private fun buttonEntry(button: RemoteButton, label: String) = PanelEntry(panelKey(button), label, getIconVector(button.iconName))
 
-/** Layout keys share the same 3-column grid as the remote so a drop position matches the panel. */
+/** The preview and editable groups share the same saved visibility and ordering. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: (RemotePanelLayout) -> Unit,
@@ -68,6 +71,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
     var serialized by rememberSaveable(profile.id) { mutableStateOf(Json.encodeToString(profile.panelLayout)) }
     val layout = remember(serialized) { Json.decodeFromString<RemotePanelLayout>(serialized) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
+    val wide = rememberWideLayout()
     fun update(value: RemotePanelLayout, persist: Boolean = true) {
         serialized = Json.encodeToString(value)
         if (persist) onSave(value)
@@ -103,6 +107,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
 
     val haptic = LocalHapticFeedback.current
     val gridState = rememberLazyGridState()
+    val previewState = rememberLazyListState()
     val currentGroups by rememberUpdatedState(groups)
     val currentLayout by rememberUpdatedState(layout)
     var draggingId by remember { mutableStateOf<String?>(null) }
@@ -138,6 +143,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
         if (dragMoved) onSave(currentLayout)
         dragMoved = false
     }
+    LaunchedEffect(wide) { finishDrag() }
 
     // Edge auto-scroll keeps long groups reachable while the dragged slot stays on screen.
     LaunchedEffect(draggingId) {
@@ -166,11 +172,15 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
         navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
             Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.screen_back))
         } }) }) { padding ->
+        val editor: @Composable () -> Unit = {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val columns = if (wide) extensionColumns(groups.flatMap { it.entries }.map { it.label }, maxWidth)
+            .coerceAtMost((maxWidth.value / 88).toInt().coerceAtLeast(1)) else 3
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Fixed(columns),
             state = gridState,
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxSize().testTag("panel_editor_controls"),
+            contentPadding = PaddingValues(horizontal = if (wide) 0.dp else 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -240,6 +250,32 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
                 }
             }
         }
+        }
+        }
+        if (wide) {
+            TwoPaneLayout(Modifier.padding(padding), primary = {
+                val presented = profile.copy(panelLayout = layout).withPanelPresentation()
+                val hideFromPreview: (RemoteButton) -> Unit = { button ->
+                    if (groups.any { group -> group.entries.any { it.id == panelKey(button) } })
+                        update(layout.copy(hidden = layout.hidden + panelKey(button)))
+                }
+                LazyColumn(Modifier.fillMaxSize().testTag("panel_editor_preview"), state = previewState,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
+                    item { Text(stringResource(R.string.widget_preview), style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.fillMaxWidth().semantics { heading() }) }
+                    when {
+                        profile.category == DeviceCategory.AC && !profile.useStaticAcButtons && profile.acProtocolId != null -> item {
+                            AcRemoteLayout(presented, profile.acSettings, false, {}, {}, {}, {}, {}, available,
+                                onAction = { _, _ -> }, onSendButton = hideFromPreview, inlineExtensions = true)
+                        }
+                        profile.category == DeviceCategory.TV -> tvRemoteItems(presented, hideFromPreview, inlineExtensions = true)
+                        profile.category == DeviceCategory.FAN -> fanRemoteItems(presented, hideFromPreview, inlineExtensions = true)
+                        else -> genericRemoteItems(presented, hideFromPreview, inlineExtensions = true)
+                    }
+                }
+            }, secondary = editor)
+        } else Box(Modifier.fillMaxSize().padding(padding)) { editor() }
     }
     if (LocalMotionActive.current && confirmReset) MotionAlertDialog(onDismissRequest = { confirmReset = false }, title = { Text(stringResource(R.string.panel_restore_default)) },
         text = { Text(stringResource(R.string.panel_restore_confirm)) },

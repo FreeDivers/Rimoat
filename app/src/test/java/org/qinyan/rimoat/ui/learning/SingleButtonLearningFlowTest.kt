@@ -106,6 +106,27 @@ class SingleButtonLearningFlowTest {
     }
 
     @Test
+    fun capturedSignalStaysInViewModelAcrossScreenStopAndClearsOnDismiss() {
+        val profile = createSampleProfile()
+        val viewModel = RemoteControlViewModel(
+            remoteId = profile.id,
+            learnerManager = learnerManager,
+            initialProfile = profile
+        ).also { stores.put("controller", it) }
+        val button = profile.buttons.first()
+        val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560))
+
+        viewModel.startLearningButton(button)
+        viewModel.updateLearningCapture(button.id, signal)
+        viewModel.onScreenStopped()
+
+        assertEquals(button.id, viewModel.learningDialogButton.value?.id)
+        assertEquals(button.id to signal, viewModel.capturedLearningSignal.value)
+        viewModel.dismissLearningDialog()
+        assertNull(viewModel.capturedLearningSignal.value)
+    }
+
+    @Test
     fun testSaveLearnedButtonUpdatesSignalToRaw() {
         val profile = createSampleProfile()
         val viewModel = RemoteControlViewModel(

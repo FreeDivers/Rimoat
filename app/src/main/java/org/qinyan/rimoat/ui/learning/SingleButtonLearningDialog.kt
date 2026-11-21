@@ -9,6 +9,12 @@ import org.qinyan.rimoat.R
 
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.window.DialogProperties
+import org.qinyan.rimoat.ui.components.TwoPaneLayout
+import org.qinyan.rimoat.ui.components.rememberWideLayout
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -75,13 +81,17 @@ fun SingleButtonLearningDialog(
     onSaveLearnedButton: (button: RemoteButton, signal: IrSignal.Raw) -> Unit,
     autoStart: Boolean = false,
     isSaving: Boolean = false,
-    saveError: String? = null
+    saveError: String? = null,
+    initialCapturedSignal: IrSignal.Raw? = null,
+    onCaptureChanged: (IrSignal.Raw?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val backendState by learnerManager.state.collectAsStateWithLifecycle()
-    var learningState by remember(button.id) { mutableStateOf<LearningState>(LearningState.Idle) }
+    var learningState by remember(button.id) {
+        mutableStateOf<LearningState>(initialCapturedSignal?.let { LearningState.Captured(it) } ?: LearningState.Idle)
+    }
     var learningJob by remember(button.id) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var learningEpoch by remember(button.id) { mutableStateOf(0) }
     val learnerType by learnerManager.learnerType.collectAsStateWithLifecycle()
@@ -113,6 +123,7 @@ fun SingleButtonLearningDialog(
     fun startLearning() {
         if (isSaving || isTestingEmit || learningJob?.isActive == true) return
         cancelLearning()
+        onCaptureChanged(null)
         val epoch = ++learningEpoch
         testFeedbackMessage = null
         testFeedbackError = false
@@ -123,7 +134,7 @@ fun SingleButtonLearningDialog(
                 val result = learnerManager.startLearning(timeoutSeconds = 30)
                 if (epoch == learningEpoch) {
                     learningState = result.fold(
-                        onSuccess = { LearningState.Captured(it) },
+                        onSuccess = { signal -> onCaptureChanged(signal); LearningState.Captured(signal) },
                         onFailure = { error -> when {
                             error is kotlinx.coroutines.CancellationException -> LearningState.Idle
                             error.message?.contains("timed out", ignoreCase = true) == true -> LearningState.Timeout
@@ -143,7 +154,7 @@ fun SingleButtonLearningDialog(
 
     DisposableEffect(button.id) {
         if (autoStart) startLearning()
-        onDispose { cancelTest(); cancelLearning() }
+            onDispose { cancelTest(); cancelLearning() }
     }
     org.qinyan.rimoat.ui.CancelOperationsOnStop {
         if (learningJob?.isActive == true) cancelLearning()
@@ -225,10 +236,13 @@ fun SingleButtonLearningDialogContent(
     receiveConfirmed: Boolean = false,
     testFeedbackError: Boolean = false
 ) {
-    LocalConfiguration.current
+    val configuration = LocalConfiguration.current
+    val splitDialog = rememberWideLayout() && configuration.screenWidthDp >= 600
     val buttonLabel = localizedButtonLabel(button, LocalContext.current)
     MotionAlertDialog(
         onDismissRequest = onDismiss,
+        modifier = if (splitDialog) Modifier.fillMaxWidth(.96f).widthIn(max = 960.dp) else Modifier,
+        properties = DialogProperties(usePlatformDefaultWidth = !splitDialog),
         title = {
             Text(
                 stringResource(R.string.screen_learn_button_title, buttonLabel),
@@ -237,10 +251,11 @@ fun SingleButtonLearningDialogContent(
             )
         },
         text = {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            val hardware: @Composable () -> Unit = {
                 HardwareStatusBanner(learnerType, isHardwareAvailable, onEnableMockMode,
                     receiveConfirmed = receiveConfirmed, onDisableMockMode = onDisableMockMode, enabled = !isSaving && !isTesting)
+            }
+            val captureDetails: @Composable () -> Unit = {
                 saveError?.let {
                     Text(
                         it,
@@ -273,7 +288,7 @@ fun SingleButtonLearningDialogContent(
                                         Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
                                         style = MaterialTheme.typography.bodyLarge
                                     )
-                                    ActionIconButton(stringResource(R.string.screen_rerecord), onStartLearning, enabled = isHardwareAvailable && !isSaving && !isTesting) {
+                                    if (!splitDialog) ActionIconButton(stringResource(R.string.screen_rerecord), onStartLearning, enabled = isHardwareAvailable && !isSaving && !isTesting) {
                                         Icon(Icons.Rounded.Replay, contentDescription = null)
                                     }
                                 }
@@ -308,9 +323,42 @@ fun SingleButtonLearningDialogContent(
                     }
                 }
             }
+            if (splitDialog) {
+                BoxWithConstraints(Modifier.fillMaxWidth().heightIn(
+                    max = (configuration.screenHeightDp.dp - 160.dp).coerceAtLeast(80.dp))) {
+                    TwoPaneLayout(primaryFraction = .4f, primary = {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            hardware()
+                            if (state is LearningState.Listening) {
+                                TextButton(onCancelLearning) { Text(stringResource(R.string.screen_cancel_receive)) }
+                            } else {
+                                Button(onStartLearning, enabled = isHardwareAvailable && !isSaving && !isTesting) {
+                                    Text(stringResource(if (state is LearningState.Captured) R.string.screen_rerecord else R.string.screen_start_record))
+                                }
+                            }
+                        }
+                    }, secondary = {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text(buttonLabel, style = MaterialTheme.typography.titleMedium)
+                            captureDetails()
+                            if (state is LearningState.Captured) Button({ onSave(state.signal) }, enabled = !isSaving && !isTesting) {
+                                Text(stringResource(if (isSaving) R.string.screen_saving_progress else R.string.screen_save_button))
+                            }
+                        }
+                    })
+                }
+            } else {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    hardware()
+                    captureDetails()
+                }
+            }
         },
         confirmButton = {
-            when (state) {
+            if (!splitDialog) when (state) {
                 is LearningState.Captured -> Button({ onSave(state.signal) }, enabled = !isSaving && !isTesting, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text(if (isSaving) stringResource(R.string.screen_saving_progress) else stringResource(R.string.screen_save_button))
                 }

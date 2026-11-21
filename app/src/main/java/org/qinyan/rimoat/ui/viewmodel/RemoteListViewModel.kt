@@ -129,16 +129,22 @@ class RemoteListViewModel(
     private val _trash = MutableStateFlow<List<org.qinyan.rimoat.data.DeletedRemoteEntry>?>(null)
     val trash = _trash.asStateFlow()
     fun loadTrash() = performStorageOperation { _trash.value = repository.deletedEntries() }
-    fun restoreDeleted(id: String, entryId: String? = null) = performStorageOperation {
-        repository.restoreDeleted(id, entryId)
-        _deletedId.value = null
-        if (_trash.value != null) _trash.value = repository.deletedEntries()
-    }
     private val _trashBusy = MutableStateFlow(false)
     val trashBusy = _trashBusy.asStateFlow()
+    fun restoreDeleted(id: String, entryId: String? = null) {
+        if (!_trashBusy.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                repository.restoreDeleted(id, entryId)
+                _deletedId.value = null
+                if (_trash.value != null) _trash.value = repository.deletedEntries()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_operation_failed, e.uiTextDetail(R.string.msg_storage_unavailable)) }
+            finally { _trashBusy.value = false }
+        }
+    }
     fun permanentlyDelete(entryId: String, onDeleted: () -> Unit) {
-        if (_trashBusy.value) return
-        _trashBusy.value = true
+        if (!_trashBusy.compareAndSet(false, true)) return
         viewModelScope.launch {
             try {
                 repository.permanentlyDelete(entryId)

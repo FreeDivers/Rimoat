@@ -236,6 +236,7 @@ class MainActivity : AppCompatActivity() {
                         isLearnerAvailable = isLearnerAvailable,
                         isLearnerForceMock = isLearnerMock
                     )
+                    val wide = org.qinyan.rimoat.ui.components.rememberWideLayout()
 
                     org.qinyan.rimoat.ui.components.ScreenRotationHost(
                         themePreferences = themePreferences,
@@ -246,11 +247,11 @@ class MainActivity : AppCompatActivity() {
                     MotionContent(
                         targetState = currentScreen,
                         contentKey = AppScreen::motionKey,
-                        isBack = ::isBackNavigation,
-                        backTarget = currentScreen.backDestination(),
+                        isBack = { from, to -> to == from.backDestination(wide) },
+                        backTarget = currentScreen.backDestination(wide),
                         onBack = {
                             val from = currentScreen
-                            currentScreen.backDestination()?.let { destination ->
+                            currentScreen.backDestination(wide)?.let { destination ->
                                 if (from == AppScreen.AddRemote && destination == AppScreen.RemoteList) {
                                     addViewModel?.reset()
                                 }
@@ -283,12 +284,10 @@ class MainActivity : AppCompatActivity() {
                             }
                             AppScreen.About -> AboutScreen(onBack = { currentScreen = AppScreen.Settings },
                                 onLicensesClick = { currentScreen = AppScreen.OpenSourceLicenses })
-                            AppScreen.OpenSourceLicenses -> OpenSourceLicensesScreen(
-                                onBack = { currentScreen = AppScreen.About },
+                            AppScreen.OpenSourceLicenses, is AppScreen.LibraryLicense -> OpenSourceLicensesScreen(
+                                libraryId = (screen as? AppScreen.LibraryLicense)?.libraryId,
+                                onBack = { currentScreen = screen.backDestination(wide) ?: AppScreen.About },
                                 onLibraryClick = { currentScreen = AppScreen.LibraryLicense(it) })
-                            is AppScreen.LibraryLicense -> OpenSourceLicensesScreen(
-                                libraryId = screen.libraryId,
-                                onBack = { currentScreen = AppScreen.OpenSourceLicenses }, onLibraryClick = {})
                             is AppScreen.AddRemote -> {
                                 val resolvedAddVm = addViewModel ?: viewModel<AddRemoteViewModel>(
                                     factory = object : ViewModelProvider.Factory {

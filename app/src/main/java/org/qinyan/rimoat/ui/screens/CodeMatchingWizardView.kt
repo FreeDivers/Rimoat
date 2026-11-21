@@ -11,6 +11,10 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.NavigateBefore
 import androidx.compose.material.icons.automirrored.rounded.NavigateNext
@@ -18,6 +22,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -67,7 +72,9 @@ fun CodeMatchingWizardView(
     val busy = state.isSendingTest || state.isLoading
     val prevCodeLabel = stringResource(R.string.screen_previous_code)
     val nextCodeLabel = stringResource(R.string.screen_next_code)
-    Column(Modifier.fillMaxSize()) {
+    val wide = rememberWideLayout()
+    var selectedPage by rememberSaveable { mutableIntStateOf(0) }
+    val navigation: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             ActionIconButton(prevCodeLabel, onPrevModel, enabled = !busy && state.currentRemoteIndex > 0) {
                 Icon(Icons.AutoMirrored.Rounded.NavigateBefore, contentDescription = null)
@@ -87,14 +94,24 @@ fun CodeMatchingWizardView(
                 Icon(Icons.AutoMirrored.Rounded.NavigateNext, contentDescription = null)
             }
         }
+    }
+    val keysContent: @Composable () -> Unit = {
         MotionContent(targetState = state, contentKey = { it.currentRemote?.remoteId ?: "empty" },
-            isBack = { from, to -> to.currentRemoteIndex < from.currentRemoteIndex }, modifier = Modifier.weight(1f)) { page ->
+            isBack = { from, to -> to.currentRemoteIndex < from.currentRemoteIndex }, modifier = Modifier.fillMaxSize()) { page ->
             val keys = remember(page.primaryTestKey, page.secondaryTestKey, page.allPreviewButtons) { pairingKeys(page) }
             val recommended = (keys.filter { it.id in page.distinguishingKeys } +
                 keys.filter { it.label.toIntOrNull() == null } + keys).distinctBy { it.id }.take(6)
-            RemoteControlPages(keys.size > recommended.size, labels = listOf(stringResource(R.string.screen_test_keys), stringResource(R.string.screen_all_keys))) { all ->
+            val measurer = rememberTextMeasurer()
+            val style = MaterialTheme.typography.labelLarge
+            val minimumWidth = with(LocalDensity.current) {
+                (keys.maxOfOrNull { measurer.measure(localizedButtonLabel(it, context), style, softWrap = false).size.width } ?: 0).toDp()
+            }.plus(16.dp).coerceAtLeast(80.dp)
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+            val columns = (((maxWidth - 24.dp) + 12.dp) / (minimumWidth + 12.dp)).toInt().coerceIn(1, 3)
+            RemoteControlPages(keys.size > recommended.size, labels = listOf(stringResource(R.string.screen_test_keys), stringResource(R.string.screen_all_keys)),
+                selectedPage = selectedPage, onPageSelected = { selectedPage = it }) { all ->
                 val groups = if (all) keys.groupBy { pairingKeyGroup(it, context) } else linkedMapOf("" to recommended)
-                LazyColumn(Modifier.contentWidth().fillMaxHeight(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     groups.forEach { (name, buttons) ->
                         if (name.isNotBlank()) item("heading_$name") {
                             Text(
@@ -104,7 +121,7 @@ fun CodeMatchingWizardView(
                                 modifier = Modifier.semantics { heading() }
                             )
                         }
-                        items(buttons.chunked(3), key = { "row_${it.first().id}" }) { row ->
+                        items(buttons.chunked(columns), key = { "row_${it.first().id}" }) { row ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 row.forEach { button ->
                                     val observation = page.observations[button.id]
@@ -154,14 +171,32 @@ fun CodeMatchingWizardView(
                                         }
                                     }
                                 }
-                                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                             }
                         }
                     }
                 }
             }
         }
-        if (showActions) CodeMatchingActions(state, onMatched, onConfirmTest)
+            }
+    }
+    if (wide) {
+        TwoPaneLayout(
+            modifier = Modifier.fillMaxSize(),
+            primary = keysContent,
+            secondary = {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    navigation()
+                    if (showActions) CodeMatchingActions(state, onMatched, onConfirmTest)
+                }
+            }
+        )
+    } else {
+        Column(Modifier.fillMaxSize()) {
+            navigation()
+            Box(Modifier.weight(1f).fillMaxWidth()) { keysContent() }
+            if (showActions) CodeMatchingActions(state, onMatched, onConfirmTest)
+        }
     }
 }
 

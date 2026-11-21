@@ -126,18 +126,18 @@ class LandscapeLayoutRoborazziTest {
         val back = buttonBounds("返回")
         val root = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
         assertTrue("D-pad sits on the left", ok.center.x < power.center.x)
-        assertTrue("power and back sit in the middle", power.center.x < volumeDown.center.x && back.center.x < volumeDown.center.x)
-        assertTrue("rockers sit on the right", volumeDown.center.x > root.width * 0.65f)
+        assertTrue("navigation stays beside the direction pad", back.center.x < root.width / 2)
+        assertTrue("power and volume stay in the right pane", power.center.x > root.width / 2 && volumeDown.center.x > root.width / 2)
         assertTrue("D-pad and rockers fit without clipping", ok.bottom <= root.height && volumeDown.bottom <= root.height)
         capture("tv")
     }
 
     @Test
-    fun fanPanelPutsPowerLeftAndFunctionsRight() {
+    fun fanPanelPutsFrequentControlsLeftAndExtensionsRight() {
         showRemote(fan())
         val power = buttonBounds("电源")
-        val speed = buttonBounds("风速")
-        assertTrue("power stays left of function grid", power.right < speed.left)
+        val swing = buttonBounds("摇头")
+        assertTrue("power stays left of extension grid", power.right < swing.left)
         capture("fan")
     }
 
@@ -179,7 +179,7 @@ class LandscapeLayoutRoborazziTest {
     }
 
     @Test
-    fun settingsContentIsCenteredWithinReadableWidth() {
+    fun settingsGroupTasksIntoTwoPanes() {
         val app = RuntimeEnvironment.getApplication()
         AppStrings.initialize(app)
         val repository = RemoteRepository(app, scope)

@@ -74,9 +74,13 @@ fun AcTemperatureCard(
     val fontScale = LocalDensity.current.fontScale
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val stackedHeader = maxWidth < (72 + 112 * fontScale).dp
+                val title: @Composable () -> Unit = {
                 Text(if (isDemonstrating) AppStrings.get(R.string.control_simulation_setting, "模拟设定") else AppStrings.get(R.string.control_target_temp, "设定温度"),
-                    style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    style = MaterialTheme.typography.titleMedium)
+                }
+                val power: @Composable () -> Unit = {
                 UnavailableAcControl(canTogglePower, powerLabel, unavailableDescriptions[powerAction],
                     onUnavailable?.let { { it(powerAction) } }, checked = powerOn.takeUnless { isLearningMode }) {
                 ActionTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn_power, "学习电源按键") else if (powerOn) AppStrings.get(R.string.control_power_off, "关机") else AppStrings.get(R.string.control_power_on, "开机")) {
@@ -84,7 +88,7 @@ fun AcTemperatureCard(
                     checked = powerOn,
                     interactionSource = powerInteraction,
                     shape = CircleShape,
-                    modifier = Modifier.then(powerHaptic.modifier).size(48.dp).clearAndSetSemantics {
+                    modifier = Modifier.then(powerHaptic.modifier).size(72.dp).clearAndSetSemantics {
                         contentDescription = powerLabel
                         if (canTogglePower) onClick { powerHaptic(); onTogglePower(); true } else disabled()
                         if (!isLearningMode) toggleableState = ToggleableState(powerOn)
@@ -103,6 +107,14 @@ fun AcTemperatureCard(
                         contentDescription = null)
                 }
                 }
+                }
+                }
+                if (stackedHeader) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    title(); power()
+                } else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { title() }
+                    power()
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -132,12 +144,17 @@ fun AcTemperatureCard(
                             liveRegion = LiveRegionMode.Polite
                         }
                     ) { value ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        val digits: @Composable () -> Unit = {
                             Text(value.toString(), style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum"),
                                 color = if (powerOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        val unit: @Composable () -> Unit = {
                             Text("°C", style = MaterialTheme.typography.headlineSmall,
                                 modifier = Modifier.padding(start = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        if (maxWidth < (176 * fontScale).dp) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            digits(); unit()
+                        } else Row(verticalAlignment = Alignment.CenterVertically) { digits(); unit() }
                     }
                 }
                 if (stacked) Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {

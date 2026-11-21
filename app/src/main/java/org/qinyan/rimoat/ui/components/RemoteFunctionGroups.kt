@@ -73,8 +73,10 @@ internal fun RemoteFunctionGrid(buttons: List<RemoteButton>, onSend: (RemoteButt
     enabled: (RemoteButton) -> Boolean = { it.hasSignal },
     buttonContent: (@Composable RowScope.(RemoteButton) -> Unit)? = null,
     onUnavailable: ((RemoteButton) -> Unit)? = null) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val columns = extensionColumns(buttons.map { localizedButtonLabel(it) }, maxWidth).coerceAtMost(buttons.size.coerceAtLeast(1))
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        buttons.chunked(3).forEach { row ->
+        buttons.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { button ->
                     if (buttonContent != null) buttonContent(button) else
@@ -82,10 +84,12 @@ internal fun RemoteFunctionGrid(buttons: List<RemoteButton>, onSend: (RemoteButt
                         onRepeat = onRepeat?.let { { it(button) } }, onLongClick = onLearn?.let { { it(button) } },
                         isLearningMode = learning, enabled = learning || enabled(button),
                         onUnavailable = onUnavailable?.let { explain -> { explain(button) } },
+                        diameter = if (button.iconName == "power" || button.id.contains("power")) 72.dp else 64.dp,
                         variant = if (button.iconName == "power" || button.label in listOf("电源", "开关")) RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD)
                 }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
     }
 }

@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.DpSize
@@ -54,6 +55,10 @@ import androidx.glance.material3.ColorProviders
 import org.qinyan.rimoat.ui.theme.LightColorScheme
 import org.qinyan.rimoat.ui.theme.DarkColorScheme
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
+import org.qinyan.rimoat.ui.components.TwoPaneLayout
+import org.qinyan.rimoat.ui.components.rememberWideLayout
+import org.qinyan.rimoat.ui.components.recordItems
+import org.qinyan.rimoat.ui.components.replay
 
 class WidgetConfigurationActivity : AppCompatActivity() {
     private val refreshRateController by lazy { org.qinyan.rimoat.ui.DisplayRefreshRateController(this) }
@@ -97,9 +102,9 @@ class WidgetConfigurationActivity : AppCompatActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, kind: WidgetKind,
+internal fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, kind: WidgetKind,
                                       onCancel: () -> Unit, onSaved: () -> Unit) {
     val context = LocalContext.current
     val snapshot by app.widgets.state.collectAsState()
@@ -111,9 +116,6 @@ private fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, k
     fun change(value: WidgetConfiguration) { draft = value }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
-    var choosing by rememberSaveable { mutableStateOf(false) }
-    var choosingRemote by rememberSaveable { mutableStateOf(false) }
-    var chooseRemoteId by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     LaunchedEffect(widgetId) {
         app.widgets.awaitReady()
@@ -121,43 +123,85 @@ private fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, k
     }
     val currentDraft = draft
     val preview = rememberConfigurationPreview(widgetId, currentDraft, snapshot)
+    WidgetConfigurationContent(widgetId, kind, snapshot, currentDraft, preview, saving, error,
+        onChange = ::change, onCancel = onCancel,
+        onRetry = { scope.launch { app.widgets.retry() } },
+        onAddRemote = { app.startActivity(remoteWidgetIntent(app, destination = "add").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
+        onSave = {
+            if (!saving && currentDraft != null) {
+                saving = true; error = null
+                scope.launch {
+                    try {
+                        currentDraft.validate()
+                        check(currentDraft.shortcuts.isNotEmpty()) { AppStrings.get(R.string.widget_select_shortcut, "请选择一个快捷键") }
+                        currentDraft.shortcuts.forEach { shortcut ->
+                            check(app.widgets.state.value.commands[shortcut.remoteId].orEmpty().any { it.id == shortcut.buttonId }) { AppStrings.get(R.string.widget_selected_button_changed, "所选按键已改变，请重新选择") }
+                        }
+                        app.widgets.save(widgetId, currentDraft)
+                        onSaved()
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { error = e.message ?: AppStrings.get(R.string.widget_save_failed, "保存失败") }
+                    finally { saving = false }
+                }
+            }
+        })
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun WidgetConfigurationContent(
+    widgetId: Int,
+    kind: WidgetKind,
+    snapshot: WidgetSnapshot,
+    currentDraft: WidgetConfiguration?,
+    preview: WidgetPreview,
+    saving: Boolean,
+    error: String?,
+    onChange: (WidgetConfiguration) -> Unit,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+    onRetry: () -> Unit,
+    onAddRemote: () -> Unit
+) {
+    val context = LocalContext.current
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    var choosingRemote by rememberSaveable { mutableStateOf(false) }
+    var chooseRemoteId by rememberSaveable { mutableStateOf("") }
+    val wide = rememberWideLayout()
+    val previewListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val configurationListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    fun change(value: WidgetConfiguration) = onChange(value)
     val title = when (kind) { WidgetKind.SINGLE -> stringResource(R.string.widget_single_name); WidgetKind.PANEL -> stringResource(R.string.widget_panel_name); WidgetKind.STATUS -> stringResource(R.string.widget_status_name) }
+    val actions: @Composable () -> Unit = {
+            Surface {
+                if (wide) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = onCancel, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.widget_cancel)) }
+                        Button(onClick = onSave, enabled = !saving && currentDraft?.shortcuts?.isNotEmpty() == true, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Text(if (saving) stringResource(R.string.widget_saving) else stringResource(R.string.widget_done))
+                        }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = onCancel, enabled = !saving) { Text(stringResource(R.string.widget_cancel)) }
+                        Button(onClick = onSave, enabled = !saving && currentDraft?.shortcuts?.isNotEmpty() == true, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                            Text(if (saving) stringResource(R.string.widget_saving) else stringResource(R.string.widget_done))
+                        }
+                    }
+                }
+            }
+    }
     Scaffold(
         topBar = { TopAppBar(title = { Text(title) }, navigationIcon = {
             IconButton(onClick = onCancel, enabled = !saving) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.widget_cancel_config)) }
         }) },
-        bottomBar = {
-            Surface {
-                Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(onClick = onCancel, enabled = !saving) { Text(stringResource(R.string.widget_cancel)) }
-                    Button(onClick = {
-                        val current = draft ?: return@Button
-                        saving = true; error = null
-                        scope.launch {
-                            try {
-                                current.validate()
-                                check(current.shortcuts.isNotEmpty()) { AppStrings.get(R.string.widget_select_shortcut, "请选择一个快捷键") }
-                                current.shortcuts.forEach { shortcut ->
-                                    check(app.widgets.state.value.commands[shortcut.remoteId].orEmpty().any { it.id == shortcut.buttonId }) { AppStrings.get(R.string.widget_selected_button_changed, "所选按键已改变，请重新选择") }
-                                }
-                                app.widgets.save(widgetId, current)
-                                onSaved()
-                            } catch (e: CancellationException) { throw e }
-                            catch (e: Exception) { error = e.message ?: AppStrings.get(R.string.widget_save_failed, "保存失败") }
-                            finally { saving = false }
-                        }
-                    }, enabled = !saving && draft?.shortcuts?.isNotEmpty() == true, modifier = Modifier.weight(1f)) {
-                        Text(if (saving) stringResource(R.string.widget_saving) else stringResource(R.string.widget_done))
-                    }
-                }
-            }
-        }
+        bottomBar = { if (!wide) Box(Modifier.navigationBarsPadding()) { actions() } }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (!snapshot.loaded || draft == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            if (snapshot.error != null) item {
+        val content = recordItems {
+            if (!snapshot.loaded || currentDraft == null) item(key = "preview_loading") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            if (snapshot.error != null) item(key = "preview_error") {
                 Text(snapshot.error!!.asString(), color = MaterialTheme.colorScheme.error)
-                TextButton(onClick = { scope.launch { app.widgets.retry() } }) { Text(stringResource(R.string.widget_reload)) }
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.widget_reload)) }
             }
             if (currentDraft != null) {
                 val draft = currentDraft
@@ -165,13 +209,13 @@ private fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, k
                 if (error != null) item { Text(error!!, color = MaterialTheme.colorScheme.error) }
                 if (snapshot.profiles.isEmpty()) item {
                     Text(stringResource(R.string.widget_no_remotes), style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = { app.startActivity(remoteWidgetIntent(app, destination = "add").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text(stringResource(R.string.widget_add_remote)) }
+                    TextButton(onClick = onAddRemote) { Text(stringResource(R.string.widget_add_remote)) }
                 }
                 if (kind != WidgetKind.PANEL) {
                     item { Text(stringResource(R.string.widget_category_remote), style = MaterialTheme.typography.titleSmall) }
                     item(key = "selected_remote") {
                         val profile = snapshot.profiles.firstOrNull { it.id == draft.remoteId }
-                        ListItem(headlineContent = { Text(profile?.name ?: stringResource(R.string.widget_select_remote), maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        ListItem(headlineContent = { Text(profile?.name ?: stringResource(R.string.widget_select_remote)) },
                             supportingContent = profile?.room?.takeIf(String::isNotBlank)?.let { { Text(it) } },
                             leadingContent = { Icon(profile?.let { org.qinyan.rimoat.ui.screens.getCategoryIcon(it.category) } ?: Icons.Rounded.SettingsRemote, null) },
                             trailingContent = { Icon(Icons.Rounded.ChevronRight, null) },
@@ -208,8 +252,8 @@ private fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, k
                     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Column {
                     ListItem(
-                        headlineContent = { Text(command?.displayLabel(profile, context) ?: stringResource(R.string.widget_button_removed), maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                        supportingContent = if (kind == WidgetKind.PANEL) ({ Text(profile?.name.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) }) else null,
+                        headlineContent = { Text(command?.displayLabel(profile, context) ?: stringResource(R.string.widget_button_removed)) },
+                        supportingContent = if (kind == WidgetKind.PANEL) ({ Text(profile?.name.orEmpty()) }) else null,
                         leadingContent = { Icon(command?.let { widgetCommandVector(profile, it, snapshot) } ?: Icons.Rounded.Edit, null) },
                         trailingContent = if (stacked) null else controls,
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
@@ -227,13 +271,22 @@ private fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, k
                 }
                 if (kind == WidgetKind.PANEL) item {
                     Text(stringResource(R.string.widget_button_layout), style = MaterialTheme.typography.titleSmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(draft.arrangement == WidgetArrangement.GRID, onClick = { change(draft.copy(arrangement = WidgetArrangement.GRID)) }, label = { Text(stringResource(R.string.widget_grid)) })
                         FilterChip(draft.arrangement == WidgetArrangement.LIST, onClick = { change(draft.copy(arrangement = WidgetArrangement.LIST)) }, label = { Text(stringResource(R.string.widget_list)) })
                     }
                 }
             }
+            if (wide) item(key = "configuration_actions") { actions() }
         }
+        if (wide) TwoPaneLayout(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding(), primaryFraction = .45f,
+            primary = { LazyColumn(Modifier.fillMaxSize(), state = previewListState, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                replay(content.filter { it.key in setOf("preview", "preview_loading", "preview_error") })
+            } },
+            secondary = { LazyColumn(Modifier.fillMaxSize(), state = configurationListState, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                replay(content.filterNot { it.key in setOf("preview", "preview_loading", "preview_error") })
+            } })
+        else LazyColumn(Modifier.fillMaxSize().padding(padding), state = configurationListState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { replay(content) }
     }
     if (choosingRemote && currentDraft != null) {
         MotionAlertDialog(onDismissRequest = { choosingRemote = false }, title = { Text(stringResource(R.string.widget_select_remote)) }, text = {
@@ -258,15 +311,23 @@ private fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, k
     }
     if (choosing && currentDraft != null) {
         val draft = currentDraft
-        val selectedProfile = snapshot.profiles.firstOrNull { it.id == chooseRemoteId }
+        val selectedProfile = snapshot.profiles.firstOrNull { it.id == chooseRemoteId } ?: if (wide) snapshot.profiles.firstOrNull() else null
         MotionAlertDialog(onDismissRequest = { choosing = false }, title = { Text(if (selectedProfile == null) stringResource(R.string.widget_select_remote) else selectedProfile.name) },
+            modifier = if (wide) Modifier.safeDrawingPadding().fillMaxWidth().widthIn(max = 840.dp) else Modifier,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = !wide),
             text = {
+                val remotes: @Composable () -> Unit = {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                    if (selectedProfile == null) items(snapshot.profiles, key = { it.id }) { profile ->
+                    items(snapshot.profiles, key = { it.id }) { profile ->
                         ListItem(headlineContent = { Text(profile.name) }, supportingContent = if (profile.room.isNotBlank()) ({ Text(profile.room) }) else null,
-                            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                            colors = ListItemDefaults.colors(containerColor = if (wide && selectedProfile?.id == profile.id) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent),
                             modifier = Modifier.clickable { chooseRemoteId = profile.id })
-                    } else {
+                    }
+                }
+                }
+                val buttons: @Composable () -> Unit = {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    if (selectedProfile != null) {
                         val commands = snapshot.commands[selectedProfile.id].orEmpty()
                         if (commands.isEmpty()) item { Text(stringResource(R.string.widget_no_buttons)) }
                         items(commands, key = { it.id }) { command ->
@@ -281,8 +342,12 @@ private fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, k
                         }
                     }
                 }
+                }
+                if (wide) BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                    TwoPaneLayout(Modifier.fillMaxSize(), primaryFraction = .4f, primary = remotes, secondary = buttons)
+                } else if (selectedProfile == null) remotes() else buttons()
             }, confirmButton = { TextButton(onClick = { choosing = false }) { Text(stringResource(R.string.widget_cancel)) } },
-            dismissButton = if (kind == WidgetKind.PANEL && selectedProfile != null) ({ TextButton(onClick = { chooseRemoteId = "" }) { Text(stringResource(R.string.widget_change_remote)) } }) else null)
+            dismissButton = if (!wide && kind == WidgetKind.PANEL && selectedProfile != null) ({ TextButton(onClick = { chooseRemoteId = "" }) { Text(stringResource(R.string.widget_change_remote)) } }) else null)
     }
 }
 
@@ -458,4 +523,25 @@ internal suspend fun composeConfigurationPreview(
         appWidgetOptions = options,
         content = content
     ).remoteViews
+}
+
+@Preview(widthDp = 640, heightDp = 360, showBackground = true)
+@Preview(widthDp = 480, heightDp = 320, fontScale = 2f, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun WidgetConfigurationLandscapePreview() {
+    val label = stringResource(R.string.widget_power)
+    val name = stringResource(R.string.widget_category_remote)
+    val profile = remember(label, name) {
+        RemoteProfile("preview_remote", name, buttons = listOf(
+            org.qinyan.rimoat.data.RemoteButton("power", label, iconName = "power", rawPattern = listOf(9000, 4500, 560))))
+    }
+    var configuration by remember { mutableStateOf(WidgetConfiguration(WidgetKind.PANEL,
+        shortcuts = listOf(WidgetShortcut(profile.id, "power")))) }
+    val snapshot = WidgetSnapshot(loaded = true, profiles = listOf(profile),
+        commands = mapOf(profile.id to WidgetCommands.choices(profile)))
+    IrRemoteTheme {
+        WidgetConfigurationContent(-1, WidgetKind.PANEL, snapshot, configuration,
+            WidgetPreview(DpSize(240.dp, 160.dp), null), false, null,
+            onChange = { configuration = it }, onCancel = {}, onSave = {}, onRetry = {}, onAddRemote = {})
+    }
 }

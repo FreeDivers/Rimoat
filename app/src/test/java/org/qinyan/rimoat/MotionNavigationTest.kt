@@ -72,6 +72,12 @@ class MotionNavigationTest {
         assertTrue(isBackNavigation(AppScreen.Trash, AppScreen.Settings))
     }
 
+    @Test fun licensePanesShareStateAndReturnToAboutWhenWide() {
+        assertEquals(AppScreen.OpenSourceLicenses.motionKey(), AppScreen.LibraryLicense("library").motionKey())
+        assertEquals(AppScreen.About, AppScreen.LibraryLicense("library").backDestination(wide = true))
+        assertEquals(AppScreen.OpenSourceLicenses, AppScreen.LibraryLicense("library").backDestination(wide = false))
+    }
+
     @Test fun reviewBackPreviewsTheActualLastLearningIndex() {
         val review = CustomRemoteWizardUiState(step = WizardStep.REVIEW,
             keyQueue = List(4) { WizardKeyItem(label = "$it") }, currentIndex = 2)
