@@ -6,6 +6,7 @@ import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.hardware.TransmissionReceipt
 import org.qinyan.rimoat.hardware.TransmitterType
 import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -46,7 +47,19 @@ class RemoteCommandJournal(private val file: File) {
 
     private fun loadLocked() {
         if (!loaded) {
-            _records.value = if (file.exists()) json.decodeFromString(file.readText()) else emptyMap()
+            _records.value = if (file.exists()) {
+                val content = file.readText()
+                try {
+                    json.decodeFromString<Map<String, RemoteCommandRecord>>(content)
+                } catch (e: IllegalArgumentException) {
+                    // Invalid map entries can throw IllegalArgumentException instead of SerializationException.
+                    val backup = File(file.parentFile, "remote-commands-corrupt-${System.currentTimeMillis()}-${UUID.randomUUID()}.json")
+                    AtomicLocalFile.write(backup, content)
+                    val recovered = emptyMap<String, RemoteCommandRecord>()
+                    AtomicLocalFile.write(file, json.encodeToString(recovered))
+                    recovered
+                }
+            } else emptyMap()
             loaded = true
         }
     }

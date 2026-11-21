@@ -4,6 +4,7 @@ import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.*
 import org.qinyan.rimoat.widget.*
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Rule
@@ -35,7 +36,8 @@ class WidgetCommandsTest {
         var beforeSend: suspend () -> Unit = {}
         val encoder = Encoder()
         val sent = mutableListOf<IrSignal>()
-        val journal = RemoteCommandJournal(File(temporary.newFolder(), "commands.json"))
+        val journalFile = File(temporary.newFolder(), "remote-commands.json")
+        val journal = RemoteCommandJournal(journalFile)
         val executor = RemoteCommandExecutor({ profile }, { _, settings ->
             if (persistenceFailure) error("disk full")
             profile = profile!!.copy(acSettings = settings)
@@ -173,5 +175,77 @@ class WidgetCommandsTest {
             (loads + saves).awaitAll()
         } }
         assertEquals(10, journal.records.value.size)
+    }
+    @Test fun corruptJournalIsPreservedAndRecoversAcrossReloads() = runBlocking {
+        for (content in listOf("", "{\"tv\":", """{"tv":{"sentAt":"invalid"}}""")) {
+            val file = File(temporary.newFolder(), "remote-commands.json").apply { writeText(content) }
+            val journal = RemoteCommandJournal(file)
+
+            journal.load()
+
+            assertTrue(journal.records.value.isEmpty())
+            assertCorruptJournalBackup(file, content)
+            val restored = RemoteCommandJournal(file)
+            restored.load()
+            assertTrue(restored.records.value.isEmpty())
+            assertCorruptJournalBackup(file, content)
+
+            val record = RemoteCommandRecord(label = "power", buttonId = "power")
+            journal.record("tv", record)
+            val saved = RemoteCommandJournal(file)
+            saved.load()
+            assertEquals(mapOf("tv" to record), saved.records.value)
+        }
+    }
+    @Test fun corruptJournalDoesNotBlockButtonTransmission() = runBlocking {
+        val rig = Rig(tv())
+        val content = "{\"tv\":"
+        rig.journalFile.writeText(content)
+
+        val result = rig.executor.executeButton("tv", "power")
+
+        assertNotNull(result)
+        assertNull(result!!.warning)
+        assertEquals(listOf(9000), rig.sent.map { (it as IrSignal.Raw).patternMicros.first() })
+        assertEquals("power", rig.journal.records.value.getValue("tv").buttonId)
+        assertCorruptJournalBackup(rig.journalFile, content)
+    }
+    @Test fun corruptJournalDoesNotBlockAcTransmission() = runBlocking {
+        val rig = Rig()
+        val content = "{\"ac\":"
+        rig.journalFile.writeText(content)
+
+        val result = rig.up()
+
+        assertNotNull(result)
+        assertNull(result!!.warning)
+        assertEquals(1, rig.sent.size)
+        assertEquals(listOf(27), rig.encoder.temperatures)
+        assertEquals(27, rig.profile!!.acSettings.temperature)
+        assertEquals(result.label, rig.journal.records.value.getValue("ac").label)
+        assertCorruptJournalBackup(rig.journalFile, content)
+    }
+    @Test fun journalReadFailurePropagatesAndAllowsRetry() = runBlocking {
+        val file = File(temporary.newFolder(), "remote-commands.json")
+        assertTrue(file.mkdir())
+        val sentinel = File(file, "sentinel").apply { writeText("retained") }
+        val journal = RemoteCommandJournal(file)
+
+        assertTrue(runCatching { journal.load() }.exceptionOrNull() is IOException)
+        assertEquals("retained", sentinel.readText())
+        assertEquals(listOf(file), file.parentFile.listFiles()!!.toList())
+
+        assertTrue(sentinel.delete())
+        assertTrue(file.delete())
+        file.writeText("""{"tv":{"label":"power","buttonId":"power"}}""")
+        journal.load()
+        assertEquals("power", journal.records.value.getValue("tv").buttonId)
+    }
+
+    private fun assertCorruptJournalBackup(file: File, content: String) {
+        val backups = file.parentFile.listFiles()!!.filter { it.name.startsWith("remote-commands-corrupt-") }
+        assertEquals(1, backups.size)
+        assertTrue(backups.single().name.matches(Regex("""remote-commands-corrupt-\d+-[0-9a-f-]{36}\.json""")))
+        assertEquals(content, backups.single().readText())
     }
 }
