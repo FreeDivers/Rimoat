@@ -7,9 +7,13 @@ import org.qinyan.rimoat.i18n.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import kotlinx.serialization.json.Json
+import java.io.File
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 import org.junit.Test
 import org.junit.Assert.*
 
@@ -75,6 +79,98 @@ class WizardRestorationTest {
             assertFalse(draft.exists())
             assertNull(handle.get<String>("wizard_state"))
         } finally { org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher); Dispatchers.resetMain(); dir.deleteRecursively() }
+    }
+
+    @Test fun leavingSetupDeletesDraftEvenWhenItsViewModelIsClearedImmediately() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val dir = java.nio.file.Files.createTempDirectory("wizard-discard-").toFile()
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val draft = WizardDrafts.file(dir, UUID.randomUUID().toString())
+            val original = CustomRemoteWizardUiState(
+                step = WizardStep.LEARNING, remoteName = "客厅",
+                keyQueue = listOf(WizardKeyItem(label = "电源", status = KeyLearnStatus.LEARNED,
+                    capturedSignal = IrSignal.Raw(patternMicros = intArrayOf(9000, 4500, 560))))
+            )
+            assertTrue(draft.parentFile!!.mkdirs())
+            draft.writeText(Json.encodeToString(CustomRemoteWizardUiState.serializer(), original))
+            val vm = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("wizard", it) }
+            await(dispatcher) { !vm.uiState.value.isRestoring }
+
+            assertTrue(vm.handleBack())
+            assertEquals(WizardStep.SETUP, vm.uiState.value.step)
+            assertTrue(draft.exists())
+            assertFalse(vm.handleBack())
+            vm.setRemoteName("新名称")
+            dispatcher.scheduler.runCurrent()
+            vm.discardDraft()
+            vm.setRemoteName("不再写入")
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            assertFalse(draft.exists())
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun pruningDeletesOnlyExpiredSessionDraftsAndTemporaryWrites() {
+        val dir = java.nio.file.Files.createTempDirectory("wizard-prune-").toFile()
+        try {
+            val now = System.currentTimeMillis()
+            val cutoff = now - TimeUnit.DAYS.toMillis(7)
+            fun draftFile() = WizardDrafts.file(dir, UUID.randomUUID().toString())
+            fun write(file: File, modified: Long): File = file.apply {
+                writeText("draft")
+                assertTrue(setLastModified(modified))
+            }
+            val expired = draftFile()
+            val draftsDir = checkNotNull(expired.parentFile)
+            assertTrue(draftsDir.mkdirs())
+            write(expired, cutoff - TimeUnit.DAYS.toMillis(1))
+            val temporary = write(File(draftsDir, ".${expired.name}.123.tmp"), expired.lastModified())
+            val recent = write(draftFile(), cutoff + TimeUnit.DAYS.toMillis(1))
+            val unrelated = write(File(draftsDir, "other.json"), expired.lastModified())
+            val outside = write(File(dir, expired.name), expired.lastModified())
+            val nestedDraft = draftFile().apply { assertTrue(mkdirs()) }
+            val nested = write(File(nestedDraft, expired.name), expired.lastModified())
+
+            assertNull(WizardDrafts.read(expired))
+            assertEquals("draft", WizardDrafts.read(recent))
+            WizardDrafts.pruneExpired(dir, now)
+
+            assertFalse(expired.exists())
+            assertFalse(temporary.exists())
+            listOf(recent, unrelated, outside, nested).forEach { assertTrue(it.exists()) }
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun newSessionWritesOnlyAfterEditingAndRestoresAfterViewModelClears() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val dir = java.nio.file.Files.createTempDirectory("wizard-new-").toFile()
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val draft = WizardDrafts.file(dir, UUID.randomUUID().toString())
+            val first = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("first", it) }
+            await(dispatcher) { !first.uiState.value.isRestoring }
+            assertFalse(draft.exists())
+
+            first.setRemoteName("客厅电视")
+            await(dispatcher) { draft.exists() }
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+
+            val restored = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("restored", it) }
+            await(dispatcher) { !restored.uiState.value.isRestoring }
+            assertEquals("客厅电视", restored.uiState.value.remoteName)
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+            dir.deleteRecursively()
+        }
     }
 
     @Test fun largeWaveformsRestoreFromDiskWhileSavedStateStaysSmall() {
@@ -170,5 +266,14 @@ class WizardRestorationTest {
             assertNull(fromDraft.uiState.value.errorMessage)
             assertNull(fromDraft.uiState.value.testFeedbackMessage)
         } finally { org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher); Dispatchers.resetMain(); dir.deleteRecursively() }
+    }
+
+    private fun await(dispatcher: TestDispatcher, condition: () -> Boolean) {
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (!condition() && System.nanoTime() < deadline) {
+            dispatcher.scheduler.advanceUntilIdle()
+            Thread.sleep(5)
+        }
+        assertTrue(condition())
     }
 }

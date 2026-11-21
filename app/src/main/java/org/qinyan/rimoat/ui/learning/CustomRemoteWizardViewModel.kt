@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.ui.learning
 
+import android.util.Log
 import org.qinyan.rimoat.R
 
 import org.qinyan.rimoat.i18n.UiText
@@ -19,7 +20,9 @@ import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.hardware.learning.LearningState
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -107,9 +110,11 @@ class CustomRemoteWizardViewModel(
         } ?: CustomRemoteWizardUiState(
             category = initialCategory,
             keyQueue = generateDefaultQueue(initialCategory)
-        ).copy(isRestoring = draftFile != null && savedStateHandle?.get<String>("wizard_state") == "local-draft")
+        ).copy(isRestoring = draftFile != null)
     )
     val uiState: StateFlow<CustomRemoteWizardUiState> = _uiState.asStateFlow()
+    private val _savedRemote = MutableStateFlow<RemoteProfile?>(null)
+    val savedRemote: StateFlow<RemoteProfile?> = _savedRemote.asStateFlow()
 
     suspend fun brandsFor(category: DeviceCategory): List<org.qinyan.rimoat.data.db.IrBrand> {
         val library = brandLibrary ?: return emptyList()
@@ -121,23 +126,28 @@ class CustomRemoteWizardViewModel(
         return categories.flatMap { library.getBrandsForCategory(it.id) }.distinctBy { it.nameCn to it.nameEn }
     }
 
-    private var savedProfile: RemoteProfile? = null
     private var completed = false
     private var draftJob: Job? = null
 
     init {
         if (savedStateHandle != null || draftFile != null) draftJob = viewModelScope.launch {
+            var initialDiskState: CustomRemoteWizardUiState? = null
             if (_uiState.value.isRestoring) {
+                val initial = _uiState.value.copy(isRestoring = false)
                 try {
                     val restored = withContext(Dispatchers.IO) {
-                        draftJson.decodeFromString<CustomRemoteWizardUiState>(checkNotNull(draftFile).readText())
+                        WizardDrafts.read(checkNotNull(draftFile))?.let {
+                            draftJson.decodeFromString<CustomRemoteWizardUiState>(it)
+                        }
                     }
-                    _uiState.value = restored.copy(isSaving = false, isTestingTransmit = false, isRestoring = false,
+                    val resumable = restored?.copy(isSaving = false, isTestingTransmit = false, isRestoring = false,
                         keyQueue = restored.keyQueue.map { item ->
                             if (item.status == KeyLearnStatus.LEARNING) item.copy(status =
                                 if (item.capturedSignal == null) KeyLearnStatus.PENDING else KeyLearnStatus.CAPTURED)
                             else item
                         })
+                    initialDiskState = resumable ?: initial
+                    _uiState.update { current -> resumable ?: current.copy(isRestoring = false) }
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
                     _uiState.update { it.copy(isRestoring = false, errorMessage = UiText.resource(R.string.screen_restore_draft_failed, e.uiTextDetail(R.string.control_unknown_error))) }
@@ -146,11 +156,12 @@ class CustomRemoteWizardViewModel(
                 }
             }
             uiState.collect { state ->
-                if (completed || savedProfile != null) return@collect
+                if (state == initialDiskState) return@collect
+                initialDiskState = null
                 try {
                     if (draftFile != null) {
                         withContext(Dispatchers.IO) {
-                            org.qinyan.rimoat.data.AtomicLocalFile.write(draftFile,
+                            WizardDrafts.write(draftFile,
                                 draftJson.encodeToString(CustomRemoteWizardUiState.serializer(), state))
                         }
                         savedStateHandle?.set("wizard_state", "local-draft")
@@ -420,9 +431,9 @@ class CustomRemoteWizardViewModel(
         _uiState.update { it.copy(step = WizardStep.LEARNING) }
     }
 
-    fun saveRemote(onSaved: (RemoteProfile) -> Unit) {
+    fun saveRemote(onSaved: (RemoteProfile) -> Unit = {}) {
         val state = _uiState.value
-        if (state.isSaving || completed) return
+        if (state.isSaving || state.isRestoring || completed) return
         if (state.learnedCount == 0 || state.remoteName.isBlank()) {
             _uiState.update { it.copy(errorMessage = UiText.Resource(R.string.screen_need_learned_key)) }
             return
@@ -447,7 +458,7 @@ class CustomRemoteWizardViewModel(
                 )
             }
 
-        val profile = savedProfile ?: RemoteProfile(
+        val profile = RemoteProfile(
             id = UUID.randomUUID().toString(),
             name = state.remoteName.trim(),
             brand = state.brand.trim(),
@@ -459,25 +470,44 @@ class CustomRemoteWizardViewModel(
 
         viewModelScope.launch {
             try {
-                if (savedProfile == null) {
-                    repository?.saveRemote(profile)
-                    savedProfile = profile
-                }
-                draftJob?.cancelAndJoin()
-                draftJob = null
-                withContext(Dispatchers.IO) {
-                    draftFile?.let { file ->
-                        check(!file.exists() || file.delete()) { org.qinyan.rimoat.i18n.AppStrings.get(R.string.msg_storage_unavailable) }
-                    }
-                }
-                savedStateHandle?.remove<String>("wizard_state")
-                completed = true
-                reset(state.category)
+                repository?.saveRemote(profile)
+                if (completed) return@launch
+                closeDraft().join()
+                _savedRemote.value = profile
                 onSaved(profile)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 _uiState.update { it.copy(errorMessage = UiText.resource(R.string.screen_save_learning_failed, e.uiTextDetail(R.string.control_unknown_error))) }
             } finally { _uiState.update { it.copy(isSaving = false) } }
+        }
+    }
+
+    fun discardDraft() {
+        if (completed) return
+        closeDraft()
+        onScreenStopped()
+    }
+
+    private fun closeDraft(): Job {
+        completed = true
+        val writer = draftJob
+        draftJob = null
+        writer?.cancel()
+        savedStateHandle?.remove<String>("wizard_state")
+        // Exiting the route may clear this ViewModel immediately. Finish the file cleanup first.
+        return viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            withContext(NonCancellable) {
+                writer?.cancelAndJoin()
+                draftFile?.let { file ->
+                    withContext(Dispatchers.IO) {
+                        try {
+                            if (!WizardDrafts.delete(file)) Log.w("WizardDrafts", "Could not delete wizard draft")
+                        } catch (e: SecurityException) {
+                            Log.w("WizardDrafts", "Could not delete wizard draft", e)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -491,7 +521,7 @@ class CustomRemoteWizardViewModel(
     }
 
     fun handleBack(): Boolean {
-        if (_uiState.value.isSaving || _uiState.value.isRestoring) return true
+        if (completed || _uiState.value.isSaving || _uiState.value.isRestoring) return true
         cancelTest()
         val current = _uiState.value
         return when (current.step) {

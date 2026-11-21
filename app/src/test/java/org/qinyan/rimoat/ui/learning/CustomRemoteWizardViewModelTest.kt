@@ -413,7 +413,7 @@ class CustomRemoteWizardViewModelTest {
     }
 
     @Test
-    fun testSaveRemote_resetsViewModelStateForNewSession() {
+    fun testSaveRemote_finishesSessionAndRejectsSecondSave() {
         val viewModel = tracked(CustomRemoteWizardViewModel(
             learnerManager = learnerManager,
             initialCategory = DeviceCategory.TV
@@ -439,12 +439,10 @@ class CustomRemoteWizardViewModelTest {
         assertTrue("Remote should be saved", finished)
         assertNotNull(savedProfile)
 
-        // Verify that after save, ViewModel state has been reset to fresh SETUP step
-        val resetState = viewModel.uiState.value
-        assertEquals("Wizard step must be reset to SETUP after saving", WizardStep.SETUP, resetState.step)
-        assertEquals("Remote name must be cleared", "", resetState.remoteName)
-        assertEquals("Current key index must be 0", 0, resetState.currentIndex)
-        assertEquals("No keys should be marked learned in fresh queue", 0, resetState.learnedCount)
+        var savedAgain = false
+        viewModel.saveRemote { savedAgain = true }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(savedAgain)
     }
 
     @Test

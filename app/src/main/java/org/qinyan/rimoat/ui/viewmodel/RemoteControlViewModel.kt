@@ -22,11 +22,10 @@ import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.data.AcSignalEncoder
 import org.qinyan.rimoat.data.AcStateChoice
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.delay
@@ -56,6 +55,9 @@ class RemoteControlViewModel(
     private val commandExecutor: org.qinyan.rimoat.data.RemoteCommandExecutor? = null
 ) : ViewModel() {
 
+    private val operationLifetime = SupervisorJob()
+    private val operationScope = CoroutineScope(viewModelScope.coroutineContext + operationLifetime)
+
     private val _isLearningMode = MutableStateFlow(false)
     val isLearningMode: StateFlow<Boolean> = _isLearningMode.asStateFlow()
 
@@ -73,7 +75,7 @@ class RemoteControlViewModel(
     }
 
     fun savePanelLayout(layout: org.qinyan.rimoat.data.RemotePanelLayout) {
-        viewModelScope.launch {
+        operationScope.launch {
             try {
                 repository?.updatePanelLayout(remoteId, layout)
                 _manualProfile.value = _manualProfile.value?.copy(panelLayout = layout)
@@ -202,10 +204,16 @@ class RemoteControlViewModel(
         clearFeedback()
     }
 
+    override fun onCleared() {
+        onScreenStopped()
+        // Let submitted layout edits and accepted transmissions finish saving.
+        operationLifetime.complete()
+    }
+
     /** Cancel waiting/encoding jobs on exit; an accepted transmission keeps its state commit. */
     private fun launchSend(block: suspend (beginTransmission: () -> Unit) -> Unit) {
         synchronized(sendGateLock) { if (!screenActive) return }
-        val job = viewModelScope.launch {
+        val job = operationScope.launch {
             val self = checkNotNull(kotlin.coroutines.coroutineContext[Job])
             synchronized(sendGateLock) {
                 if (!screenActive) return@launch

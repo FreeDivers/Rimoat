@@ -7,6 +7,7 @@ import org.qinyan.rimoat.data.ThemePreferences
 import org.qinyan.rimoat.data.db.IrDatabaseRepository
 import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
+import org.qinyan.rimoat.ui.learning.WizardDrafts
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -90,6 +91,7 @@ class IrRemoteApplication : Application() {
             journal = org.qinyan.rimoat.data.RemoteCommandJournal(java.io.File(filesDir, "remote-commands.json"))
         )
         shortcuts = org.qinyan.rimoat.data.RemoteShortcutManager(this)
+        applicationScope.launch { WizardDrafts.pruneExpired(filesDir) }
         applicationScope.launch {
             repository.awaitLoaded()
             repository.remotes.collect { syncCurrentShortcuts() }

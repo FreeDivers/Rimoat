@@ -194,7 +194,7 @@ class PerfAndReliabilityRegressionTest {
     }
 
     @Test
-    fun sendGateDispatchesWithoutMainThreadStallAndHonorsStopBoundaries() = runBlocking {
+    fun sendGateCommitsAcceptedSendAndCancelsQueuedSendAfterViewModelClears() = runBlocking {
         val startedOnIo = CompletableDeferred<Unit>()
         val allowFinish = CompletableDeferred<Unit>()
         val sentCount = AtomicInteger(0)
@@ -226,18 +226,19 @@ class PerfAndReliabilityRegressionTest {
         )
 
         val vm = tracked(RemoteControlViewModel("tv", initialProfile = tv, commandExecutor = executor))
-        vm.sendButton(button)
-        // Only run initial launch on Main; do NOT pump Main Looper again while IO runs beforeTransmission()!
-        testDispatcher.scheduler.runCurrent()
-        withTimeout(2000) { startedOnIo.await() }
-        assertTrue(vm.isTransmitting.value)
+        try {
+            vm.sendButton(button)
+            // Run Main once so accepting the send must be able to proceed on IO.
+            testDispatcher.scheduler.runCurrent()
+            withTimeout(2000) { startedOnIo.await() }
+            assertTrue(vm.isTransmitting.value)
 
-        // Queue a second click while first is in flight, then stop screen:
-        // first send was already accepted (completes), second send is still pending (cancelled).
-        vm.sendButton(button)
-        testDispatcher.scheduler.runCurrent()
-        vm.onScreenStopped()
-        allowFinish.complete(Unit)
+            vm.sendButton(button)
+            testDispatcher.scheduler.runCurrent()
+            stores.clear()
+        } finally {
+            allowFinish.complete(Unit)
+        }
 
         withTimeout(2000) {
             while (vm.isTransmitting.value) {
@@ -246,6 +247,7 @@ class PerfAndReliabilityRegressionTest {
             }
         }
         assertEquals(1, sentCount.get())
+        assertEquals(button.id, journal.records.value[tv.id]?.buttonId)
     }
 
     @Test

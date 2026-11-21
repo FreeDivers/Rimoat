@@ -5,10 +5,13 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,12 +23,16 @@ import androidx.compose.ui.Modifier
 import org.qinyan.rimoat.ui.motion.MotionContent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.ui.learning.CustomRemoteWizardScreen
 import org.qinyan.rimoat.ui.learning.CustomRemoteWizardViewModel
+import org.qinyan.rimoat.ui.learning.WizardDrafts
 import org.qinyan.rimoat.ui.screens.AddRemoteScreen
 import org.qinyan.rimoat.ui.screens.RemoteControlScreen
 import org.qinyan.rimoat.ui.screens.SettingsScreen
@@ -83,9 +90,40 @@ private val ScreenSaver = listSaver<AppScreen, String>(
 )
 
 class MainActivity : AppCompatActivity() {
+    private val pageViewModels by viewModels<PageViewModelStores>()
     private val refreshRateController by lazy { org.qinyan.rimoat.ui.DisplayRefreshRateController(this) }
     private var widgetDestination by mutableStateOf<AppScreen?>(null)
     private var initialColdResumeConsumed = false
+
+    @Composable
+    private fun pageViewModelOwner(screen: AppScreen): ViewModelStoreOwner {
+        val owner = remember(screen) { pageViewModels.ownerFor(screen) }
+        DisposableEffect(screen) {
+            onDispose {
+                if (!isChangingConfigurations) pageViewModels.release(screen)
+            }
+        }
+        return owner
+    }
+
+    private fun wizardViewModel(
+        screen: AppScreen.CustomRemoteWizard,
+        owner: ViewModelStoreOwner
+    ): CustomRemoteWizardViewModel {
+        val app = application as IrRemoteApplication
+        return ViewModelProvider(owner, viewModelFactory {
+            initializer {
+                CustomRemoteWizardViewModel(
+                    repository = app.repository,
+                    transmitterManager = app.transmitterManager,
+                    learnerManager = app.learnerManager,
+                    initialCategory = screen.category,
+                    draftFile = WizardDrafts.file(app.filesDir, screen.sessionId),
+                    brandLibrary = app.irDatabaseRepository
+                )
+            }
+        })[CustomRemoteWizardViewModel::class.java]
+    }
 
     private fun readWidgetDestination(intent: android.content.Intent?) {
         org.qinyan.rimoat.data.RemoteShortcutManager.remoteIdFromIntent(intent)?.let {
@@ -148,7 +186,7 @@ class MainActivity : AppCompatActivity() {
 
         setContent {
             val composeView = androidx.compose.ui.platform.LocalView.current
-            androidx.compose.runtime.DisposableEffect(composeView) {
+            DisposableEffect(composeView) {
                 refreshRateController.bind(composeView)
                 onDispose { refreshRateController.bind(null) }
             }
@@ -165,6 +203,20 @@ class MainActivity : AppCompatActivity() {
                         mutableStateOf<AppScreen>(AppScreen.RemoteList)
                     }
                     var addFlowInitialized by rememberSaveable { mutableStateOf(false) }
+
+                    // A recreated Activity only restores the current page, even if it rotated mid-transition.
+                    LaunchedEffect(Unit) { pageViewModels.releaseExcept(currentScreen) }
+
+                    fun navigate(destination: AppScreen) {
+                        if (destination == currentScreen) return
+                        val wizard = currentScreen as? AppScreen.CustomRemoteWizard
+                        if (wizard != null) {
+                            pageViewModels.findOwner(wizard)?.let { owner ->
+                                wizardViewModel(wizard, owner).discardDraft()
+                            }
+                        }
+                        currentScreen = destination
+                    }
 
                     val listViewModel = viewModel<RemoteListViewModel>(
                         factory = object : ViewModelProvider.Factory {
@@ -191,18 +243,18 @@ class MainActivity : AppCompatActivity() {
                         )
                     } else null
 
-                    androidx.compose.runtime.LaunchedEffect(widgetDestination) {
+                    LaunchedEffect(widgetDestination) {
                         val destination = widgetDestination ?: return@LaunchedEffect
                         repository.awaitLoaded()
                         if (destination is AppScreen.RemoteControl && repository.getRemote(destination.remoteId) == null) {
-                            currentScreen = AppScreen.RemoteList
+                            navigate(AppScreen.RemoteList)
                             listViewModel.reportTransferError(org.qinyan.rimoat.i18n.UiText.resource(R.string.shortcut_unavailable))
                         } else {
                             if (destination == AppScreen.AddRemote) {
                                 addViewModel?.reset()
                                 addFlowInitialized = true
                             }
-                            currentScreen = destination
+                            navigate(destination)
                         }
                         widgetDestination = null
                     }
@@ -255,39 +307,38 @@ class MainActivity : AppCompatActivity() {
                                 if (from == AppScreen.AddRemote && destination == AppScreen.RemoteList) {
                                     addViewModel?.reset()
                                 }
-                                currentScreen = destination
+                                navigate(destination)
                             }
                         },
-                        retain = { it == AppScreen.RemoteList }
+                        retain = { it == AppScreen.RemoteList },
+                        discardSavedStateOnExit = { it is AppScreen.RemoteControl || it is AppScreen.CustomRemoteWizard }
                     ) { screen ->
                         when (screen) {
                             is AppScreen.RemoteList -> {
                                 RemoteListScreen(
                                     viewModel = listViewModel,
-                                    onSettingsClick = { currentScreen = AppScreen.Settings },
-                                    onRemoteClick = { id ->
-                                        currentScreen = AppScreen.RemoteControl(id)
-                                    },
+                                    onSettingsClick = { navigate(AppScreen.Settings) },
+                                    onRemoteClick = { id -> navigate(AppScreen.RemoteControl(id)) },
                                     onAddRemoteClick = {
                                         addViewModel?.reset()
                                         addFlowInitialized = true
-                                        currentScreen = AppScreen.AddRemote
+                                        navigate(AppScreen.AddRemote)
                                     }
                                 )
                             }
-                            AppScreen.Rooms -> org.qinyan.rimoat.ui.screens.RoomManagementScreen(listViewModel) { currentScreen = AppScreen.Settings }
-                            AppScreen.Trash -> org.qinyan.rimoat.ui.screens.TrashScreen(listViewModel) { currentScreen = AppScreen.Settings }
+                            AppScreen.Rooms -> org.qinyan.rimoat.ui.screens.RoomManagementScreen(listViewModel) { navigate(AppScreen.Settings) }
+                            AppScreen.Trash -> org.qinyan.rimoat.ui.screens.TrashScreen(listViewModel) { navigate(AppScreen.Settings) }
                             AppScreen.Settings -> {
-                                SettingsScreen(listViewModel, onBack = { currentScreen = AppScreen.RemoteList },
-                                    onRoomsClick = { currentScreen = AppScreen.Rooms }, onTrashClick = { currentScreen = AppScreen.Trash },
-                                    onAboutClick = { currentScreen = AppScreen.About })
+                                SettingsScreen(listViewModel, onBack = { navigate(AppScreen.RemoteList) },
+                                    onRoomsClick = { navigate(AppScreen.Rooms) }, onTrashClick = { navigate(AppScreen.Trash) },
+                                    onAboutClick = { navigate(AppScreen.About) })
                             }
-                            AppScreen.About -> AboutScreen(onBack = { currentScreen = AppScreen.Settings },
-                                onLicensesClick = { currentScreen = AppScreen.OpenSourceLicenses })
+                            AppScreen.About -> AboutScreen(onBack = { navigate(AppScreen.Settings) },
+                                onLicensesClick = { navigate(AppScreen.OpenSourceLicenses) })
                             AppScreen.OpenSourceLicenses, is AppScreen.LibraryLicense -> OpenSourceLicensesScreen(
                                 libraryId = (screen as? AppScreen.LibraryLicense)?.libraryId,
-                                onBack = { currentScreen = screen.backDestination(wide) ?: AppScreen.About },
-                                onLibraryClick = { currentScreen = AppScreen.LibraryLicense(it) })
+                                onBack = { navigate(screen.backDestination(wide) ?: AppScreen.About) },
+                                onLibraryClick = { navigate(AppScreen.LibraryLicense(it)) })
                             is AppScreen.AddRemote -> {
                                 val resolvedAddVm = addViewModel ?: viewModel<AddRemoteViewModel>(
                                     factory = object : ViewModelProvider.Factory {
@@ -306,46 +357,31 @@ class MainActivity : AppCompatActivity() {
                                     viewModel = resolvedAddVm,
                                     onBack = {
                                         resolvedAddVm.reset()
-                                        currentScreen = AppScreen.RemoteList
+                                        navigate(AppScreen.RemoteList)
                                     },
                                     onRemoteCreated = { profile ->
-                                        currentScreen = AppScreen.RemoteControl(profile.id)
+                                        navigate(AppScreen.RemoteControl(profile.id))
                                     },
                                     onCustomWizardClick = {
-                                        currentScreen = AppScreen.CustomRemoteWizard()
+                                        navigate(AppScreen.CustomRemoteWizard())
                                     }
                                 )
                             }
                             is AppScreen.CustomRemoteWizard -> {
-                                val wizardViewModel = viewModel<CustomRemoteWizardViewModel>(
-                                    key = screen.sessionId,
-                                    factory = object : ViewModelProvider.Factory {
-                                        @Suppress("UNCHECKED_CAST")
-                                        override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                                            return CustomRemoteWizardViewModel(
-                                                repository = repository,
-                                                transmitterManager = transmitterManager,
-                                                learnerManager = app.learnerManager,
-                                                initialCategory = screen.category,
-                                                savedStateHandle = extras.createSavedStateHandle(),
-                                                draftFile = java.io.File(app.filesDir, "wizard-drafts/${screen.sessionId}.json"),
-                                                brandLibrary = app.irDatabaseRepository
-                                            ) as T
-                                        }
-                                    }
-                                )
+                                val owner = pageViewModelOwner(screen)
+                                val wizardViewModel = remember(owner) { wizardViewModel(screen, owner) }
 
                                 CustomRemoteWizardScreen(
                                     viewModel = wizardViewModel,
-                                    onBack = { wizardViewModel.reset(); currentScreen = AppScreen.AddRemote },
+                                    onBack = { navigate(AppScreen.AddRemote) },
                                     onRemoteCreated = { profile ->
-                                        currentScreen = AppScreen.RemoteControl(profile.id)
+                                        if (currentScreen == screen) navigate(AppScreen.RemoteControl(profile.id))
                                     }
                                 )
                             }
                             is AppScreen.RemoteControl -> {
                                 val controlViewModel = viewModel<RemoteControlViewModel>(
-                                    key = screen.remoteId,
+                                    viewModelStoreOwner = pageViewModelOwner(screen),
                                     factory = object : ViewModelProvider.Factory {
                                         @Suppress("UNCHECKED_CAST")
                                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -364,7 +400,7 @@ class MainActivity : AppCompatActivity() {
 
                                 RemoteControlScreen(
                                     viewModel = controlViewModel,
-                                    onBack = { currentScreen = AppScreen.RemoteList }
+                                    onBack = { navigate(AppScreen.RemoteList) }
                                 )
                             }
                         }

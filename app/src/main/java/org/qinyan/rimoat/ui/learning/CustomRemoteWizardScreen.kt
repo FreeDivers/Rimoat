@@ -94,6 +94,11 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
     val brandContext = androidx.compose.ui.platform.LocalContext.current
     val wide = rememberWideLayout()
     val active = LocalMotionActive.current
+    val savedRemote by viewModel.savedRemote.collectAsStateWithLifecycle()
+    val onCreated by rememberUpdatedState(onRemoteCreated)
+    LaunchedEffect(active, savedRemote) {
+        if (active) savedRemote?.let(onCreated)
+    }
     DisposableEffect(viewModel) { onDispose { viewModel.onScreenStopped() } }
     org.qinyan.rimoat.ui.CancelOperationsOnStop(viewModel::onScreenStopped)
     LaunchedEffect(state.currentKey?.id, state.currentKey?.status) {
@@ -229,7 +234,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                     }
                 )
                 WizardStep.REVIEW -> LearningReviewContent(page, viewModel::returnToLearning,
-                    { viewModel.saveRemote(onRemoteCreated) }, Modifier.fillMaxSize().padding(padding))
+                    { viewModel.saveRemote() }, Modifier.fillMaxSize().padding(padding))
             }
         }
     }

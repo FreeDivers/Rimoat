@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -58,6 +59,7 @@ fun <T : Any> MotionContent(
     backTarget: T? = null,
     onBack: () -> Unit = {},
     retain: (T) -> Boolean = { false },
+    discardSavedStateOnExit: (T) -> Boolean = { false },
     content: @Composable (T) -> Unit
 ) {
     val active = LocalMotionActive.current
@@ -164,6 +166,13 @@ fun <T : Any> MotionContent(
             val outgoing = currentScene != null && pageKey == contentKey(currentScene.from)
             val interactive = active && visible && currentScene == null && pageKey == targetKey
             key(pageKey) {
+                if (discardSavedStateOnExit(page)) {
+                    DisposableEffect(pageKey) {
+                        onDispose {
+                            if (contentKey(latestTarget) != pageKey) savedState.removeState(pageKey)
+                        }
+                    }
+                }
                 Box(
                     motionPageModifier(visible, outgoing, interactive, currentScene)
                 ) {
