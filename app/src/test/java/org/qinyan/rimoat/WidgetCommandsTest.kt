@@ -6,6 +6,8 @@ import org.qinyan.rimoat.widget.*
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -63,10 +65,51 @@ class WidgetCommandsTest {
         restored.remove(2)
         assertEquals(mapOf(3 to second), restored.configurations.value)
     }
-    @Test fun corruptStoreIsPreserved() = runBlocking {
-        val file = File(temporary.newFolder(), "widgets.json").apply { writeText("broken") }
-        assertTrue(runCatching { WidgetStore(file).save(1, WidgetConfiguration(WidgetKind.PANEL)) }.isFailure)
-        assertEquals("broken", file.readText())
+    @Test fun corruptWidgetStoreRecoversAndPreservesOriginalBytes() = runBlocking {
+        val content = "{\"configurations\":".encodeToByteArray() + 0xFF.toByte()
+        val file = File(temporary.newFolder(), "widgets.json").apply { writeBytes(content) }
+        val store = WidgetStore(file)
+
+        store.load()
+
+        assertTrue(store.configurations.value.isEmpty())
+        val backup = file.parentFile.listFiles()!!.filter { it != file }.single()
+        assertArrayEquals(content, backup.readBytes())
+
+        val configuration = WidgetConfiguration(WidgetKind.PANEL)
+        WidgetStore(file).save(1, configuration)
+        val restored = WidgetStore(file)
+        restored.load()
+
+        assertEquals(mapOf(1 to configuration), restored.configurations.value)
+        assertEquals(listOf(backup), file.parentFile.listFiles()!!.filter { it != file })
+        assertArrayEquals(content, backup.readBytes())
+    }
+
+    @Test fun invalidWidgetBindingDoesNotBlockOtherConfigurationsOrReconfiguration() = runBlocking {
+        val tvPower = WidgetShortcut("tv", "power")
+        val fanPower = WidgetShortcut("fan", "power")
+        val first = WidgetConfiguration(WidgetKind.SINGLE, "tv", listOf(tvPower))
+        val invalid = first.copy(shortcuts = listOf(fanPower))
+        val replacement = invalid.copy(remoteId = "fan")
+        val panel = WidgetConfiguration(WidgetKind.PANEL, shortcuts = listOf(tvPower, fanPower))
+        val entries = Json.encodeToString(mapOf(1 to first, 2 to invalid, 3 to panel))
+        val undecodable = """{"1":${Json.encodeToString(first)},"2":{"kind":"UNKNOWN"},"3":${Json.encodeToString(panel)}}"""
+
+        for (content in listOf(entries, """{"configurations":$entries,"completedRestores":[]}""", undecodable)) {
+            val file = File(temporary.newFolder(), "widgets.json").apply { writeText(content) }
+            val store = WidgetStore(file)
+            store.load()
+
+            assertEquals(mapOf(1 to first, 3 to panel), store.configurations.value)
+
+            WidgetStore(file).remove(3)
+            WidgetStore(file).save(2, replacement)
+            val restored = WidgetStore(file)
+            restored.load()
+
+            assertEquals(mapOf(1 to first, 2 to replacement), restored.configurations.value)
+        }
     }
     @Test fun invalidBindingsAreRejected() {
         assertTrue(runCatching { WidgetConfiguration(WidgetKind.SINGLE, "tv", listOf(WidgetShortcut("ac", "x"))).validate() }.isFailure)
