@@ -13,6 +13,7 @@ import org.qinyan.rimoat.hardware.usb.ElkSmartUsbTransmitter
 import org.qinyan.rimoat.hardware.usb.TiqiaaUsbTransmitter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,7 +49,7 @@ data class TransmissionReceipt(val simulated: Boolean)
 @OptIn(ExperimentalCoroutinesApi::class)
 class IrTransmitterManager(
     private val context: Context,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 ) {
     private val appContext: Context = try { context.applicationContext ?: context } catch (_: Throwable) { context }
     private val deferInitialHardwareCheck: Boolean = try {

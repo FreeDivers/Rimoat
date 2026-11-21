@@ -5,16 +5,24 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.hardware.ConsumerIrManager
 import android.media.AudioManager
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,6 +35,41 @@ import org.robolectric.shadow.api.Shadow
 @Config(sdk = [35], application = Application::class, shadows = [FakeConsumerIrManager::class])
 @OptIn(ExperimentalCoroutinesApi::class)
 class IrTransmitterManagerMultiSourceTest {
+
+    @Test
+    fun defaultScopeKeepsRoutingStateUpdatesAfterChildFailure() = runBlocking<Unit> {
+        val manager = IrTransmitterManager(createMockContext())
+        val scope = IrTransmitterManager::class.java.getDeclaredField("scope").run {
+            isAccessible = true
+            get(manager) as CoroutineScope
+        }
+        try {
+            withTimeout(5_000) {
+                manager.setForceMockMode(false)
+                manager.selectTransmitterType(TransmitterType.BUILT_IN)
+                manager.activeTransmitter.first { it.type == TransmitterType.BUILT_IN }
+                manager.transmitterType.first { it == TransmitterType.BUILT_IN }
+                manager.isReady.first { !it }
+
+                val failure = IllegalStateException("Background task failed")
+                val reportedFailure = CompletableDeferred<Throwable>()
+                scope.launch(CoroutineExceptionHandler { _, error -> reportedFailure.complete(error) }) {
+                    throw failure
+                }.join()
+
+                assertSame(failure, reportedFailure.await())
+                assertTrue(scope.isActive)
+
+                manager.selectTransmitterType(null)
+                manager.activeTransmitter.first { it.type == TransmitterType.MOCK }
+                manager.transmitterType.first { it == TransmitterType.MOCK }
+                manager.isReady.first { it }
+            }
+        } finally {
+            manager.release()
+            scope.cancel()
+        }
+    }
 
     private fun createMockContext(): Context {
         return object : ContextWrapper(RuntimeEnvironment.getApplication()) {
