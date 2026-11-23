@@ -16,15 +16,20 @@ object UsbUartProtocol {
         else UsbSerialProber.getDefaultProber().probeDevice(device)
     }.getOrNull()
 
-    fun buildYsIrtmNecPacket(address: Int, command: Int, moduleAddress: Int = 0xA1): ByteArray {
+    fun buildYsIrtmNecPacket(
+        address: Int,
+        command: Int,
+        moduleAddress: Int = 0xA1,
+        extended: Boolean = (address and 0xFF00) != 0
+    ): ByteArray {
         require(address in 0..65535 && command in 0..255) { AppStrings.get(R.string.msg_nec_address_command_range, "NEC 地址或命令超出范围") }
         val first = address and 255
-        val second = if (address > 255) address ushr 8 else first xor 255
+        val second = if (extended) address ushr 8 else first xor 255
         return ysFrame(moduleAddress, first, second, command)
     }
 
     fun buildYsIrtmPacket(signal: IrSignal, moduleAddress: Int = 0xA1): ByteArray = when (signal) {
-        is IrSignal.Nec -> buildYsIrtmNecPacket(signal.address, signal.command, moduleAddress)
+        is IrSignal.Nec -> buildYsIrtmNecPacket(signal.address, signal.command, moduleAddress, signal.extended)
         is IrSignal.Raw -> {
             require(signal.frequencyHz in 36_000..40_000) { AppStrings.get(R.string.msg_ysirtm_carrier, "YS-IRTM 仅支持 38 kHz NEC 信号") }
             val p = signal.patternMicros.map { abs(it.toLong()) }

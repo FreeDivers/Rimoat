@@ -60,7 +60,9 @@ data class RemoteButton(
     val isLearned: Boolean = false,
     val acAction: AcAction? = null,
     /** Stable source label only for app-created default keys; user-entered labels leave this null. */
-    val builtinLabel: String? = null
+    val builtinLabel: String? = null,
+    /** Missing flags preserve the address convention used by existing saved remotes. */
+    val necExtended: Boolean = ((necAddress ?: 0) and 0xFF00) != 0
 ) {
     val hasSignal: Boolean
         get() = when (signalType) {
@@ -76,7 +78,8 @@ data class RemoteButton(
             SignalType.NEC -> {
                 IrSignal.Nec(
                     address = necAddress ?: 0,
-                    command = necCommand ?: 0
+                    command = necCommand ?: 0,
+                    extended = necExtended
                 )
             }
             SignalType.RAW -> {
@@ -95,6 +98,7 @@ data class RemoteButton(
             rawPattern = signal.patternMicros.toList(),
             necAddress = null,
             necCommand = null,
+            necExtended = false,
             alternateRawPattern = emptyList(),
             isLearned = true,
             acAction = null

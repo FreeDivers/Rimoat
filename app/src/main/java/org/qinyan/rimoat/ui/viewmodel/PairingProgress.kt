@@ -48,7 +48,8 @@ internal fun distinguishingPairingKeys(current: List<RemoteButton>, other: List<
         val theirs = otherGroups[key]?.singleOrNull() ?: return@mapNotNull null
         val equal = ours.signalType == theirs.signalType && ours.frequencyHz == theirs.frequencyHz &&
             ours.rawPattern == theirs.rawPattern && ours.necAddress == theirs.necAddress &&
-            ours.necCommand == theirs.necCommand && ours.alternateRawPattern == theirs.alternateRawPattern &&
+            ours.necCommand == theirs.necCommand && ours.necExtended == theirs.necExtended &&
+            ours.alternateRawPattern == theirs.alternateRawPattern &&
             ours.alternateFrequencyHz == theirs.alternateFrequencyHz
         ours.id.takeUnless { equal }
     }.toSet()

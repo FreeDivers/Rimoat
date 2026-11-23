@@ -17,8 +17,8 @@ object IrProtocolEncoder {
     /**
      * Encodes an [IrSignal.Nec] into an [IrSignal.Raw] containing alternating mark/space microsecond durations.
      *
-     * In standard NEC:
-     * - Address is 8-bit (or 16-bit extended NEC)
+     * - Standard NEC sends an 8-bit address followed by its inverse.
+     * - Extended NEC sends both bytes of the 16-bit address, including a zero high byte.
      * - Command is 8-bit, followed by inverted 8-bit command
      */
     fun encodeNec(nec: IrSignal.Nec, frequencyHz: Int = DEFAULT_NEC_FREQUENCY_HZ): IrSignal.Raw {
@@ -30,9 +30,8 @@ object IrProtocolEncoder {
 
         // 2. Address bytes (LSB first)
         val addr = nec.address
-        val isExtendedNec = (addr and 0xFF00) != 0
         val byte0 = addr and 0xFF
-        val byte1 = if (isExtendedNec) {
+        val byte1 = if (nec.extended) {
             (addr shr 8) and 0xFF
         } else {
             byte0.inv() and 0xFF

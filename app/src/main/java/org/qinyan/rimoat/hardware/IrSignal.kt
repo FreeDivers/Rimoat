@@ -30,10 +30,12 @@ sealed interface IrSignal {
         }
     }
 
-    /** Standard NEC protocol (e.g., address = 0x00FF, command = 0x45) */
+    /** NEC with an 8-bit command and either an 8-bit or extended 16-bit address. */
     data class Nec(
         val address: Int,
-        val command: Int
+        val command: Int,
+        /** Defaults to the legacy address convention. Set true for extended addresses below 0x0100. */
+        val extended: Boolean = (address and 0xFF00) != 0
     ) : IrSignal {
         override fun toString(): String {
             val addrHex = "0x" + address.toString(16).padStart(4, '0').uppercase()

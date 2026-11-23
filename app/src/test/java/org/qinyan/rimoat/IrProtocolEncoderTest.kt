@@ -9,6 +9,54 @@ import org.junit.Test
 class IrProtocolEncoderTest {
 
     @Test
+    fun extendedNecPreservesZeroHighAddressByte() {
+        val raw = IrProtocolEncoder.encodeNec(IrSignal.Nec(0x00FE, 0x45, extended = true))
+
+        assertFrameBytes(raw, 0xFE, 0x00, 0x45, 0xBA)
+    }
+
+    @Test
+    fun standardAndExtendedFormatsCoverAllLowAddresses() {
+        for (address in 0..0xFF) {
+            val standard = IrSignal.Nec(address, 0x01)
+            assertFrameBytes(IrProtocolEncoder.encodeNec(standard), address, address xor 0xFF, 0x01, 0xFE)
+            assertFrameBytes(IrProtocolEncoder.encodeNec(standard.copy(extended = true)), address, 0x00, 0x01, 0xFE)
+        }
+    }
+
+    @Test
+    fun omittedFormatPreservesExtendedAddressEncoding() {
+        for (address in listOf(0x0100, 0x01FE, 0x1234, 0xFFFF)) {
+            val signal = IrSignal.Nec(address, 0xA5)
+            assertTrue(signal.extended)
+            assertFrameBytes(IrProtocolEncoder.encodeNec(signal), address and 0xFF, address ushr 8, 0xA5, 0x5A)
+        }
+    }
+
+    @Test
+    fun explicitStandardFormatUsesInvertedLowAddressByte() {
+        val raw = IrProtocolEncoder.encodeNec(IrSignal.Nec(0x1234, 0x00, extended = false), frequencyHz = 40000)
+
+        assertEquals(40000, raw.frequencyHz)
+        assertFrameBytes(raw, 0x34, 0xCB, 0x00, 0xFF)
+    }
+
+    private fun assertFrameBytes(raw: IrSignal.Raw, vararg bytes: Int) {
+        assertEquals(67, raw.patternMicros.size)
+        assertEquals(9000, raw.patternMicros[0])
+        assertEquals(4500, raw.patternMicros[1])
+        assertEquals(560, raw.patternMicros[66])
+        bytes.forEachIndexed { byteIndex, value ->
+            for (bit in 0 until 8) {
+                val index = 2 + (byteIndex * 8 + bit) * 2
+                assertEquals("Byte $byteIndex bit $bit mark", 560, raw.patternMicros[index])
+                val space = if (value and (1 shl bit) == 0) 560 else 1690
+                assertEquals("Byte $byteIndex bit $bit space", space, raw.patternMicros[index + 1])
+            }
+        }
+    }
+
+    @Test
     fun testNecEncodingStructure() {
         val necSignal = IrSignal.Nec(address = 0x00FF, command = 0x45)
         val raw = IrProtocolEncoder.encodeNec(necSignal)

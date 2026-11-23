@@ -52,6 +52,41 @@ class BugFixInteractionRoborazziTest {
             .captureRoboImage("src/test/screenshots/$name.webp", roborazziOptions = options)
     }
 
+    @Test fun extendedNecButtonRetainsAddressFormatWhenPressed() {
+        AppStrings.initialize(app)
+        val button = RemoteButton("power", "电源", iconName = "power", signalType = SignalType.NEC,
+            necAddress = 0x00FE, necCommand = 0x45, necExtended = true)
+        val original = RemoteProfile("tv", "客厅电视", category = DeviceCategory.TV, buttons = listOf(button))
+        val profile = Json.decodeFromString(RemoteProfile.serializer(), Json.encodeToString(RemoteProfile.serializer(), original))
+        val transmitter = IrTransmitterManager(app).apply {
+            setForceMockMode(true)
+            mockTransmitter.simulateDelayMs = 0
+        }
+        val store = ViewModelStore()
+        val vm = RemoteControlViewModel(profile.id, initialProfile = profile, transmitterManager = transmitter)
+            .also { store.put("remote", it) }
+        try {
+            compose.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) { RemoteControlScreen(vm, onBack = {}) }
+            }
+            compose.onNodeWithText(profile.name).assertIsDisplayed()
+            capture("nec_extended_before")
+            compose.onNodeWithContentDescription(button.label).performClick()
+            compose.waitUntil(5_000) { transmitter.mockTransmitter.transmitCount.value == 1 }
+            compose.runOnIdle {
+                val signal = transmitter.mockTransmitter.lastSignal.value as IrSignal.Nec
+                assertEquals(IrSignal.Nec(0x00FE, 0x45, extended = true), signal)
+                val raw = IrProtocolEncoder.encodeNec(signal)
+                for (bit in 8 until 16) assertEquals(560, raw.patternMicros[3 + bit * 2])
+                assertNull(vm.operationError.value)
+            }
+            capture("nec_extended_after")
+        } finally {
+            compose.runOnIdle { store.clear() }
+            transmitter.release()
+        }
+    }
+
     @Test fun rapidNavigationAndCancelledBackLeaveFinalPageTouchable() {
         var target by mutableStateOf("客厅电视")
         var clicks = 0

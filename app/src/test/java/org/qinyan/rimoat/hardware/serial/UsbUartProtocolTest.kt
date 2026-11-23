@@ -7,6 +7,26 @@ import org.junit.Test
 
 class UsbUartProtocolTest {
     private fun bytes(vararg values: Int) = values.map { it.toByte() }.toByteArray()
+    @Test fun ysIrtmHonorsExplicitNecAddressFormat() {
+        val extended = IrSignal.Nec(0x00FE, 0x45, extended = true)
+        val expected = bytes(0xB2, 0xF1, 0xFE, 0x00, 0x45)
+        assertArrayEquals(expected, UsbUartProtocol.buildYsIrtmNecPacket(0x00FE, 0x45, 0xB2, extended = true))
+        assertArrayEquals(expected, UsbUartProtocol.buildYsIrtmPacket(extended, 0xB2))
+        assertArrayEquals(expected, UsbUartProtocol.buildYsIrtmPacket(IrProtocolEncoder.encodeNec(extended), 0xB2))
+        assertArrayEquals(bytes(0xB2, 0xF1, 0xFE, 0x01, 0x45),
+            UsbUartProtocol.buildYsIrtmPacket(extended.copy(extended = false), 0xB2))
+    }
+
+    @Test fun ysIrtmStructuredAndRawPacketsAgreeForExplicitFormats() {
+        for (address in listOf(0x0000, 0x00FE, 0x00FF, 0x0100, 0x1234, 0xFFFF)) {
+            for (extended in listOf(false, true)) {
+                val signal = IrSignal.Nec(address, 0x45, extended)
+                assertArrayEquals(UsbUartProtocol.buildYsIrtmPacket(signal),
+                    UsbUartProtocol.buildYsIrtmPacket(IrProtocolEncoder.encodeNec(signal)))
+            }
+        }
+    }
+
     @Test fun ysIrtmStandardExtendedAndModuleAddressVectors() {
         assertArrayEquals(bytes(0xA1, 0xF1, 0x12, 0xED, 0x34), UsbUartProtocol.buildYsIrtmNecPacket(0x12, 0x34))
         assertArrayEquals(bytes(0xB2, 0xF1, 0x34, 0x12, 0x56), UsbUartProtocol.buildYsIrtmNecPacket(0x1234, 0x56, 0xB2))

@@ -159,6 +159,15 @@ class PairingProgressTest {
         } finally { store.clear(); runCurrent(); backgroundScope.coroutineContext.cancelChildren(); Dispatchers.resetMain(); dir.deleteRecursively() }
     }
 
+    @Test fun distinguishingKeysIncludeNecAddressFormat() {
+        val standard = RemoteButton("power", "Power", signalType = SignalType.NEC,
+            necAddress = 0x00FE, necCommand = 0x45, sourceKeyType = 1)
+        val extended = standard.copy(id = "other_power", necExtended = true)
+
+        assertEquals(setOf(standard.id), distinguishingPairingKeys(listOf(standard), listOf(extended)))
+        assertTrue(distinguishingPairingKeys(listOf(extended), listOf(extended.copy(id = "same_power"))).isEmpty())
+    }
+
     @Test fun distinguishingKeysUseSignalsAndUnambiguousFunctionsOnly() {
         val first = RemoteButton("a", "电源", rawPattern = listOf(9000, 4500, 560), sourceKeyType = 1)
         val same = first.copy(id = "b")

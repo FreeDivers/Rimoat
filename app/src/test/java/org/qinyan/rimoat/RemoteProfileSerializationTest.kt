@@ -20,6 +20,46 @@ class RemoteProfileSerializationTest {
     }
 
     @Test
+    fun necAddressFormatSurvivesSerializationAndSignalConversion() {
+        for (address in listOf(0x0000, 0x00FE, 0x00FF, 0x1234, 0xFFFF)) {
+            for (extended in listOf(false, true)) {
+                val button = RemoteButton("power", "Power", signalType = SignalType.NEC,
+                    necAddress = address, necCommand = 0x45, necExtended = extended)
+                val profile = RemoteProfile("remote", "Remote", buttons = listOf(button))
+                val encoded = json.encodeToString(RemoteProfile.serializer(), profile)
+                val decoded = json.decodeFromString(RemoteProfile.serializer(), encoded)
+
+                assertEquals(profile, decoded)
+                assertEquals(IrSignal.Nec(address, 0x45, extended), decoded.buttons.single().toIrSignal())
+            }
+        }
+    }
+
+    @Test
+    fun savedNecButtonsWithoutFormatKeepTheirAddressConvention() {
+        for (address in listOf(0x0000, 0x00FE, 0x00FF, 0x0100, 0x01FE, 0xFFFF)) {
+            val encoded = """{"id":"power","label":"Power","signalType":"NEC","necAddress":$address,"necCommand":69}"""
+            val button = json.decodeFromString(RemoteButton.serializer(), encoded)
+
+            assertEquals(address > 0xFF, button.necExtended)
+            assertEquals(IrSignal.Nec(address, 0x45), button.toIrSignal())
+        }
+    }
+
+    @Test
+    fun learningRawSignalClearsNecAddressFormat() {
+        val button = RemoteButton("power", "Power", signalType = SignalType.NEC,
+            necAddress = 0x00FE, necCommand = 0x45, necExtended = true)
+        val signal = IrSignal.Raw(patternMicros = intArrayOf(9000, 4500, 560))
+        val learned = button.withLearnedSignal(signal)
+
+        assertEquals(false, learned.necExtended)
+        assertEquals(null, learned.necAddress)
+        assertEquals(null, learned.necCommand)
+        assertEquals(signal, learned.toIrSignal())
+    }
+
+    @Test
     fun testSerializationRoundTrip() {
         val original = RemoteProfile(
             id = "custom_test_1",
