@@ -12,6 +12,7 @@ import org.qinyan.rimoat.ui.motion.FadeVisibility
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -114,6 +115,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
@@ -127,6 +130,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.DialogProperties
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.R
@@ -178,6 +182,8 @@ fun RemoteListScreen(
     val trulyEmpty = allRemotes.isEmpty()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+    val categories = categoryOptions().map { it.first }
+    val layoutDirection = LocalLayoutDirection.current
     val transmitterType by viewModel.transmitterType.collectAsStateWithLifecycle()
     val isHardwareReady by viewModel.isHardwareReady.collectAsStateWithLifecycle()
     val isForceMock by viewModel.isForceMock.collectAsStateWithLifecycle()
@@ -274,7 +280,30 @@ fun RemoteListScreen(
             }
         }
     ) { padding ->
-        BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+        BoxWithConstraints(
+            Modifier.fillMaxSize().padding(padding)
+                .pointerInput(screenActive, trulyEmpty, selectedCategory, layoutDirection) {
+                    if (!screenActive || trulyEmpty) return@pointerInput
+                    val threshold = 64.dp.toPx()
+                    var dragDistance = 0f
+                    // Child card gestures and scrolling consume their own drags first.
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragDistance = 0f },
+                        onDragCancel = { dragDistance = 0f },
+                        onDragEnd = {
+                            val distance = if (layoutDirection == LayoutDirection.Rtl) -dragDistance else dragDistance
+                            val step = when {
+                                distance <= -threshold -> 1
+                                distance >= threshold -> -1
+                                else -> 0
+                            }
+                            val currentIndex = categories.indexOf(selectedCategory)
+                            val nextIndex = (currentIndex + step).coerceIn(categories.indices)
+                            if (nextIndex != currentIndex) viewModel.selectCategory(categories[nextIndex])
+                        }
+                    ) { _, amount -> dragDistance += amount }
+                }
+        ) {
             val searchBar: @Composable (Modifier) -> Unit = { barModifier ->
                 org.qinyan.rimoat.ui.components.RemoteSearchBar(
                     query = searchQuery,
