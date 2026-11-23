@@ -1,5 +1,7 @@
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.ui.components.getCategoryIcon
+
 import androidx.compose.material3.LinearProgressIndicator
 
 import org.qinyan.rimoat.i18n.AppStrings
@@ -52,7 +54,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Air
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Delete
@@ -62,13 +63,9 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.Videocam
-import androidx.compose.material.icons.rounded.WindPower
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -118,7 +115,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.onClick
@@ -691,7 +687,7 @@ fun RemoteCard(
         ) {
             Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = getCategoryIcon(remote.category),
+                    imageVector = getCategoryIcon(remote),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(24.dp)
@@ -790,15 +786,3 @@ private fun EmptyStateView(
         }
     }
 }
-
-fun getCategoryIcon(category: DeviceCategory): ImageVector {
-    return when (category) {
-        DeviceCategory.TV -> Icons.Rounded.Tv
-        DeviceCategory.AC -> Icons.Rounded.Air
-        DeviceCategory.FAN -> Icons.Rounded.WindPower
-        DeviceCategory.PROJECTOR -> Icons.Rounded.Videocam
-        DeviceCategory.AUDIO -> Icons.Rounded.Speaker
-        DeviceCategory.CUSTOM -> Icons.Rounded.DevicesOther
-    }
-}
-

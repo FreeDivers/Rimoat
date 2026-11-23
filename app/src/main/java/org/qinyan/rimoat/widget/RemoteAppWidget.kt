@@ -44,7 +44,7 @@ import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.ui.components.controlAppearance
 import org.qinyan.rimoat.ui.components.getIconVector
-import org.qinyan.rimoat.ui.screens.getCategoryIcon
+import org.qinyan.rimoat.ui.components.getCategoryIcon
 import org.qinyan.rimoat.ui.theme.DarkColorScheme
 import org.qinyan.rimoat.ui.theme.LightColorScheme
 
@@ -405,7 +405,7 @@ private fun IndependentReading(profile: RemoteProfile, snapshot: WidgetSnapshot,
     Row(verticalAlignment = Alignment.CenterVertically) {
         // Category and command icons describe local commands, never a guessed power/volume/speed value.
         if (!compact || command == null) {
-            Image(widgetImage(getCategoryIcon(profile.category)), profile.category.widgetLabel(context),
+            Image(widgetImage(getCategoryIcon(profile)), profile.category.widgetLabel(context),
                 GlanceModifier.size(iconSize), colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant))
             if (command != null) Spacer(GlanceModifier.width(12.dp))
         }

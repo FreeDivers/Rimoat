@@ -1,5 +1,7 @@
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.ui.components.getCategoryIcon
+
 import androidx.compose.foundation.layout.fillMaxHeight
 import org.qinyan.rimoat.ui.components.contentWidth
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
@@ -44,19 +46,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.AcUnit
-import androidx.compose.material.icons.rounded.Air
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DeveloperBoard
-import androidx.compose.material.icons.rounded.Lightbulb
-import androidx.compose.material.icons.rounded.Router
 import androidx.compose.material.icons.rounded.Sensors
-import androidx.compose.material.icons.rounded.SettingsInputHdmi
-import androidx.compose.material.icons.rounded.Speaker
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -80,7 +71,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -511,23 +501,6 @@ fun CategoryGridCard(
     }
 }
 
-fun getCategoryIcon(code: String): ImageVector {
-    return when (code.lowercase()) {
-        "tv" -> Icons.Rounded.Tv
-        "air" -> Icons.Rounded.AcUnit
-        "fan" -> Icons.Rounded.Air
-        "pjt" -> Icons.Rounded.Videocam
-        "stb" -> Icons.Rounded.SettingsInputHdmi
-        "dvd" -> Icons.Rounded.Album
-        "amp" -> Icons.Rounded.Speaker
-        "ipt" -> Icons.Rounded.Router
-        "box" -> Icons.Rounded.DeveloperBoard
-        "light" -> Icons.Rounded.Lightbulb
-        "cam" -> Icons.Rounded.CameraAlt
-        else -> Icons.Rounded.Tv
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Step 3: Code Matching Wizard
 // ---------------------------------------------------------------------------
@@ -546,7 +519,7 @@ fun ConfirmRemoteView(
     val context = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
     val model = state.currentRemote
-    val icon = getCategoryIcon(state.selectedCategory?.code ?: "tv")
+    val icon = getCategoryIcon(state.selectedCategory?.code.orEmpty())
     val canSave = state.customRemoteName.isNotBlank() && !state.isLoading && !state.isSaving
 
     val wide = rememberWideLayout()

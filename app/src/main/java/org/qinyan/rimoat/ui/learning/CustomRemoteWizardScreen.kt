@@ -57,7 +57,7 @@ import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.motion.*
 import org.qinyan.rimoat.ui.screens.BrandSelectionView
-import org.qinyan.rimoat.ui.screens.getCategoryIcon
+import org.qinyan.rimoat.ui.components.getCategoryIcon
 import kotlinx.coroutines.CancellationException
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 

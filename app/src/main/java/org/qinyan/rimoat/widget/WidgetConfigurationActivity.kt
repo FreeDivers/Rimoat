@@ -217,7 +217,7 @@ private fun WidgetConfigurationContent(
                         val profile = snapshot.profiles.firstOrNull { it.id == draft.remoteId }
                         ListItem(headlineContent = { Text(profile?.name ?: stringResource(R.string.widget_select_remote)) },
                             supportingContent = profile?.room?.takeIf(String::isNotBlank)?.let { { Text(it) } },
-                            leadingContent = { Icon(profile?.let { org.qinyan.rimoat.ui.screens.getCategoryIcon(it.category) } ?: Icons.Rounded.SettingsRemote, null) },
+                            leadingContent = { Icon(profile?.let { org.qinyan.rimoat.ui.components.getCategoryIcon(it) } ?: Icons.Rounded.SettingsRemote, null) },
                             trailingContent = { Icon(Icons.Rounded.ChevronRight, null) },
                             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                             modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(enabled = !saving) { choosingRemote = true })

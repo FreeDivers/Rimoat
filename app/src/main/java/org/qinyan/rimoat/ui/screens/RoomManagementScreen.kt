@@ -133,7 +133,7 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                     items(remotes, key = { it.id }) { remote ->
                         val checked = remote.room == room
                         ListItem(headlineContent = { Text(remote.name) }, supportingContent = { Text(remote.room.ifBlank { AppStrings.get(R.string.screen_unassigned, "未分配") }) },
-                            leadingContent = { Icon(getCategoryIcon(remote.category), null) }, trailingContent = { Checkbox(checked, null) },
+                            leadingContent = { Icon(getCategoryIcon(remote), null) }, trailingContent = { Checkbox(checked, null) },
                             modifier = Modifier.clip(MaterialTheme.shapes.medium).toggleable(checked, role = Role.Checkbox) { viewModel.moveToRoom(remote.id, if (it) room else "") })
                     }
                 } else if (room != null) {
@@ -154,7 +154,7 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     items(members, key = { it.id }) { remote ->
-                        ListItem(headlineContent = { Text(remote.name) }, leadingContent = { Icon(getCategoryIcon(remote.category), null) },
+                        ListItem(headlineContent = { Text(remote.name) }, leadingContent = { Icon(getCategoryIcon(remote), null) },
                             trailingContent = { ActionIconButton(AppStrings.get(R.string.screen_move_name, "移动%1\$s", remote.name), { movingRemote = remote.id }) { Icon(Icons.AutoMirrored.Rounded.DriveFileMove, AppStrings.get(R.string.screen_move_name, "移动%1\$s", remote.name)) } },
                             modifier = Modifier.animateItem(fadeInSpec = AppMotion.tween(160), placementSpec = AppMotion.tween(220), fadeOutSpec = AppMotion.tween(120)))
                     }

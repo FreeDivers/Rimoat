@@ -78,7 +78,7 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                         }
                         Column {
                             ListItem(headlineContent = { Text(entry.profile.name) }, supportingContent = { Text(date.format(Date(entry.deletedAt))) },
-                                leadingContent = { Icon(getCategoryIcon(entry.profile.category), null) },
+                                leadingContent = { Icon(getCategoryIcon(entry.profile), null) },
                                 trailingContent = if (!wide && inlineActions) actions else null,
                                 colors = ListItemDefaults.colors(containerColor = color))
                             if (!wide && !inlineActions) {
@@ -96,7 +96,7 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                 selectedEntry?.let { entry ->
                     Column(Modifier.fillMaxSize().verticalScroll(detailScroll).padding(8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(entry.profile.name, style = MaterialTheme.typography.headlineSmall)
-                        Icon(getCategoryIcon(entry.profile.category), null)
+                        Icon(getCategoryIcon(entry.profile), null)
                         if (entry.profile.brand.isNotBlank()) Text(entry.profile.brand, style = MaterialTheme.typography.bodyLarge)
                         if (entry.profile.room.isNotBlank()) Text(entry.profile.room)
                         Text(date.format(Date(entry.deletedAt)), color = MaterialTheme.colorScheme.onSurfaceVariant)
