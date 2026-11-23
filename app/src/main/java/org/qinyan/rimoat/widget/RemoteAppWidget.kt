@@ -483,11 +483,10 @@ private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapsho
         val acAction = widgetAcAction(profile, command)
         val appearance = if (profile != null && acAction != null)
             widgetAcSettings(profile, state.records[profile.id], state.simulated).controlAppearance(acAction) else null
-        val power = acAction in setOf(AcAction.POWER_ON, AcAction.POWER_OFF) ||
-            command.iconName in setOf("power", "power_settings_new") || command.label in setOf("电源", "开关", "开机", "关机")
+        val power = command.isPower(profile, context)
         val active = appearance?.active == true
         val failure = LocalWidgetFeedback.current?.takeIf { it.error && it.shortcut == shortcut }
-        CircleIconButton(widgetImage(if (failure != null) Icons.Rounded.ErrorOutline else widgetCommandVector(profile, command, state)),
+        CircleIconButton(widgetImage(if (failure != null) Icons.Rounded.ErrorOutline else widgetCommandVector(profile, command, state, context)),
             listOfNotNull(profile?.name, profile?.room?.takeIf { it.isNotBlank() },
                 command.displayLabel(profile, context),
                 if (acAction == AcAction.TIMER && profile != null) {

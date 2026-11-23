@@ -1,15 +1,59 @@
 package org.qinyan.rimoat
 
+import android.app.Application
+import android.content.res.Configuration
+import android.os.LocaleList
 import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.i18n.localizedCatalogKeyLabel
+import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.ui.learning.CustomRemoteWizardViewModel
+import org.qinyan.rimoat.widget.WidgetCommands
+import org.qinyan.rimoat.widget.displayLabel
+import org.qinyan.rimoat.widget.isPower
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class)
 class LocalizedButtonMetadataTest {
+    @Test fun widgetPowerMatchesLocalizedLabelsWithoutChangingUserData() {
+        val app = RuntimeEnvironment.getApplication()
+        val signal = listOf(9000, 4500, 560)
+        for (tag in listOf("en", "zh-CN", "zh-Hant", "ja", "en")) {
+            val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tag))
+            })
+            for (source in listOf("电源", "开关", "开机", "关机")) {
+                val name = localizedLabel(source, context)
+                for (label in listOf(name, " ${name.uppercase(java.util.Locale.ROOT)} ")) {
+                    val button = RemoteButton("custom", label, rawPattern = signal)
+                    val profile = RemoteProfile("remote", "My remote", updatedAt = 1L, buttons = listOf(
+                        RemoteButton("input", "Input", rawPattern = signal), button))
+                    val original = Json.encodeToString(RemoteProfile.serializer(), profile)
+                    val command = WidgetCommands.choices(profile).last()
+                    assertTrue("$tag: $label", command.isPower(profile, context))
+                    assertEquals(button.id, WidgetCommands.default(profile, context = context)?.buttonId)
+                    assertEquals(label, command.displayLabel(profile, context))
+                    assertEquals(original, Json.encodeToString(RemoteProfile.serializer(), profile))
+                    val unrelated = profile.copy(buttons = listOf(button.copy(label = "$name settings")))
+                    assertFalse(WidgetCommands.choices(unrelated).single().isPower(unrelated, context))
+                }
+            }
+            val catalog = RemoteButton("catalog", "电源键", sourceKeyType = 800, rawPattern = signal)
+            val profile = RemoteProfile("catalog_remote", "My remote", buttons = listOf(catalog))
+            val command = WidgetCommands.choices(profile).single()
+            assertTrue(command.isPower(profile, context))
+            assertEquals(localizedLabel("电源", context), command.displayLabel(profile, context))
+        }
+    }
+
     @Test fun catalogAliasNormalizationRequiresSourceMetadataAndPreservesUnknownLabels() {
         assertNull(localizedCatalogKeyLabel(RemoteButton("user", "电源键")))
         assertNull(localizedCatalogKeyLabel(RemoteButton("wrong-type", "前进", sourceKeyType = 825)))
@@ -44,5 +88,15 @@ class LocalizedButtonMetadataTest {
         assertEquals(profile, decoded)
         assertNull(decoded.buttons.first().builtinLabel)
         assertEquals("音量+", decoded.buttons.last().builtinLabel)
+    }
+
+    @Test fun learnedPowerMetadataSurvivesJsonAndOverridesItsDisplayName() {
+        val button = RemoteButton("builtin", "My custom name", builtinLabel = "电源")
+            .withLearnedSignal(IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560)))
+        val profile = RemoteProfile("remote", "My remote", buttons = listOf(
+            button.copy(id = "input", builtinLabel = "信源"), button))
+        val restored = Json.decodeFromString<RemoteProfile>(Json.encodeToString(RemoteProfile.serializer(), profile))
+        assertEquals(button.id, WidgetCommands.default(restored)?.buttonId)
+        assertEquals(button, restored.buttons.last())
     }
 }

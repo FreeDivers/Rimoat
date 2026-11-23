@@ -123,6 +123,52 @@ class WidgetCommandsTest {
         assertNull(WidgetCommands.default(tv().copy(buttons = listOf(RemoteButton("blank", "电源")))))
         assertTrue(WidgetCommands.choices(ac().copy(useStaticAcButtons = true)).isEmpty())
     }
+    @Test fun defaultPowerPrefersStableMetadataOverNames() {
+        val named = power.copy(id = "named", iconName = null)
+        val candidates = listOf(
+            power.copy(label = "Custom key", builtinLabel = "电源", iconName = null),
+            power.copy(label = "Custom key", builtinLabel = "开关", iconName = null),
+            power.copy(label = "Custom key", builtinLabel = "开机", iconName = null),
+            power.copy(label = "Custom key", builtinLabel = "关机", iconName = null),
+            power.copy(label = "Custom key"),
+            power.copy(label = "Custom key", iconName = "power_settings_new"),
+            power.copy(label = "Custom key", iconName = null, acAction = AcAction.POWER_ON),
+            power.copy(label = "Custom key", iconName = null, acAction = AcAction.POWER_OFF)
+        )
+        for (candidate in candidates) {
+            val profile = tv().copy(buttons = listOf(named, candidate))
+            assertEquals(candidate.toString(), candidate.id, WidgetCommands.default(profile)?.buttonId)
+            assertTrue(WidgetCommands.choices(profile).last().isPower(profile))
+        }
+    }
+    @Test fun defaultPowerUsesExactLegacyNamesAndOnlyAvailableChoices() {
+        val input = power.copy(id = "input", label = "Input", iconName = null)
+        for (label in listOf("电源", "开关", "开机", "关机")) {
+            val profile = tv().copy(buttons = listOf(input, power.copy(label = label, iconName = null)))
+            assertEquals(label, power.id, WidgetCommands.default(profile)?.buttonId)
+            assertEquals(input.id, WidgetCommands.default(profile, WidgetCommands.choices(profile).take(1))?.buttonId)
+            assertNull(WidgetCommands.default(profile, emptyList()))
+        }
+        val profile = tv().copy(buttons = listOf(input, power.copy(rawPattern = emptyList())))
+        assertEquals(input.id, WidgetCommands.default(profile)?.buttonId)
+        for (button in listOf(
+            power.copy(label = "电源设置", iconName = null),
+            power.copy(label = "电源", iconName = null, builtinLabel = "音量+"),
+            power.copy(label = "电源", iconName = null, acAction = AcAction.MODE)
+        )) {
+            val nonPower = tv().copy(buttons = listOf(input, button))
+            assertFalse(WidgetCommands.choices(nonPower).last().isPower(nonPower))
+            assertEquals(input.id, WidgetCommands.default(nonPower)?.buttonId)
+        }
+    }
+    @Test fun syntheticPowerActionsDoNotDependOnTheirLabels() {
+        val profile = ac()
+        for (id in listOf(WidgetCommands.POWER, "@ac:POWER_ON", "@ac:POWER_OFF")) {
+            val command = WidgetCommand(id, "Custom key", null)
+            assertTrue(command.isPower(profile))
+            assertEquals(id, WidgetCommands.default(profile, listOf(WidgetCommand("other", "Other", null), command))?.buttonId)
+        }
+    }
     @Test fun stateDoesNotInventPowerOrVolumeForIndependentCodes() {
         assertEquals("电视", widgetDeviceStatus(tv(), null, false).primary)
         assertEquals("电源", widgetDeviceStatus(tv(), RemoteCommandRecord(label = "电源", buttonId = "power"), false).primary)

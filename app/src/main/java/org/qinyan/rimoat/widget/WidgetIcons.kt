@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.widget
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.material.icons.Icons
@@ -18,7 +19,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.glance.ImageProvider
-import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.ui.components.controlAppearance
 import org.qinyan.rimoat.ui.components.getIconVector
@@ -51,13 +51,7 @@ internal fun widgetImage(vector: ImageVector): ImageProvider {
     return ImageProvider(checkNotNull(rendered))
 }
 
-internal fun widgetAcAction(profile: RemoteProfile?, command: WidgetCommand): AcAction? =
-    if (command.id.startsWith(WidgetCommands.PREFIX)) {
-        if (command.id == WidgetCommands.POWER) AcAction.POWER_ON
-        else AcAction.entries.firstOrNull { it.name == command.id.removePrefix(WidgetCommands.PREFIX) }
-    } else profile?.buttons?.firstOrNull { it.id == command.id }?.acAction
-
-internal fun widgetCommandVector(profile: RemoteProfile?, command: WidgetCommand, state: WidgetSnapshot): ImageVector {
+internal fun widgetCommandVector(profile: RemoteProfile?, command: WidgetCommand, state: WidgetSnapshot, context: Context? = null): ImageVector {
     val action = widgetAcAction(profile, command)
     if (profile != null && action != null) {
         return widgetAcSettings(profile, state.records[profile.id], state.simulated).controlAppearance(action).icon
@@ -66,8 +60,9 @@ internal fun widgetCommandVector(profile: RemoteProfile?, command: WidgetCommand
         "add" -> Icons.Rounded.Add
         "remove" -> Icons.Rounded.Remove
         "fan" -> Icons.Rounded.Air
-        else -> when (command.label) {
-            "OK", "确认", "确定" -> Icons.Rounded.Check
+        else -> when {
+            command.isPower(profile, context) -> Icons.Rounded.PowerSettingsNew
+            command.label in setOf("OK", "确认", "确定") -> Icons.Rounded.Check
             else -> Icons.Rounded.Tune
         }
     }

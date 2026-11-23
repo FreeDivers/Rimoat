@@ -1,6 +1,13 @@
 package org.qinyan.rimoat.widget
 
+import android.app.Activity
 import android.os.Looper
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextView
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.github.takahirom.roborazzi.*
@@ -14,10 +21,12 @@ import org.junit.runner.RunWith
 import org.qinyan.rimoat.IrRemoteApplication
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.DeviceCategory
+import org.qinyan.rimoat.data.AppColorMode
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Robolectric
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.*
@@ -31,6 +40,73 @@ import org.robolectric.annotation.*
 class WidgetConfigurationLandscapeRoborazziTest {
     @get:Rule val composeRule = createComposeRule()
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
+
+    @Test
+    @Config(qualifiers = "en-rUS-w360dp-h640dp-port-mdpi")
+    fun selectingRemoteDefaultsToEnglishPowerWithoutAnIcon() {
+        val app = RuntimeEnvironment.getApplication() as IrRemoteApplication
+        val profile = RemoteProfile("remote", "Living room television", category = DeviceCategory.TV,
+            buttons = listOf(
+                RemoteButton("input", "Input", rawPattern = listOf(9000, 4500, 560)),
+                RemoteButton("custom", "Power", rawPattern = listOf(9000, 4500, 560))))
+        val widgetId = 44
+        val initial = WidgetConfiguration(WidgetKind.SINGLE, profile.id, listOf(WidgetShortcut(profile.id, "input")))
+        fun capturePreview(configuration: WidgetConfiguration, filename: String, label: String) = runBlocking {
+            val snapshot = app.widgets.state.value.copy(dynamicColor = false, colorMode = AppColorMode.LIGHT, localeTags = "en")
+            val host = Robolectric.buildActivity(Activity::class.java).setup()
+            try {
+                val parent = FrameLayout(host.get())
+                host.get().setContentView(parent, ViewGroup.LayoutParams(250, 160))
+                val views = composeConfigurationPreview(WidgetPreviewComposer.previewContext(host.get()),
+                    configuration, snapshot, DpSize(250.dp, 160.dp))
+                parent.addView(views.apply(host.get(), parent))
+                parent.measure(View.MeasureSpec.makeMeasureSpec(250, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(160, View.MeasureSpec.EXACTLY))
+                parent.layout(0, 0, 250, 160)
+                fun descendants(view: View): List<View> = listOf(view) +
+                    if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+                val children = descendants(parent)
+                assertTrue(children.filterIsInstance<TextView>().any { it.text.toString() == profile.name })
+                assertTrue(children.any { it.contentDescription?.toString() == "${profile.name} $label" && it.isEnabled })
+                parent.captureRoboImage("src/test/screenshots/$filename.webp", roborazziOptions = options)
+                assertEquals(250, parent.width)
+                assertEquals(160, parent.height)
+            } finally { host.pause().stop().destroy() }
+        }
+        var saved = 0
+        try {
+            runBlocking {
+                app.repository.awaitLoaded()
+                app.repository.saveRemote(profile)
+                app.widgets.awaitReady()
+                app.widgets.save(widgetId, initial)
+            }
+            composeRule.waitUntil(10_000) {
+                shadowOf(Looper.getMainLooper()).idle()
+                app.widgets.state.value.commands[profile.id]?.size == 2
+            }
+            val storedProfile = app.repository.remotes.value.first { it.id == profile.id }
+            capturePreview(initial, "widget_power_selection_before", "Input")
+            composeRule.setContent { IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                WidgetConfigurationScreen(app, widgetId, WidgetKind.SINGLE, onCancel = {}, onSaved = { saved++ })
+            } }
+            composeRule.onNodeWithText("Input").assertIsDisplayed()
+            composeRule.onNodeWithText(profile.name).performClick()
+            composeRule.onNode(hasText(profile.name) and hasAnyAncestor(isDialog())).performClick()
+            composeRule.onNodeWithText("Power").assertIsDisplayed()
+            assertEquals(initial, app.widgets.store.configurations.value[widgetId])
+            composeRule.onNodeWithText(app.getString(R.string.widget_done)).performClick()
+            composeRule.waitUntil(10_000) { saved == 1 }
+            val configuration = app.widgets.store.configurations.value.getValue(widgetId)
+            assertEquals(listOf(WidgetShortcut(profile.id, "custom")), configuration.shortcuts)
+            assertEquals(storedProfile, app.repository.remotes.value.first { it.id == profile.id })
+            capturePreview(configuration, "widget_power_selection_after", "Power")
+        } finally {
+            app.transmitterManager.release()
+            app.learnerManager.unregisterReceiver()
+            runBlocking { app.applicationScope.coroutineContext[Job]!!.cancelAndJoin() }
+        }
+    }
 
     @Test
     @Config(qualifiers = "en-rUS-w360dp-h640dp-port-mdpi")

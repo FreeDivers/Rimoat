@@ -34,6 +34,28 @@ data class WidgetConfiguration(
 
 data class WidgetCommand(val id: String, val label: String, val iconName: String?)
 
+private val powerLabels = setOf("电源", "开关", "开机", "关机")
+
+internal fun widgetAcAction(profile: RemoteProfile?, command: WidgetCommand): AcAction? =
+    if (command.id.startsWith(WidgetCommands.PREFIX)) {
+        if (command.id == WidgetCommands.POWER) AcAction.POWER_ON
+        else AcAction.entries.firstOrNull { it.name == command.id.removePrefix(WidgetCommands.PREFIX) }
+    } else profile?.buttons?.firstOrNull { it.id == command.id }?.acAction
+
+private fun WidgetCommand.powerMetadata(profile: RemoteProfile?): Boolean? {
+    widgetAcAction(profile, this)?.let { return it == AcAction.POWER_ON || it == AcAction.POWER_OFF }
+    if (iconName in setOf("power", "power_settings_new")) return true
+    return profile?.buttons?.firstOrNull { it.id == id }?.builtinLabel?.let { it in powerLabels }
+}
+
+internal fun WidgetCommand.isPower(profile: RemoteProfile?, context: Context? = null): Boolean {
+    powerMetadata(profile)?.let { return it }
+    val labels = listOf(label.trim(), displayLabel(profile, context).trim())
+    return powerLabels.any { source ->
+        labels.any { it.equals(source, ignoreCase = true) || it.equals(localizedLabel(source, context), ignoreCase = true) }
+    }
+}
+
 /** Translate built-in labels only at presentation; persisted user names stay untouched. */
 fun WidgetCommand.displayLabel(profile: RemoteProfile?, context: Context? = null): String = when {
     id == WidgetCommands.POWER -> widgetString(context, R.string.widget_power, "电源")
@@ -63,8 +85,9 @@ object WidgetCommands {
         return preferred + commands
     }
 
-    fun default(profile: RemoteProfile, choices: List<WidgetCommand> = choices(profile)): WidgetShortcut? {
-        val command = choices.firstOrNull { it.id == POWER || it.iconName == "power" || it.label in setOf("电源", "开关", "开机") }
+    fun default(profile: RemoteProfile, choices: List<WidgetCommand> = choices(profile), context: Context? = null): WidgetShortcut? {
+        val command = choices.firstOrNull { it.powerMetadata(profile) == true }
+            ?: choices.firstOrNull { it.isPower(profile, context) }
             ?: choices.firstOrNull() ?: return null
         return WidgetShortcut(profile.id, command.id)
     }

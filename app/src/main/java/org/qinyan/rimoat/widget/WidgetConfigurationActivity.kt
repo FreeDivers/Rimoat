@@ -254,7 +254,7 @@ private fun WidgetConfigurationContent(
                     ListItem(
                         headlineContent = { Text(command?.displayLabel(profile, context) ?: stringResource(R.string.widget_button_removed)) },
                         supportingContent = if (kind == WidgetKind.PANEL) ({ Text(profile?.name.orEmpty()) }) else null,
-                        leadingContent = { Icon(command?.let { widgetCommandVector(profile, it, snapshot) } ?: Icons.Rounded.Edit, null) },
+                        leadingContent = { Icon(command?.let { widgetCommandVector(profile, it, snapshot, context) } ?: Icons.Rounded.Edit, null) },
                         trailingContent = if (stacked) null else controls,
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
                     )
@@ -299,7 +299,7 @@ private fun WidgetConfigurationContent(
                         trailingContent = { RadioButton(selected, onClick = null) },
                         modifier = Modifier.clip(MaterialTheme.shapes.medium).selectable(selected, role = Role.RadioButton) {
                             val commands = snapshot.commands[profile.id].orEmpty()
-                            val primary = WidgetCommands.default(profile, commands)
+                            val primary = WidgetCommands.default(profile, commands, context)
                             val keys = if (kind == WidgetKind.SINGLE) listOfNotNull(primary) else
                                 (listOfNotNull(primary) + commands.take(6).map { WidgetShortcut(profile.id, it.id) }).distinct().take(6)
                             change(currentDraft.copy(remoteId = profile.id, shortcuts = keys))
