@@ -123,6 +123,25 @@ class WidgetCommandsTest {
         assertNull(WidgetCommands.default(tv().copy(buttons = listOf(RemoteButton("blank", "电源")))))
         assertTrue(WidgetCommands.choices(ac().copy(useStaticAcButtons = true)).isEmpty())
     }
+
+    @Test fun learnedAcShortcutReplaysRawWhileDynamicShortcutStillChangesTemperature() = runBlocking {
+        val raw = IrSignal.Raw(39500, intArrayOf(2400, 1200, 600))
+        val learned = RemoteButton("temperature", AcAction.TEMP_UP.label, sourceKeyType = AcAction.TEMP_UP.keyType)
+            .withLearnedSignal(raw)
+        val rig = Rig(ac().copy(buttons = listOf(learned)))
+        val choices = WidgetCommands.choices(rig.profile!!)
+        assertTrue(choices.any { it.id == WidgetCommands.PREFIX + "TEMP_UP" })
+        assertTrue(choices.any { it.id == learned.id })
+        assertNotEquals(choices.first { it.id == learned.id }.displayLabel(rig.profile),
+            choices.first { it.id == WidgetCommands.PREFIX + "TEMP_UP" }.displayLabel(rig.profile))
+        rig.executor.executeButton("ac", learned.id)
+        assertEquals(listOf(raw), rig.sent)
+        assertTrue(rig.encoder.temperatures.isEmpty())
+        assertEquals(26, rig.profile!!.acSettings.temperature)
+        rig.up()
+        assertEquals(listOf(27), rig.encoder.temperatures)
+        assertEquals(27, rig.profile!!.acSettings.temperature)
+    }
     @Test fun defaultPowerPrefersStableMetadataOverNames() {
         val named = power.copy(id = "named", iconName = null)
         val candidates = listOf(

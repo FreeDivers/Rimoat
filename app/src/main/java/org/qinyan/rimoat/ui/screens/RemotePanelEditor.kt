@@ -86,7 +86,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
             fun actionEntry(action: AcAction) = PanelEntry(panelAction(action), localizedLabel(action.label), defaults.controlAppearance(action).icon)
             add(PanelGroup(R.string.panel_group_controls, actions.filter { it in main }.map(::actionEntry)))
             add(PanelGroup(R.string.panel_group_ac_actions, actions.filter { it !in main }.map(::actionEntry)))
-            add(PanelGroup(R.string.panel_group_raw_keys, acRawExtensionButtons(profile).map { buttonEntry(it, localizedButtonLabel(it)) }))
+            add(PanelGroup(R.string.panel_group_raw_keys, acRawExtensionButtons(profile).map { buttonEntry(it, org.qinyan.rimoat.i18n.localizedAcRawButtonLabel(it)) }))
             add(PanelGroup(R.string.panel_group_presets, listOf(
                 PanelEntry("preset:0", stringResource(R.string.screen_resend), Icons.Rounded.Refresh),
                 PanelEntry("preset:1", stringResource(R.string.screen_cool_preset), Icons.Rounded.AcUnit),

@@ -148,6 +148,30 @@ class RemoteControlViewModelTest {
         assertEquals(26, vm.acState.value.temperature)
     }
 
+    @Test fun learningTemperatureKeyKeepsDynamicControlsAndReplaysOnlyItsRecordedSignal() {
+        val encoder = RecordingEncoder()
+        val sent = mutableListOf<IrSignal>()
+        val button = RemoteButton("temperature", AcAction.TEMP_UP.label, acAction = AcAction.TEMP_UP)
+        val vm = tracked(RemoteControlViewModel("ac", initialProfile = profile().copy(buttons = listOf(button)),
+            acSignalEncoder = encoder, onTransmitSignal = { sent += it }))
+        val recorded = IrSignal.Raw(39500, intArrayOf(2400, 1200, 600))
+        vm.saveLearnedButton(button, recorded)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.remoteProfile.value!!.useStaticAcButtons)
+        val learned = vm.remoteProfile.value!!.buttons.single()
+        assertTrue(learned.isLearned)
+        vm.sendButton(learned)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(recorded), sent)
+        assertEquals(26, vm.acState.value.temperature)
+        assertTrue(encoder.requests.isEmpty())
+        vm.increaseTemp(); vm.cycleAcMode()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(27, vm.acState.value.temperature)
+        assertEquals(AcMode.HEAT, vm.acState.value.mode)
+        assertEquals(listOf(AcAction.TEMP_UP, AcAction.MODE), encoder.requests.map { it.second })
+    }
+
     @Test fun learningAndMissingKeysDoNotEmitSignals() {
         val sent = mutableListOf<IrSignal>()
         val vm = tracked(RemoteControlViewModel("tv", onTransmitSignal = { sent.add(it) }))

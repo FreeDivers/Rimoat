@@ -255,5 +255,6 @@
     <string name="control_reason_state">この機能は現在のモードまたは設定では制限されています。</string>
     <string name="control_reason_hardware">選択した赤外線送信機を利用できません。</string>
     <string name="control_reason_unknown">利用可否を確認できませんでした。</string>
+    <string name="control_learned_button_name">学習済み：%1$s</string>
 </resources>
 

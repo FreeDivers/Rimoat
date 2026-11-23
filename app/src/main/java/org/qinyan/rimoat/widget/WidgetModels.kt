@@ -62,7 +62,11 @@ fun WidgetCommand.displayLabel(profile: RemoteProfile?, context: Context? = null
     id.startsWith(WidgetCommands.PREFIX) -> AcAction.entries.firstOrNull {
         it.name == id.removePrefix(WidgetCommands.PREFIX)
     }?.let { localizedLabel(it.label, context) } ?: label
-    else -> profile?.buttons?.firstOrNull { it.id == id }?.let { localizedButtonLabel(it, context) } ?: label
+    else -> profile?.buttons?.firstOrNull { it.id == id }?.let {
+        if (profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons)
+            org.qinyan.rimoat.i18n.localizedAcRawButtonLabel(it, context)
+        else localizedButtonLabel(it, context)
+    } ?: label
 }
 
 object WidgetCommands {

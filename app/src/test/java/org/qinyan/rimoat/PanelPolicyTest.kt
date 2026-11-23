@@ -9,6 +9,21 @@ import org.qinyan.rimoat.ui.screens.acPanelActions
 class PanelPolicyTest {
     private fun button(id: String, label: String = id) = RemoteButton(id, label, rawPattern = listOf(9000, 4500, 560))
 
+    @Test fun learnedStateKeysRemainIndependentAndCanBeHiddenWithoutHidingDynamicControls() {
+        val keys = listOf(
+            button("power", "电源").copy(iconName = "power", acAction = AcAction.POWER_ON),
+            button("temperature", "升温").copy(sourceKeyType = AcAction.TEMP_UP.keyType),
+            button("mode", AcAction.MODE.label)
+        ).map { it.copy(isLearned = true) }
+        val profile = RemoteProfile("ac", "AC", category = DeviceCategory.AC, acProtocolId = 27, buttons = keys)
+        assertEquals(keys, acRawExtensionButtons(profile))
+        assertEquals(keys[1], acButtonForAction(profile, AcAction.TEMP_UP))
+        val hidden = profile.copy(panelLayout = RemotePanelLayout(hidden = keys.map(::panelKey).toSet())).withPanelPresentation()
+        assertTrue(acRawExtensionButtons(hidden).isEmpty())
+        assertTrue(AcAction.MODE in acPanelActions(hidden, AcAction.entries.toSet(), false))
+        assertTrue(panelAction(AcAction.MODE) !in hidden.panelLayout.hidden)
+    }
+
     @Test fun hidingAcActionNeverResurrectsItsLegacyOrMetadataKeyAsRawExtension() {
         val fan = button("legacy_wind", "风量")
         val swing = button("swing", "User swing").copy(sourceKeyType = AcAction.SWING.keyType)

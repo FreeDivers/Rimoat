@@ -259,3 +259,11 @@ fun localizedButtonLabel(button: RemoteButton, context: Context? = null): String
     button.sourceKeyType != null -> localizedCatalogKeyLabel(button, context) ?: localizedLabel(button.label, context)
     else -> button.label
 }
+
+/** A learned snapshot remains distinct from the protocol's adjustable state controls. */
+fun localizedAcRawButtonLabel(button: RemoteButton, context: Context? = null): String {
+    val label = localizedButtonLabel(button, context)
+    if (!button.isLearned) return label
+    return context?.getString(R.string.control_learned_button_name, label)
+        ?: AppStrings.get(R.string.control_learned_button_name, "已学习：%1\$s", label)
+}

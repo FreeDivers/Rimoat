@@ -255,5 +255,6 @@
     <string name="control_reason_state">This function is limited by the current mode or setting.</string>
     <string name="control_reason_hardware">The selected IR transmitter is unavailable.</string>
     <string name="control_reason_unknown">Availability could not be confirmed.</string>
+    <string name="control_learned_button_name">Learned: %1$s</string>
 </resources>
 

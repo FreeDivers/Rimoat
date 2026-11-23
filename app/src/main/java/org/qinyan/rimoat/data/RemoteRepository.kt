@@ -190,8 +190,7 @@ class RemoteRepository(
             }
             val changedLabels = setOf(updatedButton.label, current.buttons.firstOrNull { it.id == updatedButton.id }?.label)
             saveRemoteLocked(current.copy(buttons = updatedButtons,
-                verifiedFunctions = current.verifiedFunctions.filter { it !in changedLabels },
-                useStaticAcButtons = current.useStaticAcButtons || current.category == DeviceCategory.AC))
+                verifiedFunctions = current.verifiedFunctions.filter { it !in changedLabels }))
         }
     }
 
@@ -218,7 +217,10 @@ class RemoteRepository(
         mutex.withLock {
             recoverRoomMutation()
             val current = _remotes.value.find { it.id == id } ?: error(AppStrings.get(R.string.msg_remote_missing, "遥控器不存在"))
-            saveRemoteLocked(current.copy(acSettings = settings, lastSentAt = System.currentTimeMillis()))
+            val updated = current.copy(acSettings = settings, lastSentAt = System.currentTimeMillis())
+            RemoteBackupCodec.validate(updated)
+            AtomicLocalFile.write(File(storageDir, "$id.json"), json.encodeToString(RemoteProfile.serializer(), updated))
+            _remotes.value = _remotes.value.map { if (it.id == id) updated else it }
         }
     }
 

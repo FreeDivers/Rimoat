@@ -255,5 +255,6 @@
     <string name="control_reason_state">此功能受目前模式或設定限制。</string>
     <string name="control_reason_hardware">目前選取的紅外線發射器無法使用。</string>
     <string name="control_reason_unknown">無法確認此功能是否可用。</string>
+    <string name="control_learned_button_name">已學習：%1$s</string>
 </resources>
 

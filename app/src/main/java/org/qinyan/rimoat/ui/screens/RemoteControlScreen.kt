@@ -15,6 +15,7 @@ import org.qinyan.rimoat.ui.components.withPanelPresentation
 import org.qinyan.rimoat.ui.components.panelAction
 import org.qinyan.rimoat.ui.components.acButtonForAction
 import org.qinyan.rimoat.ui.components.acRawExtensionButtons
+import org.qinyan.rimoat.i18n.localizedAcRawButtonLabel
 import org.qinyan.rimoat.ui.components.panelKey
 import org.qinyan.rimoat.ui.components.RemoteControlPages
 import org.qinyan.rimoat.ui.components.remoteExtraButtons
@@ -443,7 +444,7 @@ private fun RemoteControlContent(
                 val acMainActions = if (dynamicAc) acPanelActions(profile, availableAcActions, isLearningMode).filter { it in mainAc } else emptyList()
                 val acExtraLabels = if (dynamicAc) acPanelActions(profile, availableAcActions, isLearningMode)
                     .filter { it !in mainAc }.map { localizedLabel(it.label) } +
-                    acRawExtensionButtons(profile).map { localizedButtonLabel(it) } else emptyList()
+                    acRawExtensionButtons(profile).map { localizedAcRawButtonLabel(it) } else emptyList()
                 val acPresetLabels = if (dynamicAc && !isLearningMode) listOf(stringResource(R.string.screen_resend), stringResource(R.string.screen_cool_preset), stringResource(R.string.screen_heat_preset)).filterIndexed { index, _ -> "preset:$index" !in profile.panelLayout.hidden } else emptyList()
                 val extraLabels = if (dynamicAc) acExtraLabels + acPresetLabels else extras.map { localizedButtonLabel(it) }
                 val inlineGroups = if (dynamicAc) {
@@ -928,7 +929,7 @@ fun AcRemoteLayout(
     )
     }
     val actions = acPanelActions(profile, availableActions, isLearningMode)
-    val actionButtons = actions.associateWith { key(it).copy(acAction = it) }
+    val actionButtons = actions.associateWith { key(it).copy(acAction = it, isLearned = false) }
     val renderAction: @Composable androidx.compose.foundation.layout.RowScope.(AcAction) -> Unit = { action ->
         val button = actionButtons.getValue(action)
                 val appearance = acState.controlAppearance(action)
@@ -992,9 +993,9 @@ fun AcRemoteLayout(
     val mainActions = actions.filter { it in setOf(AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.WIND_DIRECTION) }
     val extensionGroups = listOf(actions.filter { it !in mainActions }.map { actionButtons.getValue(it) }, acRawExtensionButtons(profile))
     val renderExtensionButton: @Composable androidx.compose.foundation.layout.RowScope.(RemoteButton) -> Unit = { button ->
-        val action = button.acAction
+        val action = button.acAction?.takeUnless { button.isLearned }
         if (action != null && action in actionButtons) renderAction(action)
-        else RemoteButtonView(localizedButtonLabel(button), button.iconName, { onSendButton(button) },
+        else RemoteButtonView(localizedAcRawButtonLabel(button), button.iconName, { onSendButton(button) },
             modifier = Modifier.weight(1f), enabled = isLearningMode || button.hasSignal,
             onUnavailable = { onUnavailable(button, AcUnavailableReason.MISSING_SIGNAL) },
             onRepeat = onRepeatButton?.let { { it(button) } },
@@ -1009,7 +1010,7 @@ fun AcRemoteLayout(
             if (inlineExtensions) extensionGroups.flatten() else emptyList()
         val buttonRows: @Composable () -> Unit = {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val columns = org.qinyan.rimoat.ui.components.extensionColumns(displayButtons.map { localizedButtonLabel(it) }, maxWidth)
+            val columns = org.qinyan.rimoat.ui.components.extensionColumns(displayButtons.map { localizedAcRawButtonLabel(it) }, maxWidth)
                 .coerceAtMost(displayButtons.size.coerceAtLeast(1))
             Column {
             displayButtons.chunked(columns).forEach { row ->
@@ -1049,7 +1050,8 @@ fun AcRemoteLayout(
         extensionGroups.filter { it.isNotEmpty() }.forEachIndexed { index, extendedButtons ->
             if (index > 0) Spacer(Modifier.height(24.dp))
             RemoteFunctionGroups(extendedButtons, onSendButton, onLearnButton, isLearningMode, onRepeatButton,
-                preserveOrder = true, buttonContent = renderExtensionButton)
+                preserveOrder = true, buttonContent = renderExtensionButton,
+                buttonLabel = { localizedAcRawButtonLabel(it) })
         }
     }
 

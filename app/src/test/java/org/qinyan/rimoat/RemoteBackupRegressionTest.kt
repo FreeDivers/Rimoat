@@ -92,7 +92,52 @@ class RemoteBackupRegressionTest {
         repo.updateButton(profile.id, profile.buttons.single().copy(rawPattern = listOf(1200, 600, 600)))
         val saved = repo.getRemote(profile.id)!!
         assertEquals(listOf("开机"), saved.verifiedFunctions)
-        assertTrue(saved.useStaticAcButtons)
+        assertFalse(saved.useStaticAcButtons)
+    }
+
+    @Test fun learnedAcButtonKeepsProtocolAndControlModeAfterReloadAndBackup() = storage { repo, _, _ ->
+        for (static in listOf(false, true)) {
+            repo.saveRemote(profile.copy(useStaticAcButtons = static))
+            val learned = profile.buttons.single().withLearnedSignal(
+                org.qinyan.rimoat.hardware.IrSignal.Raw(39500, intArrayOf(1200, 600, 600)))
+            repo.updateButton(profile.id, learned)
+            repo.loadAllRemotes()
+            val saved = repo.getRemote(profile.id)!!
+            assertEquals(static, saved.useStaticAcButtons)
+            assertEquals(profile.acProtocolId, saved.acProtocolId)
+            assertEquals(listOf(learned), saved.buttons)
+            assertEquals(saved, RemoteBackupCodec.decode(RemoteBackupCodec.encode(listOf(saved))).single())
+        }
+    }
+
+    @Test fun acStateAndRecentUsePersistWithoutChangingDefaultOrder() = storage { repo, dir, _ ->
+        val older = profile.copy(updatedAt = 100, lastSentAt = 0)
+        val newer = profile.copy(id = "newer", name = "Other AC", updatedAt = 200)
+        repo.saveRemote(older)
+        repo.saveRemote(newer)
+        val codec = kotlinx.serialization.json.Json
+        for (remote in listOf(older, newer)) {
+            File(dir, "remotes/${remote.id}.json").writeText(codec.encodeToString(RemoteProfile.serializer(), remote))
+        }
+        repo.loadAllRemotes()
+        val order = listOf(newer.id, older.id)
+        assertEquals(order, repo.remotes.value.map { it.id })
+        val settings = older.acSettings.copy(temperature = 24, mode = AcMode.HEAT)
+        repo.updateAcSettings(older.id, settings)
+        repo.markUsed(older.id)
+        assertEquals(order, repo.remotes.value.map { it.id })
+        repo.loadAllRemotes()
+        assertEquals(order, repo.remotes.value.map { it.id })
+        val saved = repo.getRemote(older.id)!!
+        assertEquals(100, saved.updatedAt)
+        assertEquals(settings, saved.acSettings)
+        assertTrue(saved.lastSentAt > 0)
+        assertTrue(saved.lastUsedAt > older.lastUsedAt)
+        assertEquals(older.buttons, saved.buttons)
+        assertEquals(older.id, repo.remotes.value.maxBy { it.lastUsedAt }.id)
+        repo.updateDetails(older.id, "Renamed AC", older.room)
+        assertEquals(older.id, repo.remotes.value.first().id)
+        assertTrue(repo.getRemote(older.id)!!.updatedAt > 200)
     }
 
     @Test fun renameAndRecentUsePersistWithoutRewritingRemoteSignals() = storage { repo, _, _ ->

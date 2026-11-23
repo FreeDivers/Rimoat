@@ -7,6 +7,7 @@ fun panelAction(action: AcAction) = "ac:${action.name}"
 
 /** Spatial combinations retain their geometry and their complete signal set. */
 fun fixedPanelKeys(profile: RemoteProfile): Set<String> {
+    if (profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons) return emptySet()
     val power = profile.buttons.firstOrNull { it.iconName == "power" || it.id.contains("power") || it.label.contains("电源") || it.label == "开关" }
     val fixed = mutableSetOf<String>()
     power?.let { fixed += it.id }
@@ -53,4 +54,4 @@ fun acButtonForAction(profile: RemoteProfile, action: AcAction): RemoteButton? =
     }
 
 fun acRawExtensionButtons(profile: RemoteProfile): List<RemoteButton> =
-    profile.buttons.filter { button -> AcAction.entries.none { acButtonMatchesAction(button, it) } }
+    profile.buttons.filter { button -> button.isLearned || AcAction.entries.none { acButtonMatchesAction(button, it) } }

@@ -132,8 +132,7 @@ class RemoteControlViewModel(
                     val idx = buttons.indexOfFirst { it.id == updatedButton.id }
                     if (idx >= 0) buttons[idx] = updatedButton else buttons.add(updatedButton)
                     _manualProfile.value = profile.copy(buttons = buttons,
-                        verifiedFunctions = profile.verifiedFunctions.filter { it != button.label },
-                        useStaticAcButtons = profile.category == DeviceCategory.AC || profile.useStaticAcButtons)
+                        verifiedFunctions = profile.verifiedFunctions.filter { it != button.label })
                 }
                 if (session == learningSession) dismissLearningDialog()
             } catch (e: CancellationException) { throw e }

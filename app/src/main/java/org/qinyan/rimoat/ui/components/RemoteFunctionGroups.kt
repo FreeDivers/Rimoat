@@ -43,7 +43,8 @@ fun RemoteFunctionGroups(buttons: List<RemoteButton>, onSend: (RemoteButton) -> 
     onLearn: ((RemoteButton) -> Unit)?, learning: Boolean,
     onRepeat: ((RemoteButton) -> Unit)? = null, enabled: (RemoteButton) -> Boolean = { it.hasSignal },
     buttonContent: (@Composable RowScope.(RemoteButton) -> Unit)? = null,
-    preserveOrder: Boolean = false, onUnavailable: ((RemoteButton) -> Unit)? = null) {
+    preserveOrder: Boolean = false, onUnavailable: ((RemoteButton) -> Unit)? = null,
+    buttonLabel: (RemoteButton) -> String = { localizedButtonLabel(it) }) {
     if (buttons.isEmpty()) return
     val groups = remember(buttons, preserveOrder) {
         if (!preserveOrder) buttons.groupBy { remoteFunctionGroup(it) }.toList()
@@ -61,7 +62,7 @@ fun RemoteFunctionGroups(buttons: List<RemoteButton>, onSend: (RemoteButton) -> 
         groups.forEach { (name, keys) ->
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(localizedLabel(name), modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                RemoteFunctionGrid(keys, onSend, onLearn, learning, onRepeat, enabled, buttonContent, onUnavailable)
+                RemoteFunctionGrid(keys, onSend, onLearn, learning, onRepeat, enabled, buttonContent, onUnavailable, buttonLabel)
             }
         }
     }
@@ -72,15 +73,16 @@ internal fun RemoteFunctionGrid(buttons: List<RemoteButton>, onSend: (RemoteButt
     onLearn: ((RemoteButton) -> Unit)?, learning: Boolean, onRepeat: ((RemoteButton) -> Unit)? = null,
     enabled: (RemoteButton) -> Boolean = { it.hasSignal },
     buttonContent: (@Composable RowScope.(RemoteButton) -> Unit)? = null,
-    onUnavailable: ((RemoteButton) -> Unit)? = null) {
+    onUnavailable: ((RemoteButton) -> Unit)? = null,
+    buttonLabel: (RemoteButton) -> String = { localizedButtonLabel(it) }) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-    val columns = extensionColumns(buttons.map { localizedButtonLabel(it) }, maxWidth).coerceAtMost(buttons.size.coerceAtLeast(1))
+    val columns = extensionColumns(buttons.map(buttonLabel), maxWidth).coerceAtMost(buttons.size.coerceAtLeast(1))
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         buttons.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { button ->
                     if (buttonContent != null) buttonContent(button) else
-                    RemoteButtonView(localizedButtonLabel(button), button.iconName, { onSend(button) }, modifier = Modifier.weight(1f),
+                    RemoteButtonView(buttonLabel(button), button.iconName, { onSend(button) }, modifier = Modifier.weight(1f),
                         onRepeat = onRepeat?.let { { it(button) } }, onLongClick = onLearn?.let { { it(button) } },
                         isLearningMode = learning, enabled = learning || enabled(button),
                         onUnavailable = onUnavailable?.let { explain -> { explain(button) } },
