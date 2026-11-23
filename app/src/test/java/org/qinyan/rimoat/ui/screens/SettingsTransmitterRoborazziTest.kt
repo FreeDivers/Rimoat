@@ -94,7 +94,7 @@ class SettingsTransmitterRoborazziTest {
         manager.selectTransmitterType(null)
 
         try {
-            manager.refreshHardware()
+            runBlocking { manager.refreshHardware() }
             composeRule.waitUntil(10_000) {
                 manager.transmitterType.value == TransmitterType.BUILT_IN &&
                     manager.availableTransmitters.value.any { it.type == TransmitterType.AUDIO }

@@ -102,14 +102,14 @@ class IrLearnerManager(
                 UsbManager.ACTION_USB_DEVICE_ATTACHED,
                 UsbManager.ACTION_USB_DEVICE_DETACHED,
                 ACTION_USB_PERMISSION -> {
-                    scanUsbDevices()
+                    scope.launch(Dispatchers.IO) { scanUsbDevices() }
                 }
             }
         }
     }
 
     init {
-        UsbDeviceReceiver.onDeviceEvent = { scanUsbDevices() }
+        UsbDeviceReceiver.onDeviceEvent = { scope.launch(Dispatchers.IO) { scanUsbDevices() } }
         registerUsbReceiver()
         if (deferInitialUsbScan) {
             scope.launch(Dispatchers.IO) { scanUsbDevices() }
@@ -142,6 +142,7 @@ class IrLearnerManager(
     /**
      * Scans attached USB devices and attaches compatible IR learners.
      */
+    @Synchronized
     fun scanUsbDevices() {
         val manager = usbManager
         if (manager == null) {

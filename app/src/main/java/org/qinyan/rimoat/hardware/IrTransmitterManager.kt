@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbManager
+import android.util.Log
+import androidx.core.content.ContextCompat
 import org.qinyan.rimoat.hardware.audio.AudioIrTransmitter
 import org.qinyan.rimoat.hardware.serial.UsbSerialTransmitter
 import org.qinyan.rimoat.hardware.usb.ElkSmartUsbTransmitter
@@ -75,7 +77,9 @@ class IrTransmitterManager(
     suspend fun saveSerialSettings(settings: org.qinyan.rimoat.hardware.serial.SerialIrSettings, connectionId: String?) =
         usbSerialTransmitter.saveSettings(settings, connectionId)
 
-    private val usbPermissionsLazy = lazy { UsbPermissionController(appContext, ::refreshHardware) }
+    private val usbPermissionsLazy = lazy {
+        UsbPermissionController(appContext) { scope.launch(Dispatchers.IO) { refreshHardware() } }
+    }
     private val usbPermissions get() = usbPermissionsLazy.value
     val usbDevices get() = usbPermissions.devices
     fun requestUsbPermission(deviceName: String) = usbPermissions.request(deviceName)
@@ -94,6 +98,7 @@ class IrTransmitterManager(
     // Dynamic receivers
     private var usbReceiver: BroadcastReceiver? = null
     private var audioReceiver: BroadcastReceiver? = null
+    private val hardwareRefreshMutex = Mutex()
 
     init {
         registerReceivers()
@@ -115,12 +120,14 @@ class IrTransmitterManager(
                         val device = intent.getParcelableExtra<android.hardware.usb.UsbDevice>(UsbManager.EXTRA_DEVICE)
                         usbSerialTransmitter.onDeviceDetached(device?.deviceName)
                     }
-                    refreshHardware()
+                    scope.launch(Dispatchers.IO) { refreshHardware() }
                 }
             }
-            appContext.registerReceiver(uReceiver, usbFilter)
+            ContextCompat.registerReceiver(appContext, uReceiver, usbFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
             usbReceiver = uReceiver
-        } catch (_: Throwable) {}
+        } catch (e: Exception) {
+            Log.w("IrTransmitterManager", "Failed to register USB receiver", e)
+        }
 
         try {
             val audioFilter = IntentFilter(Intent.ACTION_HEADSET_PLUG)
@@ -134,23 +141,27 @@ class IrTransmitterManager(
                     }
                 }
             }
-            appContext.registerReceiver(aReceiver, audioFilter)
+            ContextCompat.registerReceiver(appContext, aReceiver, audioFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
             audioReceiver = aReceiver
-        } catch (_: Throwable) {}
+        } catch (e: Exception) {
+            Log.w("IrTransmitterManager", "Failed to register audio receiver", e)
+        }
     }
 
-    fun refreshHardware() {
-        val sharedUsbDevices = try {
-            (appContext.getSystemService(Context.USB_SERVICE) as? UsbManager)?.deviceList?.values
-        } catch (_: Throwable) {
-            null
+    suspend fun refreshHardware() = withContext(Dispatchers.IO) {
+        hardwareRefreshMutex.withLock {
+            val sharedUsbDevices = try {
+                (appContext.getSystemService(Context.USB_SERVICE) as? UsbManager)?.deviceList?.values
+            } catch (_: Throwable) {
+                null
+            }
+            try { tiqiaaTransmitter.refreshState(sharedUsbDevices) } catch (_: Throwable) {}
+            try { elkSmartTransmitter.refreshState(sharedUsbDevices) } catch (_: Throwable) {}
+            try { usbSerialTransmitter.refreshState() } catch (_: Throwable) {}
+            try { audioTransmitter.refreshState() } catch (_: Throwable) {}
+            try { builtInTransmitter.checkHardwareAvailability() } catch (_: Throwable) {}
+            initialHardwareChecked = true
         }
-        try { tiqiaaTransmitter.refreshState(sharedUsbDevices) } catch (_: Throwable) {}
-        try { elkSmartTransmitter.refreshState(sharedUsbDevices) } catch (_: Throwable) {}
-        try { usbSerialTransmitter.refreshState() } catch (_: Throwable) {}
-        try { audioTransmitter.refreshState() } catch (_: Throwable) {}
-        try { builtInTransmitter.checkHardwareAvailability() } catch (_: Throwable) {}
-        initialHardwareChecked = true
     }
 
     fun setForceMockMode(forced: Boolean) {

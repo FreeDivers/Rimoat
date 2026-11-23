@@ -1,7 +1,10 @@
 package org.qinyan.rimoat.hardware.usb
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
 import android.hardware.usb.*
+import android.os.Looper
 import android.os.Parcelable
 import kotlinx.coroutines.*
 import org.junit.Assert.*
@@ -10,17 +13,21 @@ import org.junit.runner.RunWith
 import org.qinyan.rimoat.hardware.UsbSessionAccess
 import org.qinyan.rimoat.hardware.learning.*
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.util.ReflectionHelpers.ClassParameter
+import org.robolectric.shadow.api.Shadow
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35], application = Application::class, shadows = [PollingConnectionShadow::class])
+@Config(sdk = [35], application = Application::class, shadows = [PollingConnectionShadow::class, UsbDiscoveryShadow::class])
 class UsbLearningSessionRegressionTest {
     private fun endpoint(address: Int, type: Int = UsbConstants.USB_ENDPOINT_XFER_BULK): UsbEndpoint =
         ReflectionHelpers.callConstructor(UsbEndpoint::class.java,
@@ -98,6 +105,114 @@ class UsbLearningSessionRegressionTest {
         } finally {
             if (UsbSessionAccess.mutex.isLocked) UsbSessionAccess.mutex.unlock()
             UsbSessionAccess.finishLearning(lease)
+        }
+    }
+
+    @Test fun concurrentScansPreserveLearnerAndDisconnectItOnce() = runBlocking {
+        val app = RuntimeEnvironment.getApplication()
+        val usb = app.getSystemService(Context.USB_SERVICE) as UsbManager
+        val discovery = Shadow.extract<UsbDiscoveryShadow>(usb)
+        val device = Shadow.newInstanceOf(UsbDevice::class.java).also {
+            ReflectionHelpers.setField(it, "mName", "fixture-usb")
+            ReflectionHelpers.setField(it, "mVendorId", UsbDeviceFilter.TIQIAA_VID_SILABS)
+            ReflectionHelpers.setField(it, "mProductId", UsbDeviceFilter.TIQIAA_PID)
+        }
+        discovery.devices[device.deviceName] = device
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val manager = IrLearnerManager(app, scope)
+        val probe = UsbDiscoveryShadow.Probe()
+        try {
+            withContext(Dispatchers.IO) { manager.scanUsbDevices() }
+            val learners = ReflectionHelpers.getField<MutableStateFlow<IrLearner?>>(manager, "_usbLearner")
+            val original = learners.value!!
+            assertEquals(LearnerType.USB_TIQIAA, original.type)
+            discovery.probe = probe
+            val first = scope.async { manager.scanUsbDevices() }
+            assertTrue(probe.entered.await(3, TimeUnit.SECONDS))
+            val secondStarted = CompletableDeferred<Unit>()
+            val second = scope.async {
+                secondStarted.complete(Unit)
+                manager.scanUsbDevices()
+            }
+            withTimeout(3_000) { secondStarted.await() }
+            assertFalse("USB scans must not enumerate or replace learners concurrently", probe.overlap.await(200, TimeUnit.MILLISECONDS))
+            probe.release.countDown()
+            withTimeout(3_000) { awaitAll(first, second) }
+            assertSame(original, learners.value)
+            assertTrue(original.isAvailable.value)
+            assertEquals(2, probe.calls.get())
+
+            discovery.devices.clear()
+            withContext(Dispatchers.IO) { manager.scanUsbDevices() }
+            assertNull(learners.value)
+            assertFalse(original.isAvailable.value)
+            assertTrue(original.state.value is LearningState.Error)
+            withContext(Dispatchers.IO) { manager.scanUsbDevices() }
+            assertNull(learners.value)
+        } finally {
+            probe.release.countDown()
+            scope.coroutineContext[Job]!!.cancelAndJoin()
+            manager.unregisterReceiver()
+            UsbDeviceReceiver.onDeviceEvent = null
+        }
+    }
+
+    @Test fun dynamicAndManifestUsbBroadcastsScanOffMainThread() = runBlocking {
+        val app = RuntimeEnvironment.getApplication()
+        val usb = app.getSystemService(Context.USB_SERVICE) as UsbManager
+        val discovery = Shadow.extract<UsbDiscoveryShadow>(usb)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val manager = IrLearnerManager(app, scope)
+        try {
+            withContext(Dispatchers.IO) { manager.scanUsbDevices() }
+            val receiver = ReflectionHelpers.getField<android.content.BroadcastReceiver>(manager, "usbReceiver")
+            val dynamicProbe = UsbDiscoveryShadow.Probe().apply { release.countDown() }
+            discovery.probe = dynamicProbe
+            receiver.onReceive(app, Intent(IrLearnerManager.ACTION_USB_PERMISSION))
+            assertTrue(dynamicProbe.entered.await(3, TimeUnit.SECONDS))
+            assertFalse("Dynamic USB receiver must scan on IO", dynamicProbe.onMain.get())
+            withContext(Dispatchers.IO) { manager.scanUsbDevices() }
+
+            val manifestProbe = UsbDiscoveryShadow.Probe().apply { release.countDown() }
+            discovery.probe = manifestProbe
+            UsbDeviceReceiver().onReceive(app, Intent(UsbManager.ACTION_USB_DEVICE_ATTACHED))
+            assertTrue(manifestProbe.entered.await(3, TimeUnit.SECONDS))
+            assertFalse("Manifest USB receiver must scan on IO", manifestProbe.onMain.get())
+        } finally {
+            scope.coroutineContext[Job]!!.cancelAndJoin()
+            manager.unregisterReceiver()
+            UsbDeviceReceiver.onDeviceEvent = null
+        }
+    }
+}
+
+@Implements(UsbManager::class)
+class UsbDiscoveryShadow {
+    val devices = hashMapOf<String, UsbDevice>()
+    @Volatile var probe: Probe? = null
+
+    @Implementation fun getDeviceList(): HashMap<String, UsbDevice> {
+        probe?.read()
+        return HashMap(devices)
+    }
+
+    @Implementation fun hasPermission(device: UsbDevice): Boolean = devices.containsKey(device.deviceName)
+
+    class Probe {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val overlap = CountDownLatch(1)
+        val calls = AtomicInteger()
+        val onMain = AtomicBoolean()
+        private val active = AtomicInteger()
+
+        fun read() {
+            calls.incrementAndGet()
+            if (Looper.myLooper() == Looper.getMainLooper()) onMain.set(true)
+            if (active.incrementAndGet() > 1) overlap.countDown()
+            entered.countDown()
+            try { check(release.await(3, TimeUnit.SECONDS)) }
+            finally { active.decrementAndGet() }
         }
     }
 }
