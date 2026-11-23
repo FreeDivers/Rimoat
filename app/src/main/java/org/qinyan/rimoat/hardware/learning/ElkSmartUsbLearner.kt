@@ -240,6 +240,7 @@ class ElkSmartUsbLearner private constructor(
         val rawPattern = ElkSmartProtocol.decodeOpaqueFrameToPattern(opaque)
         if (rawPattern.isEmpty()) return null
 
+        // 学习响应只提供载荷长度和 16 µs 脉冲时序，不提供实测载波频率，因此使用 38 kHz 默认值。
         val sanitizeResult = IrSignalSanitizer.sanitize(38000, rawPattern)
         return sanitizeResult.getOrNull()
     }

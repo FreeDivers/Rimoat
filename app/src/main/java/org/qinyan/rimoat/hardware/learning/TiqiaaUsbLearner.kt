@@ -149,6 +149,7 @@ class TiqiaaUsbLearner private constructor(
                         if (parsed != null && parsed.type == 5) {
                             val pattern = TiqiaaProtocol.decodeTimingPayload(parsed.payload)
                             if (pattern.isNotEmpty()) {
+                                // 学习响应只提供 16 µs 脉冲时序，不提供实测载波频率，因此使用 38 kHz 默认值。
                                 val sanitizeResult = IrSignalSanitizer.sanitize(38000, pattern)
                                 if (sanitizeResult.isSuccess) {
                                     val signal = sanitizeResult.getOrThrow()
