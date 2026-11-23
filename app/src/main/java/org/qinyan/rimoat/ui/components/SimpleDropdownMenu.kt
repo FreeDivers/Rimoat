@@ -1,6 +1,8 @@
 package org.qinyan.rimoat.ui.components
 
 import android.graphics.Rect
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,7 +17,9 @@ import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -39,6 +43,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
+import org.qinyan.rimoat.ui.motion.AppMotion
 import kotlin.math.roundToInt
 
 object SimpleDropdownMenuDefaults {
@@ -62,6 +67,9 @@ object SimpleDropdownMenuDefaults {
 }
 
 private val LocalSelectedMenuItemMeasurer = compositionLocalOf<((Int) -> Unit)?> { null }
+private val LocalMenuInteractive = compositionLocalOf { true }
+// Match the enter duration of the Material 3 DropdownMenu.
+private const val MenuTransitionDurationMillis = 120
 
 /**
  * SimpleMenu-styled [DropdownMenu] that aligns the currently selected item (or first item)
@@ -82,6 +90,18 @@ fun SimpleDropdownMenu(
     shadowElevation: Dp = SimpleDropdownMenuDefaults.ShadowElevation,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    var menuPresent by remember { mutableStateOf(expanded) }
+    val dismissProgress = remember { Animatable(0f) }
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            if (!menuPresent) dismissProgress.snapTo(0f)
+            menuPresent = true
+            dismissProgress.animateTo(0f, tween(MenuTransitionDurationMillis, easing = AppMotion.Enter))
+        } else if (menuPresent) {
+            dismissProgress.animateTo(1f, tween(MenuTransitionDurationMillis, easing = AppMotion.Exit))
+            menuPresent = false
+        }
+    }
     val composeView = LocalView.current
     val density = LocalDensity.current
     var anchorBounds by remember { mutableStateOf<IntRect?>(null) }
@@ -171,22 +191,45 @@ fun SimpleDropdownMenu(
         }
     }
 
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismissRequest,
+    // Keep the selected anchor fixed while selection updates underneath the closing menu.
+    var displayedOffset by remember { mutableStateOf(resolvedOffset) }
+    SideEffect { if (expanded) displayedOffset = resolvedOffset }
+
+    if (expanded || menuPresent) DropdownMenu(
+        expanded = true,
+        onDismissRequest = { if (expanded) onDismissRequest() },
         modifier = modifier.onSizeChanged { size ->
             if (size.height > 0 && measuredMenuHeightPx != size.height) {
                 measuredMenuHeightPx = size.height
             }
         },
-        offset = resolvedOffset,
+        offset = if (expanded) resolvedOffset else displayedOffset,
         scrollState = scrollState,
         shape = shape,
         containerColor = containerColor,
         tonalElevation = tonalElevation,
         shadowElevation = shadowElevation
     ) {
-        CompositionLocalProvider(LocalSelectedMenuItemMeasurer provides reportSelectedCenter) {
+        // Animate the popup's Compose view so the official menu surface, shadow and items
+        // leave together. Keeping the popup mounted also lets interrupted exits reverse.
+        val popupView = LocalView.current
+        val progress = dismissProgress.value
+        SideEffect {
+            popupView.alpha = 1f - progress
+            popupView.scaleX = 1f - 0.02f * progress
+            popupView.scaleY = 1f - 0.02f * progress
+        }
+        DisposableEffect(popupView) {
+            onDispose {
+                popupView.alpha = 1f
+                popupView.scaleX = 1f
+                popupView.scaleY = 1f
+            }
+        }
+        CompositionLocalProvider(
+            LocalSelectedMenuItemMeasurer provides reportSelectedCenter,
+            LocalMenuInteractive provides expanded
+        ) {
             content()
         }
     }
@@ -230,9 +273,11 @@ fun SimpleDropdownMenuItem(
                 }
             }
             .semantics { this.selected = selected },
-        enabled = enabled,
+        enabled = enabled && LocalMenuInteractive.current,
         colors = MenuDefaults.itemColors(
-            textColor = MaterialTheme.colorScheme.onSurface
+            textColor = MaterialTheme.colorScheme.onSurface,
+            // Blocking repeated taps during exit must not flash the disabled text style.
+            disabledTextColor = if (enabled) MaterialTheme.colorScheme.onSurface else Color.Unspecified
         ),
         contentPadding = contentPadding,
         interactionSource = interactionSource
