@@ -31,6 +31,7 @@ fun getCategoryIcon(category: DeviceCategory): ImageVector = getCategoryIcon(
 fun getCategoryIcon(code: String): ImageVector = catalogCategoryIcon(code) ?: Icons.Rounded.DevicesOther
 
 fun getCategoryIcon(profile: RemoteProfile): ImageVector {
+    profile.applianceType?.let { return getCategoryIcon(it.catalogCode) }
     // Catalog IDs retain the specific appliance type even when saved categories group several types.
     val code = profile.sourceRemoteId?.takeIf { it.startsWith("R_") }
         ?.removePrefix("R_")?.removePrefix("compat_")?.removePrefix("spec_")?.substringBefore('_')

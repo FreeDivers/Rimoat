@@ -37,7 +37,8 @@ data class RemoteProfile(
     val lastSentAt: Long = 0,
     val verifiedFunctions: List<String> = emptyList(),
     val catalogVersion: Int = 0,
-    val panelLayout: RemotePanelLayout = RemotePanelLayout()
+    val panelLayout: RemotePanelLayout = RemotePanelLayout(),
+    val applianceType: ApplianceType? = null
 )
 
 @Serializable

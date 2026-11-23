@@ -48,7 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.qinyan.rimoat.data.DeviceCategory
+import org.qinyan.rimoat.data.ApplianceType
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.db.IrBrand
 import org.qinyan.rimoat.hardware.learning.LearnerType
@@ -62,13 +62,19 @@ import kotlinx.coroutines.CancellationException
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 
 @Composable
-private fun DeviceCategory.label(): String = stringResource(when (this) {
-    DeviceCategory.TV -> R.string.screen_category_tv
-    DeviceCategory.AC -> R.string.screen_category_ac
-    DeviceCategory.FAN -> R.string.screen_category_fan
-    DeviceCategory.AUDIO -> R.string.screen_category_audio
-    DeviceCategory.PROJECTOR -> R.string.screen_category_projector
-    DeviceCategory.CUSTOM -> R.string.screen_category_custom
+private fun ApplianceType.label(): String = stringResource(when (this) {
+    ApplianceType.TV -> R.string.screen_category_tv
+    ApplianceType.AC -> R.string.screen_category_ac
+    ApplianceType.FAN -> R.string.screen_category_fan
+    ApplianceType.AUDIO -> R.string.screen_category_audio
+    ApplianceType.PROJECTOR -> R.string.screen_category_projector
+    ApplianceType.SET_TOP_BOX -> R.string.screen_category_set_top_box
+    ApplianceType.DVD -> R.string.screen_category_dvd
+    ApplianceType.CAMERA -> R.string.screen_category_camera
+    ApplianceType.LIGHT -> R.string.screen_category_light
+    ApplianceType.STREAMING_BOX -> R.string.screen_category_streaming_box
+    ApplianceType.IPTV -> R.string.screen_category_iptv
+    ApplianceType.CUSTOM -> R.string.screen_category_custom
 })
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,14 +115,14 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
         isBack = { from, to -> from && !to }, backTarget = if (pickBrand) false else null,
         onBack = { pickBrand = false }) { brandPage ->
     if (brandPage) {
-        var brands by remember(state.category) { mutableStateOf<List<IrBrand>>(emptyList()) }
+        var brands by remember(state.selectedApplianceType) { mutableStateOf<List<IrBrand>>(emptyList()) }
         var query by rememberSaveable { mutableStateOf("") }
         var loading by remember { mutableStateOf(true) }
         var error by remember { mutableStateOf<UiText?>(null) }
-        LaunchedEffect(state.category) {
+        LaunchedEffect(state.selectedApplianceType) {
             loading = true
             error = null
-            try { brands = viewModel.brandsFor(state.category) }
+            try { brands = viewModel.brandsFor(state.selectedApplianceType) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { error = UiText.Resource(R.string.screen_brand_load_failed) }
             finally { loading = false }
@@ -147,10 +153,8 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                 }
                 BrandSelectionView(brands.filter { query.isBlank() || it.nameCn.contains(query, true) || it.nameEn.contains(query, true) || it.pinyin.contains(query, true) },
                     rememberLazyListState(), query,
-                    org.qinyan.rimoat.data.db.IrCategory(0, state.category.label(), "", when (state.category) {
-                        DeviceCategory.TV -> "tv"; DeviceCategory.AC -> "air"; DeviceCategory.FAN -> "fan"
-                        DeviceCategory.AUDIO -> "amp"; DeviceCategory.PROJECTOR -> "pjt"; DeviceCategory.CUSTOM -> "custom"
-                    }), loading, { query = it }, {
+                    org.qinyan.rimoat.data.db.IrCategory(0, state.selectedApplianceType.label(), "",
+                        state.selectedApplianceType.catalogCode), loading, { query = it }, {
                         HapticHelper.performRemoteClick(haptic, context)
                         viewModel.setBrand(it.displayName(brandContext))
                         pickBrand = false
@@ -212,7 +216,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
             if (page.isRestoring) Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             else when (page.step) {
                 WizardStep.SETUP -> LearningSetupContent(
-                    page, viewModel::setCategory, viewModel::setRemoteName, viewModel::setBrand,
+                    page, viewModel::setApplianceType, viewModel::setRemoteName, viewModel::setBrand,
                     onPickBrand = { pickBrand = true }, onStart = { viewModel.proceedToLearning() },
                     modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)
                 )
@@ -295,7 +299,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
 @Composable
 internal fun LearningSetupContent(
     page: CustomRemoteWizardUiState,
-    onCategory: (DeviceCategory) -> Unit,
+    onCategory: (ApplianceType) -> Unit,
     onNameChange: (String) -> Unit,
     onBrandChange: (String) -> Unit,
     onPickBrand: () -> Unit,
@@ -309,7 +313,7 @@ internal fun LearningSetupContent(
     val secondaryScroll = rememberScrollState()
     val textMeasurer = rememberTextMeasurer()
     val categoryLabelStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-    val categoryLabels = DeviceCategory.entries.map { it to it.label() }
+    val categoryLabels = ApplianceType.entries.map { it to it.label() }
     val labelWidth = categoryLabels.maxOfOrNull { (_, label) ->
         textMeasurer.measure(label, categoryLabelStyle, softWrap = false).size.width
     } ?: 0
@@ -332,7 +336,7 @@ internal fun LearningSetupContent(
                 categoryLabels.chunked(columns).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { (category, label) ->
-                            val selected = page.category == category
+                            val selected = page.selectedApplianceType == category
                             Card(
                                 onClick = {
                                     HapticHelper.performSelection(haptic, context)
@@ -349,7 +353,7 @@ internal fun LearningSetupContent(
                                 colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow)
                             ) {
                                 Column(Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                    Icon(getCategoryIcon(category), null, Modifier.size(28.dp))
+                                    Icon(getCategoryIcon(category.catalogCode), null, Modifier.size(28.dp))
                                     Spacer(Modifier.height(8.dp))
                                     Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
                                 }
@@ -438,7 +442,7 @@ internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: 
         Text(page.remoteName, style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.semantics { heading() })
         FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(page.category.label(), style = MaterialTheme.typography.bodyMedium)
+            Text(page.selectedApplianceType.label(), style = MaterialTheme.typography.bodyMedium)
             if (page.brand.isNotBlank()) Text(page.brand, style = MaterialTheme.typography.bodyMedium)
         }
         Text(stringResource(R.string.screen_learned_count, page.learnedCount),

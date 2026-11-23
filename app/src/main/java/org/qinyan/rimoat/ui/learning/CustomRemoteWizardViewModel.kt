@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import org.qinyan.rimoat.data.DeviceCategory
+import org.qinyan.rimoat.data.ApplianceType
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.RemoteRepository
@@ -76,8 +77,12 @@ data class CustomRemoteWizardUiState(
     @kotlinx.serialization.Transient val testFeedbackMessage: UiText? = null,
     @kotlinx.serialization.Transient val errorMessage: UiText? = null,
     val isSaving: Boolean = false,
-    val isRestoring: Boolean = false
+    val isRestoring: Boolean = false,
+    val applianceType: ApplianceType? = null
 ) {
+    val selectedApplianceType: ApplianceType
+        get() = applianceType ?: ApplianceType.fromCategory(category)
+
     val currentKey: WizardKeyItem?
         get() = keyQueue.getOrNull(currentIndex)
 
@@ -116,12 +121,9 @@ class CustomRemoteWizardViewModel(
     private val _savedRemote = MutableStateFlow<RemoteProfile?>(null)
     val savedRemote: StateFlow<RemoteProfile?> = _savedRemote.asStateFlow()
 
-    suspend fun brandsFor(category: DeviceCategory): List<org.qinyan.rimoat.data.db.IrBrand> {
+    suspend fun brandsFor(type: ApplianceType): List<org.qinyan.rimoat.data.db.IrBrand> {
         val library = brandLibrary ?: return emptyList()
-        val code = when (category) {
-            DeviceCategory.TV -> "tv"; DeviceCategory.AC -> "air"; DeviceCategory.FAN -> "fan"
-            DeviceCategory.AUDIO -> "amp"; DeviceCategory.PROJECTOR -> "pjt"; DeviceCategory.CUSTOM -> null
-        }
+        val code = type.catalogCode.takeUnless { type == ApplianceType.CUSTOM }
         val categories = library.getCategories().filter { code == null || it.code == code }
         return categories.flatMap { library.getBrandsForCategory(it.id) }.distinctBy { it.nameCn to it.nameEn }
     }
@@ -209,15 +211,21 @@ class CustomRemoteWizardViewModel(
     }
 
     fun setCategory(category: DeviceCategory) {
-        if (_uiState.value.category == category) return
+        setApplianceType(ApplianceType.fromCategory(category))
+    }
+
+    fun setApplianceType(type: ApplianceType) {
+        if (_uiState.value.selectedApplianceType == type) return
         _uiState.update {
             if (it.step == WizardStep.SETUP) {
                 it.copy(
-                    category = category,
-                    keyQueue = generateDefaultQueue(category)
+                    category = type.category,
+                    applianceType = type,
+                    currentIndex = 0,
+                    keyQueue = generateDefaultQueue(type)
                 )
             } else {
-                it.copy(category = category)
+                it.copy(category = type.category, applianceType = type)
             }
         }
     }
@@ -463,6 +471,7 @@ class CustomRemoteWizardViewModel(
             name = state.remoteName.trim(),
             brand = state.brand.trim(),
             category = state.category,
+            applianceType = state.selectedApplianceType,
             useStaticAcButtons = state.category == DeviceCategory.AC,
             buttons = learnedButtons,
             updatedAt = System.currentTimeMillis()
@@ -544,6 +553,32 @@ class CustomRemoteWizardViewModel(
     }
 
     companion object {
+        fun generateDefaultQueue(type: ApplianceType): List<WizardKeyItem> {
+            val keys = when (type) {
+                ApplianceType.SET_TOP_BOX, ApplianceType.IPTV -> generateDefaultQueue(DeviceCategory.TV) + listOf(
+                    WizardKeyItem(label = "频道+", iconName = "arrow_drop_up"),
+                    WizardKeyItem(label = "频道-", iconName = "arrow_drop_down")
+                )
+                ApplianceType.DVD -> generateDefaultQueue(DeviceCategory.AUDIO) + listOf(
+                    WizardKeyItem(label = "播放/暂停"),
+                    WizardKeyItem(label = "停止"),
+                    WizardKeyItem(label = "上一曲"),
+                    WizardKeyItem(label = "下一曲"),
+                    WizardKeyItem(label = "开仓")
+                )
+                ApplianceType.CAMERA -> listOf(
+                    WizardKeyItem(label = "快门"),
+                    WizardKeyItem(label = "副快门")
+                )
+                ApplianceType.LIGHT -> listOf(
+                    WizardKeyItem(label = "电源", iconName = "power"),
+                    WizardKeyItem(label = "亮度")
+                )
+                else -> generateDefaultQueue(type.category)
+            }
+            return keys.map { it.copy(builtinLabel = it.label) }
+        }
+
         fun generateDefaultQueue(category: DeviceCategory): List<WizardKeyItem> {
             return when (category) {
                 DeviceCategory.TV -> listOf(

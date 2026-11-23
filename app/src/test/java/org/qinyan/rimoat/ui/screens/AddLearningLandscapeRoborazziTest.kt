@@ -152,7 +152,7 @@ class AddLearningLandscapeRoborazziTest {
         var page by mutableStateOf(CustomRemoteWizardUiState())
         var starts = 0
         show {
-            LearningSetupContent(page, { page = page.copy(category = it) }, { page = page.copy(remoteName = it) },
+            LearningSetupContent(page, { page = page.copy(category = it.category, applianceType = it) }, { page = page.copy(remoteName = it) },
                 { page = page.copy(brand = it) }, {}, { starts++ })
         }
         panes()

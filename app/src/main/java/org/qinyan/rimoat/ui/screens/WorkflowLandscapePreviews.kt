@@ -31,6 +31,7 @@ private fun CodeMatchingLandscapePreview() {
 
 @Preview(widthDp = 640, heightDp = 360, locale = "en")
 @Preview(widthDp = 480, heightDp = 320, locale = "ja", fontScale = 2f, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(widthDp = 411, heightDp = 891, locale = "zh")
 @Composable
 private fun LearningSetupLandscapePreview() {
     IrRemoteTheme(dynamicColor = false) {
