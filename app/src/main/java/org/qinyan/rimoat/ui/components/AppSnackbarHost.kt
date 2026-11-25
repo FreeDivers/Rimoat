@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 /** Nonlinear local fades, live-region semantics and accessibility-adjusted timeouts. */
 @Composable
 fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
+    val motion = AppMotion.current
     val current = hostState.currentSnackbarData
     val accessibility = LocalAccessibilityManager.current
     LaunchedEffect(current, accessibility) {
@@ -42,7 +43,7 @@ fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier)
         }
     }
     AnimatedContent(current, modifier, transitionSpec = {
-        (fadeIn(AppMotion.tween(180)) togetherWith fadeOut(AppMotion.tween(100))).using(null)
+        (fadeIn(motion.defaultEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec())).using(null)
     }, label = "Snackbar") { data ->
         if (data == null) return@AnimatedContent
         val label = data.visuals.actionLabel
@@ -52,7 +53,7 @@ fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier)
                     onClick = data::performAction,
                     
                     colors = ButtonDefaults.textButtonColors(contentColor = SnackbarDefaults.actionColor)
-                ) { Text(it) }
+                , shapes = ButtonDefaults.shapes()) { Text(it) }
             }
         }
         val dismiss: (@Composable () -> Unit)? = if (data.visuals.withDismissAction) {

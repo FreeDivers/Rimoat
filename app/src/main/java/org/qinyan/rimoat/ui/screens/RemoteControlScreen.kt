@@ -1,16 +1,16 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButtonDefaults
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import org.qinyan.rimoat.i18n.localizedLabel
-
 import org.qinyan.rimoat.i18n.localizedButtonLabel
-
 import org.qinyan.rimoat.R
-
 import org.qinyan.rimoat.i18n.AppStrings
-
 import org.qinyan.rimoat.ui.components.withPanelPresentation
 import org.qinyan.rimoat.ui.components.panelAction
 import org.qinyan.rimoat.ui.components.acButtonForAction
@@ -30,7 +30,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import org.qinyan.rimoat.ui.theme.Spacing
-
 import org.qinyan.rimoat.ui.motion.ExpandSection
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.MotionContent
@@ -93,6 +92,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.ui.platform.SoundEffectOnInteraction
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import org.qinyan.rimoat.ui.learning.SingleButtonLearningDialog
@@ -281,12 +286,16 @@ private fun RemoteControlContent(
                             unavailableDetail = null
                             viewModel.setLearningMode(true)
                             viewModel.startLearningButton(detail.button)
-                        }, modifier = Modifier.weight(1f, fill = false), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
+                        }, modifier = Modifier.weight(1f, fill = false), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            shapes = ButtonDefaults.shapes()
+                        ) {
                             Text(stringResource(R.string.control_enter_learning), textAlign = TextAlign.Center)
                         }
                     }
                     TextButton(onClick = { unavailableDetail = null },
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                        shapes = ButtonDefaults.shapes()
+                    ) {
                         Text(stringResource(R.string.screen_close))
                     }
                 }
@@ -391,7 +400,7 @@ private fun RemoteControlContent(
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(onClick = { viewModel.toggleLearningMode() }) {
+                        TextButton(onClick = { viewModel.toggleLearningMode() }, shapes = ButtonDefaults.shapes()) {
                             Text(AppStrings.get(R.string.screen_exit, "退出"), style = MaterialTheme.typography.labelSmall)
                         }
                     }
@@ -794,7 +803,8 @@ internal fun LazyListScope.tvRemoteItems(
         FilledTonalIconToggleButton(
             checked = showNumpad,
             onCheckedChange = { onNumberPadChange?.invoke(it) ?: run { localNumberPad = it } },
-            modifier = Modifier.size(48.dp)
+            modifier = Modifier.size(48.dp),
+            shapes = IconButtonDefaults.toggleableShapes()
         ) {
             Icon(if (showNumpad) Icons.Rounded.KeyboardHide else Icons.Rounded.Dialpad,
                 contentDescription = if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers, "收起数字键") else AppStrings.get(R.string.screen_expand_numbers, "展开数字键"), modifier = Modifier.size(24.dp))
@@ -972,20 +982,25 @@ fun AcRemoteLayout(
                         onUnavailable(button, unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE)
                     }) else null
                 )
-                val selectedChoiceIndex = choices.indexOfFirst { it.isSelected(acState) }.takeIf { it >= 0 }
-                SimpleDropdownMenu(
+                DropdownMenu(
                     expanded = showChoices && !isLearningMode && LocalMotionActive.current,
-                    onDismissRequest = { showChoices = false },
-                    selectedIndex = selectedChoiceIndex,
-                    itemCount = choices.size
+                    onDismissRequest = { showChoices = false }
                 ) {
-                    choices.forEach { choice ->
-                        val isSelected = choice.isSelected(acState)
-                        SimpleDropdownMenuItem(
-                            text = { Text(localizedLabel(choice.label)) },
-                            selected = isSelected,
-                            onClick = { showChoices = false; onSelectChoice(choice) }
-                        )
+                    SoundEffectOnInteraction(enabled = false) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp).selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            choices.forEach { choice ->
+                                val isSelected = choice.isSelected(acState)
+                                ToggleButton(
+                                    checked = isSelected,
+                                    enabled = showChoices && !isLearningMode && LocalMotionActive.current,
+                                    onCheckedChange = { showChoices = false; onSelectChoice(choice) },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics {
+                                        selected = isSelected
+                                        role = Role.RadioButton
+                                    }
+                                ) { Text(localizedLabel(choice.label)) }
+                            }
+                        }
                     }
                 }
                 }

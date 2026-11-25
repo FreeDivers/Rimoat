@@ -1,7 +1,6 @@
 package org.qinyan.rimoat.ui.motion
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.Composable
@@ -12,11 +11,6 @@ import androidx.compose.ui.Modifier
 object AppMotion {
     val current: MotionScheme
         @Composable @ReadOnlyComposable get() = MaterialTheme.motionScheme
-
-    val Standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)
-    val Enter = CubicBezierEasing(0f, 0f, 0.2f, 1f)
-    val Exit = CubicBezierEasing(0.4f, 0f, 1f, 1f)
-    fun <T> tween(duration: Int = 220) = androidx.compose.animation.core.tween<T>(duration, easing = Standard)
 }
 
 @Composable

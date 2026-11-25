@@ -77,7 +77,7 @@ private fun ApplianceType.label(): String = stringResource(when (this) {
     ApplianceType.CUSTOM -> R.string.screen_category_custom
 })
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () -> Unit, onRemoteCreated: (RemoteProfile) -> Unit) {
     StandaloneScreenRotationScope(
@@ -194,6 +194,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                     if (page.step == WizardStep.LEARNING) {
                         Spacer(Modifier.width(4.dp))
                         TextButton(
+                            shapes = ButtonDefaults.shapes(),
                             onClick = {
                                 HapticHelper.performRemoteClick(haptic, context)
                                 viewModel.finishEarly()
@@ -213,7 +214,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                 onConfirm = viewModel::confirmCurrentKey,
                 onTest = { HapticHelper.performTestEmit(haptic, context); viewModel.testTransmitCurrentKey() })
         }) { padding ->
-            if (page.isRestoring) Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            if (page.isRestoring) Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { ContainedLoadingIndicator() }
             else when (page.step) {
                 WizardStep.SETUP -> LearningSetupContent(
                     page, viewModel::setApplianceType, viewModel::setRemoteName, viewModel::setBrand,
@@ -266,6 +267,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
             },
             confirmButton = {
                 TextButton(
+                    shapes = ButtonDefaults.shapes(),
                     onClick = {
                         dialogKeyboard?.hide()
                         HapticHelper.performSelection(haptic, context)
@@ -279,6 +281,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
             },
             dismissButton = {
                 TextButton(
+                    shapes = ButtonDefaults.shapes(),
                     onClick = {
                         dialogKeyboard?.hide()
                         HapticHelper.performSelection(haptic, context)
@@ -337,8 +340,9 @@ internal fun LearningSetupContent(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { (category, label) ->
                             val selected = page.selectedApplianceType == category
-                            Card(
-                                onClick = {
+                            ToggleButton(
+                                checked = selected,
+                                onCheckedChange = {
                                     HapticHelper.performSelection(haptic, context)
                                     onCategory(category)
                                 },
@@ -347,12 +351,18 @@ internal fun LearningSetupContent(
                                     .weight(1f)
                                     .heightIn(min = 88.dp)
                                     .semantics(mergeDescendants = true) {
-                                        role = Role.Button
+                                        role = Role.RadioButton
                                         this.selected = selected
                                     },
-                                colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow)
+                                colors = ToggleButtonDefaults.colors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                    checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                ),
+                                contentPadding = PaddingValues(12.dp)
                             ) {
-                                Column(Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Column(Modifier.fillMaxWidth().heightIn(min = 64.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                     Icon(getCategoryIcon(category.catalogCode), null, Modifier.size(28.dp))
                                     Spacer(Modifier.height(8.dp))
                                     Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
@@ -409,6 +419,7 @@ internal fun LearningSetupContent(
                 onStart()
             },
 
+            shapes = ButtonDefaults.shapes(),
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
         ) { Text(stringResource(R.string.screen_start_learning)) }
     }
@@ -455,10 +466,12 @@ internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: 
         }
         OutlinedButton(
             onClick = { HapticHelper.performSelection(haptic, context); onContinue() },
+            shapes = ButtonDefaults.shapes(),
             enabled = !page.isSaving, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
         ) { Text(stringResource(R.string.screen_continue_learning)) }
         Button(
             onClick = { HapticHelper.performSaveSuccess(haptic, context); onSave() },
+            shapes = ButtonDefaults.shapes(),
             enabled = page.learnedCount > 0 && !page.isSaving,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
         ) { Text(if (page.isSaving) stringResource(R.string.screen_saving) else stringResource(R.string.screen_save)) }

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.shape.CircleShape
 import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.motion.AppMotion
 import org.qinyan.rimoat.ui.motion.StateFade
@@ -24,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -32,6 +32,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.hardware.learning.LearnerType
@@ -53,7 +57,8 @@ internal fun LearningKeyWorkspace(
     val key = page.currentKey ?: return
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
-    val learnedProgress = animateFloatAsState(page.learnedCount.toFloat() / page.keyQueue.size.coerceAtLeast(1), AppMotion.tween(220), label = "LearnedProgress")
+    val motion = AppMotion.current
+    val learnedProgress = animateFloatAsState(page.learnedCount.toFloat() / page.keyQueue.size.coerceAtLeast(1), motion.defaultEffectsSpec(), label = "LearnedProgress")
     val status: @Composable ColumnScope.() -> Unit = {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(page.remoteName, Modifier.weight(1f).padding(end = 12.dp), style = MaterialTheme.typography.bodyMedium,
@@ -63,7 +68,7 @@ internal fun LearningKeyWorkspace(
         }
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().clearAndSetSemantics {}) {
-            LinearProgressIndicator(progress = { learnedProgress.value }, modifier = Modifier.fillMaxWidth())
+            LinearWavyProgressIndicator(progress = { learnedProgress.value }, modifier = Modifier.fillMaxWidth(), waveSpeed = 0.dp)
         }
         Spacer(Modifier.height(12.dp))
         HardwareStatusBanner(learnerType, available, { onMock(true) }, receiveConfirmed = receiveConfirmed,
@@ -139,7 +144,7 @@ internal fun LearningKeyWorkspace(
         val textMeasurer = rememberTextMeasurer()
         val labelStyle = MaterialTheme.typography.labelLarge
         val labelWidth = page.keyQueue.maxOfOrNull { textMeasurer.measure(it.displayLabel(), labelStyle, softWrap = false).size.width } ?: 0
-        // Include the chip's own horizontal padding as well as the label/checkmark inset.
+        // Reserve enough room for the label, checkmark, and toggle button padding.
         val minimumKeyWidth = with(LocalDensity.current) { labelWidth.toDp() } + 80.dp
         BoxWithConstraints(Modifier.fillMaxWidth()) {
         val columns = (3 downTo 1).first { maxWidth >= minimumKeyWidth * it + 8.dp * (it - 1) || it == 1 }
@@ -152,7 +157,7 @@ internal fun LearningKeyWorkspace(
                         val current = page.currentIndex == index
                         val container by animateColorAsState(
                             if (learned) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-                            AppMotion.tween(180), label = "LearnedKeyColor")
+                            motion.fastEffectsSpec(), label = "LearnedKeyColor")
                         val content = if (learned) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                         val keyStateDescription = stringResource(when (item.status) {
                             KeyLearnStatus.LEARNED -> R.string.screen_learned
@@ -161,24 +166,27 @@ internal fun LearningKeyWorkspace(
                             KeyLearnStatus.SKIPPED -> R.string.screen_skipped
                             KeyLearnStatus.PENDING -> R.string.screen_unlearned
                         })
-                        FilterChip(selected = current, onClick = {
+                        ToggleButton(checked = current, onCheckedChange = {
                                 HapticHelper.performSelection(haptic, context)
                                 onSelect(index)
                             },
                             modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics {
                                 stateDescription = keyStateDescription
+                                selected = current
+                                role = Role.RadioButton
                             },
-                            colors = FilterChipDefaults.filterChipColors(containerColor = container, selectedContainerColor = container,
-                                labelColor = content, selectedLabelColor = content),
+                            colors = ToggleButtonDefaults.colors(containerColor = container, checkedContainerColor = container,
+                                contentColor = content, checkedContentColor = content),
                             border = BorderStroke(if (current) 2.dp else 1.dp,
                                 if (current) MaterialTheme.colorScheme.primary else if (learned) Color.Transparent else MaterialTheme.colorScheme.outlineVariant),
-                            label = {
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                        ) {
                                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                     Text(item.displayLabel(), Modifier.fillMaxWidth().padding(horizontal = 20.dp), textAlign = TextAlign.Center)
                                     if (learned)
                                         Icon(Icons.Rounded.Check, null, Modifier.align(Alignment.CenterStart).size(16.dp))
                                 }
-                            })
+                            }
                     }
                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -210,6 +218,7 @@ internal fun LearningKeyWorkspace(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun LearningKeyActions(
     page: CustomRemoteWizardUiState, available: Boolean, onRecord: () -> Unit,
@@ -219,37 +228,65 @@ internal fun LearningKeyActions(
     val key = page.currentKey ?: return
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
-    Surface(color = MaterialTheme.colorScheme.surface) {
-        Row(Modifier.fillMaxWidth().then(if (inPane) Modifier else Modifier.navigationBarsPadding())
-            .padding(horizontal = if (inPane) 0.dp else 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-            when (key.status) {
-                KeyLearnStatus.LEARNING -> OutlinedButton(
+    Box(Modifier.fillMaxWidth().then(if (inPane) Modifier else Modifier.navigationBarsPadding())
+        .padding(horizontal = if (inPane) 0.dp else 20.dp, vertical = 12.dp)) {
+        when (key.status) {
+            KeyLearnStatus.LEARNING -> HorizontalFloatingToolbar(
+                expanded = true, modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                OutlinedButton(
                     onClick = { HapticHelper.performSelection(haptic, context); onCancel() },
-                    Modifier.heightIn(min = 56.dp)
+                    shapes = ButtonDefaults.shapes(),
+                    modifier = Modifier.heightIn(min = 56.dp)
                 ) { Text(stringResource(R.string.screen_cancel_receive)) }
-                KeyLearnStatus.CAPTURED, KeyLearnStatus.LEARNED -> {
-                    ActionTooltip(stringResource(R.string.screen_test_transmit)) {
-                        FilledTonalIconButton(onTest, Modifier.size(56.dp), enabled = !page.isTestingTransmit, shape = CircleShape) {
-                            Icon(Icons.Rounded.PlayArrow, if (page.isTestingTransmit) stringResource(R.string.screen_sending) else stringResource(R.string.screen_test_transmit), Modifier.size(24.dp))
+            }
+            KeyLearnStatus.CAPTURED, KeyLearnStatus.LEARNED -> LearningActionBar(
+                primaryLabel = stringResource(R.string.screen_confirm_continue),
+                secondary = {
+                    SoundEffectOnInteraction(enabled = false) {
+                        ActionTooltip(stringResource(R.string.screen_test_transmit)) {
+                            val testLabel = stringResource(
+                                if (page.isTestingTransmit) R.string.screen_sending else R.string.screen_test_transmit
+                            )
+                            FilledTonalIconButton(
+                                onTest,
+                                modifier = Modifier.size(56.dp).semantics { contentDescription = testLabel },
+                                enabled = !page.isTestingTransmit,
+                                shapes = IconButtonDefaults.shapes()
+                            ) {
+                                if (page.isTestingTransmit) LoadingIndicator(Modifier.size(24.dp))
+                                else Icon(Icons.Rounded.PlayArrow, null, Modifier.size(24.dp))
+                            }
                         }
                     }
+                },
+                primary = { actionModifier ->
                     Button(
                         onClick = { HapticHelper.performRemoteClick(haptic, context); onConfirm() },
-                        Modifier.weight(1f).heightIn(min = 56.dp),
+                        shapes = ButtonDefaults.shapes(),
+                        modifier = actionModifier.heightIn(min = 56.dp),
                         enabled = !page.isTestingTransmit,
-
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                     ) { Text(stringResource(R.string.screen_confirm_continue), textAlign = TextAlign.Center) }
                 }
-                else -> {
+            )
+            else -> LearningActionBar(
+                primaryLabel = stringResource(R.string.screen_record_signal),
+                secondaryLabel = stringResource(R.string.screen_skip),
+                secondary = {
                     TextButton(
                         onClick = { HapticHelper.performSelection(haptic, context); onSkip() },
-                        Modifier.heightIn(min = 48.dp)
+                        shapes = ButtonDefaults.shapes(),
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) { Text(stringResource(R.string.screen_skip)) }
-                    Button(onRecord, Modifier.weight(1f).heightIn(min = 56.dp), enabled = available) { Text(stringResource(R.string.screen_record_signal)) }
+                },
+                primary = { actionModifier ->
+                    Button(onRecord, shapes = ButtonDefaults.shapes(),
+                        modifier = actionModifier.heightIn(min = 56.dp), enabled = available) {
+                        Text(stringResource(R.string.screen_record_signal), textAlign = TextAlign.Center)
+                    }
                 }
-            }
+            )
         }
     }
 }

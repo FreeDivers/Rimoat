@@ -1,7 +1,8 @@
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.ui.components.rememberExpressiveShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import org.qinyan.rimoat.i18n.AppStrings
-
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.Configuration
@@ -93,9 +94,13 @@ private fun AboutContent(versionName: String, onBack: () -> Unit, onLicensesClic
             }
         }
         val links: @Composable () -> Unit = {
+            val repositoryInteraction = remember { MutableInteractionSource() }
+            val licensesInteraction = remember { MutableInteractionSource() }
+            val repositoryShape = rememberExpressiveShape(repositoryInteraction)
+            val licensesShape = rememberExpressiveShape(licensesInteraction)
             Column(Modifier.widthIn(max = 600.dp).fillMaxWidth()) {
                 ListItem(
-                    modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(role = Role.Button) {
+                    modifier = Modifier.clip(repositoryShape).clickable(interactionSource = repositoryInteraction, indication = ripple(), role = Role.Button) {
                         try {
                             context.startActivity(Intent(Intent.ACTION_VIEW, repositoryUrl.toUri()))
                         } catch (_: ActivityNotFoundException) {
@@ -108,8 +113,8 @@ private fun AboutContent(versionName: String, onBack: () -> Unit, onLicensesClic
                     trailingContent = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) }
                 )
                 ListItem(
-                    modifier = Modifier.clip(MaterialTheme.shapes.medium)
-                        .clickable(role = Role.Button, onClick = onLicensesClick).heightIn(min = 64.dp),
+                    modifier = Modifier.clip(licensesShape)
+                        .clickable(interactionSource = licensesInteraction, indication = ripple(), role = Role.Button, onClick = onLicensesClick).heightIn(min = 64.dp),
                     headlineContent = { Text(stringResource(R.string.about_license)) },
                     leadingContent = { Icon(Icons.Rounded.Description, contentDescription = null) },
                     trailingContent = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) }

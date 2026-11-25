@@ -1,7 +1,6 @@
 package org.qinyan.rimoat
 
 import org.qinyan.rimoat.data.*
-import org.qinyan.rimoat.ui.motion.AppMotion
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -51,13 +50,4 @@ class AcTimerOptionsTest {
         assertEquals(0, off.apply(AcAction.TIMER, 0).nativeState()[10].toInt())
     }
 
-    @Test fun automaticMotionCurvesAreMonotonicAndNonlinear() {
-        for (curve in listOf(AppMotion.Standard, AppMotion.Enter, AppMotion.Exit)) {
-            val points = (0..100).map { curve.transform(it / 100f) }
-            assertEquals(0f, points.first(), .001f)
-            assertEquals(1f, points.last(), .001f)
-            assertTrue(points.zipWithNext().all { (a, b) -> a <= b })
-            assertTrue(kotlin.math.abs(curve.transform(.5f) - .5f) > .05f)
-        }
-    }
 }

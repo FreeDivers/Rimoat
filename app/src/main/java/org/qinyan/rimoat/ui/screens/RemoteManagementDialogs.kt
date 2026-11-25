@@ -1,10 +1,11 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
+import androidx.compose.material3.ButtonDefaults
 import org.qinyan.rimoat.R
-
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.UiText
-
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
@@ -35,8 +36,10 @@ internal fun BackupSavedDialog(savedUri: String, onDismiss: () -> Unit, onError:
                     onError(UiText.resource(R.string.screen_share_failed, e.localizedMessage.orEmpty()))
                 }
                 onDismiss()
-            }) { Text(AppStrings.get(R.string.screen_share, "分享")) }
+            },
+                shapes = ButtonDefaults.shapes()
+            ) { Text(AppStrings.get(R.string.screen_share, "分享")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.get(R.string.screen_done, "完成")) } }
+        dismissButton = { TextButton(onClick = onDismiss, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_done, "完成")) } }
     )
 }

@@ -1,11 +1,12 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import org.qinyan.rimoat.R
-
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.i18n.rememberLocalizedDateTimeFormatter
-
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -39,6 +40,7 @@ import org.qinyan.rimoat.ui.motion.StateFade
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
+    val motion = org.qinyan.rimoat.ui.motion.AppMotion.current
     val trash by viewModel.trash.collectAsStateWithLifecycle()
     val error by viewModel.errorMessage.collectAsStateWithLifecycle()
     val displayedError = error?.asString()
@@ -64,10 +66,12 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
         val list: @Composable () -> Unit = {
         LazyColumn(if (wide) Modifier.fillMaxSize() else Modifier.contentWidth().fillMaxHeight(), state = listState, contentPadding = if (wide) PaddingValues(0.dp) else PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(trash.orEmpty(), key = { it.entryId }) { entry ->
+                val interactionSource = remember { MutableInteractionSource() }
+                val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
                 val color = if (wide && entry.entryId == selectedEntry?.entryId) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
-                Card(modifier = Modifier.clip(MaterialTheme.shapes.medium)
-                    .then(if (wide) Modifier.clickable { selectedEntryId = entry.entryId; selectedIndex = entries.indexOf(entry) } else Modifier)
-                    .animateItem(fadeInSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(240), placementSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(280), fadeOutSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(220)),
+                Card(shape = shape, modifier = Modifier.clip(shape)
+                    .then(if (wide) Modifier.clickable(interactionSource = interactionSource, indication = ripple()) { selectedEntryId = entry.entryId; selectedIndex = entries.indexOf(entry) } else Modifier)
+                    .animateItem(fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(), fadeOutSpec = motion.fastEffectsSpec()),
                     colors = CardDefaults.cardColors(containerColor = color)) {
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         val inlineActions = maxWidth >= 360.dp && LocalDensity.current.fontScale < 1.5f
@@ -112,7 +116,10 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
             else -> null
         }
         StateFade(status, Modifier.align(Alignment.Center)) { message ->
-            if (message != null) Text(stringResource(message), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (message != null) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (message == R.string.screen_loading) ContainedLoadingIndicator()
+                Text(stringResource(message), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         }
     }
@@ -121,11 +128,13 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
             title = { Text(AppStrings.get(R.string.screen_delete_forever_question, "彻底删除？")) },
             text = { Text(AppStrings.get(R.string.screen_delete_irreversible, "「%1\$s」删除后无法恢复", entry.profile.name), Modifier.verticalScroll(rememberScrollState())) },
             confirmButton = {
-                TextButton({ viewModel.permanentlyDelete(entry.entryId) { deleteEntryId = null } },
+                TextButton(onClick = { viewModel.permanentlyDelete(entry.entryId) { deleteEntryId = null } },
                     enabled = !busy,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(if (busy) AppStrings.get(R.string.screen_deleting, "正在删除") else AppStrings.get(R.string.screen_delete_forever, "彻底删除")) }
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    shapes = ButtonDefaults.shapes()
+                ) { Text(if (busy) AppStrings.get(R.string.screen_deleting, "正在删除") else AppStrings.get(R.string.screen_delete_forever, "彻底删除")) }
             },
-            dismissButton = { TextButton({ deleteEntryId = null }, enabled = !busy) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } })
+            dismissButton = { TextButton(onClick = { deleteEntryId = null }, enabled = !busy, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } })
     }
 }
 

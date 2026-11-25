@@ -1,17 +1,26 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.ui.components.rememberExpressiveShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ToggleButton
+import androidx.compose.ui.semantics.Role
 import org.qinyan.rimoat.ui.components.getCategoryIcon
-
-import androidx.compose.material3.LinearProgressIndicator
-
+import androidx.compose.material3.LinearWavyProgressIndicator
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.asString
-
 import org.qinyan.rimoat.ui.theme.Spacing
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.ExpandSection
 import org.qinyan.rimoat.ui.motion.FadeVisibility
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -109,6 +118,7 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -149,6 +159,7 @@ fun RemoteListScreen(
     onAddRemoteClick: () -> Unit,
     onSettingsClick: () -> Unit = {}
 ) {
+    val motion = org.qinyan.rimoat.ui.motion.AppMotion.current
     val wide = rememberWideLayout()
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
@@ -367,7 +378,7 @@ fun RemoteListScreen(
                                 roomAndSortBar()
                         }
                         Spacer(Modifier.weight(1f))
-                        androidx.compose.material3.Button(onClick = onAddRemoteClick, modifier = Modifier.fillMaxWidth()) {
+                        androidx.compose.material3.Button(onClick = onAddRemoteClick, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
                             Icon(Icons.Rounded.Add, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text(stringResource(R.string.screen_add_remote))
@@ -376,7 +387,7 @@ fun RemoteListScreen(
                 }, secondary = {
                     Column(Modifier.fillMaxSize()) {
                         ExpandSection(visible = transferBusy) {
-                            androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            androidx.compose.material3.LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
                         }
                         Box(Modifier.fillMaxSize()) {
                             LazyVerticalGrid(
@@ -389,9 +400,9 @@ fun RemoteListScreen(
                             ) {
                                 gridItems(remotes, key = { it.id }) { remote ->
                                     remoteRow(remote, Modifier.animateItem(
-                                        fadeInSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(240),
-                                        placementSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(280),
-                                        fadeOutSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(220)))
+                                        fadeInSpec = motion.defaultEffectsSpec(),
+                                        placementSpec = motion.defaultSpatialSpec(),
+                                        fadeOutSpec = motion.fastEffectsSpec()))
                                 }
                             }
                             emptyState()
@@ -411,7 +422,7 @@ fun RemoteListScreen(
                         }
                     }
                     ExpandSection(visible = transferBusy) {
-                        androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        androidx.compose.material3.LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
                     }
 
                     // Remotes List
@@ -424,9 +435,9 @@ fun RemoteListScreen(
                         ) {
                             items(remotes, key = { it.id }) { remote ->
                                 remoteRow(remote, Modifier.animateItem(
-                                    fadeInSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(240),
-                                    placementSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(280),
-                                    fadeOutSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(220)))
+                                    fadeInSpec = motion.defaultEffectsSpec(),
+                                    placementSpec = motion.defaultSpatialSpec(),
+                                    fadeOutSpec = motion.fastEffectsSpec()))
                             }
                             // Bottom space so FAB doesn't obscure the last card
                             item {
@@ -452,13 +463,14 @@ fun RemoteListScreen(
                         onClick = {
                             remoteToDelete?.let { viewModel.deleteRemote(it.id) }
                             remoteToDelete = null
-                        }
+                        },
+                        shapes = ButtonDefaults.shapes()
                     ) {
                         Text(AppStrings.get(R.string.screen_delete, "删除"), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { remoteToDelete = null }) {
+                    TextButton(onClick = { remoteToDelete = null }, shapes = ButtonDefaults.shapes()) {
                         Text(AppStrings.get(R.string.screen_cancel, "取消"))
                     }
                 }
@@ -476,8 +488,8 @@ fun RemoteListScreen(
                     OutlinedTextField(value = room, onValueChange = { if (it.length <= 60) room = it }, label = { Text(AppStrings.get(R.string.screen_room_optional, "房间（可选）")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     displayedError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 } },
-                confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { viewModel.updateDetails(profile.id, name, room) { editingId = null } }) { Text(AppStrings.get(R.string.screen_save, "保存")) } },
-                dismissButton = { TextButton(onClick = { editingId = null }) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } })
+                confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { viewModel.updateDetails(profile.id, name, room) { editingId = null } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_save, "保存")) } },
+                dismissButton = { TextButton(onClick = { editingId = null }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } })
         }
         exportedUri?.let { saved ->
             BackupSavedDialog(saved, onDismiss = { exportedUri = null }, onError = viewModel::reportTransferError)
@@ -502,7 +514,7 @@ private fun categoryOptions(): List<Pair<DeviceCategory?, String>> = listOf(
     DeviceCategory.CUSTOM to AppStrings.get(R.string.screen_category_custom, "自定义")
 )
 
-/** Wrapping chips for the landscape filter pane, where a horizontally scrolling tab row would hide categories. */
+/** Wrapping choices keep every category reachable in a narrow landscape pane. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CategoryFilterChips(
@@ -510,16 +522,20 @@ private fun CategoryFilterChips(
     onSelectCategory: (DeviceCategory?) -> Unit
 ) {
     FlowRow(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         categoryOptions().forEach { (category, label) ->
-            FilterChip(
-                selected = selectedCategory == category,
-                onClick = { onSelectCategory(category) },
-                label = { Text(label) }
-            )
+            val checked = selectedCategory == category
+            ToggleButton(
+                checked = checked,
+                onCheckedChange = { onSelectCategory(category) },
+                modifier = Modifier.heightIn(min = 48.dp).semantics {
+                    selected = checked
+                    role = Role.RadioButton
+                }
+            ) { Text(label) }
         }
     }
 }
@@ -532,26 +548,42 @@ fun CategoryFilterBar(
 ) {
     val categories = categoryOptions()
 
-    val selectedIndex = categories.indexOfFirst { it.first == selectedCategory }.coerceAtLeast(0)
-    PrimaryScrollableTabRow(
-        selectedTabIndex = selectedIndex,
-        edgePadding = 16.dp,
-        containerColor = MaterialTheme.colorScheme.surface,
-        indicator = {
-            TabRowDefaults.PrimaryIndicator(
-                modifier = Modifier.tabIndicatorOffset(selectedIndex, matchContentSize = true),
-                width = Dp.Unspecified
-            )
-        }
+    ButtonGroup(
+        overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp).selectableGroup(),
+        expandedRatio = .08f,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         categories.forEach { (category, label) ->
-            Tab(
-                // Leave 8dp between adjacent tab touch targets.
-                modifier = Modifier.padding(horizontal = 4.dp),
-                selected = selectedCategory == category,
-                onClick = { onSelectCategory(category) },
-                text = { Text(label, maxLines = 1) },
-                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            customItem(
+                buttonGroupContent = {
+                    val checked = selectedCategory == category
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val bringIntoView = remember { BringIntoViewRequester() }
+                    LaunchedEffect(checked) {
+                        if (checked) {
+                            withFrameNanos { }
+                            bringIntoView.bringIntoView()
+                        }
+                    }
+                    ToggleButton(
+                        checked = checked,
+                        onCheckedChange = { onSelectCategory(category) },
+                        interactionSource = interactionSource,
+                        modifier = Modifier.heightIn(min = 48.dp).animateWidth(interactionSource)
+                            .bringIntoViewRequester(bringIntoView).semantics {
+                                selected = checked
+                                role = Role.RadioButton
+                            }
+                    ) { Text(label) }
+                },
+                menuContent = { menu ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = { menu.dismiss(); onSelectCategory(category) }
+                    )
+                }
             )
         }
     }
@@ -591,7 +623,8 @@ private fun RoomAndSortBar(
                 },
                 contentPadding = PaddingValues(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
 
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                shapes = ButtonDefaults.shapes()
             ) {
                 Text(
                     text = selectedRoom ?: AppStrings.get(R.string.screen_all_rooms, "全部房间"),
@@ -670,6 +703,8 @@ fun RemoteCard(
     onEdit: () -> Unit = {},
     onExport: () -> Unit = {}
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val cardShape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
     var showActions by remember { mutableStateOf(false) }
     var actionAfterDismiss by remember { mutableStateOf<(() -> Unit)?>(null) }
     val closeWithAction: (() -> Unit) -> Unit = { action ->
@@ -680,6 +715,8 @@ fun RemoteCard(
     }
     Card(
         onClick = onClick,
+        shape = cardShape,
+        interactionSource = interactionSource,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp,
             focusedElevation = 0.dp, hoveredElevation = 0.dp, draggedElevation = 0.dp),
@@ -782,11 +819,11 @@ private fun EmptyStateView(
         )
         Spacer(modifier = Modifier.height(Spacing.large))
         if (isSearch) {
-            TextButton(onClick = onResetSearch, enabled = actionsEnabled) {
+            TextButton(onClick = onResetSearch, enabled = actionsEnabled, shapes = ButtonDefaults.shapes()) {
                 Text(AppStrings.get(if (hasSearchQuery) R.string.screen_clear_search else R.string.screen_reset_filters))
             }
         } else if (showAddAction) {
-            androidx.compose.material3.Button(onClick = onAddRemote, enabled = actionsEnabled) {
+            androidx.compose.material3.Button(onClick = onAddRemote, enabled = actionsEnabled, shapes = ButtonDefaults.shapes()) {
                 Text(AppStrings.get(R.string.screen_add_remote, "添加遥控器"))
             }
         }

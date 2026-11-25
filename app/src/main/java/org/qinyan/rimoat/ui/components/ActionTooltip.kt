@@ -53,6 +53,8 @@ fun ActionIconButton(
             contentDescription = label
             role = Role.Button
             if (enabled) onClick { onClick(); true } else disabled()
-        }, enabled = enabled) { Box(Modifier.clearAndSetSemantics {}) { content() } }
+        }, enabled = enabled, shapes = IconButtonDefaults.shapes()) {
+            Box(Modifier.clearAndSetSemantics {}) { content() }
+        }
     }
 }

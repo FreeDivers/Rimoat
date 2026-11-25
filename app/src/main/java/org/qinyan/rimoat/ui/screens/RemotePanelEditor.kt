@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
 import androidx.annotation.StringRes
@@ -5,6 +7,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -68,6 +72,7 @@ private fun buttonEntry(button: RemoteButton, label: String) = PanelEntry(panelK
 @Composable
 fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: (RemotePanelLayout) -> Unit,
     onBack: () -> Unit) {
+    val motion = AppMotion.current
     var serialized by rememberSaveable(profile.id) { mutableStateOf(Json.encodeToString(profile.panelLayout)) }
     val layout = remember(serialized) { Json.decodeFromString<RemotePanelLayout>(serialized) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
@@ -169,7 +174,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.panel_edit_title)) },
-        navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+        navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.size(48.dp), shapes = IconButtonDefaults.shapes()) {
             Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.screen_back))
         } }) }) { padding ->
         val editor: @Composable () -> Unit = {
@@ -205,7 +210,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
                         },
                         modifier = Modifier
                             .animateItem(fadeInSpec = null, fadeOutSpec = null,
-                                placementSpec = if (dragged) null else AppMotion.tween())
+                                placementSpec = if (dragged) null else motion.defaultSpatialSpec())
                             .zIndex(if (dragged) 1f else 0f)
                             .graphicsLayer {
                                 if (dragged) itemInfo(entry.id)?.let { info ->
@@ -245,7 +250,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
                 }
             }
             item(key = "restore", span = { GridItemSpan(maxLineSpan) }, contentType = "restore") {
-                OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(top = 24.dp).fillMaxWidth().heightIn(min = 48.dp)) {
+                OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(top = 24.dp).fillMaxWidth().heightIn(min = 48.dp), shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.panel_restore_default))
                 }
             }
@@ -279,24 +284,28 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
     }
     if (LocalMotionActive.current && confirmReset) MotionAlertDialog(onDismissRequest = { confirmReset = false }, title = { Text(stringResource(R.string.panel_restore_default)) },
         text = { Text(stringResource(R.string.panel_restore_confirm)) },
-        confirmButton = { TextButton(onClick = { update(RemotePanelLayout()); confirmReset = false }) { Text(stringResource(R.string.panel_restore_default)) } },
-        dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.screen_close)) } })
+        confirmButton = { TextButton(onClick = { update(RemotePanelLayout()); confirmReset = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.panel_restore_default)) } },
+        dismissButton = { TextButton(onClick = { confirmReset = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.screen_close)) } })
 }
 
 /** A key preview with the same circle and label as the panel; the corner mark shows whether it is on the panel. */
 @Composable
 private fun PanelTile(entry: PanelEntry, visible: Boolean, dragged: Boolean, onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier, gestures: Modifier = Modifier) {
+    val motion = AppMotion.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val tileShape = rememberExpressiveShape(interactionSource)
+    val keyShape = rememberExpressiveShape(interactionSource, RoundedCornerShape(50))
     val colors = MaterialTheme.colorScheme
-    val scale by animateFloatAsState(if (dragged) 1.08f else 1f, AppMotion.tween(), label = "PanelTileScale")
-    val elevation by animateDpAsState(if (dragged) 6.dp else 0.dp, AppMotion.tween(), label = "PanelTileElevation")
-    val container by animateColorAsState(if (visible) colors.secondaryContainer else Color.Transparent, AppMotion.tween(), label = "PanelTileColor")
+    val scale by animateFloatAsState(if (dragged) 1.04f else 1f, motion.fastSpatialSpec(), label = "PanelTileScale")
+    val elevation by animateDpAsState(if (dragged) 6.dp else 0.dp, motion.fastSpatialSpec(), label = "PanelTileElevation")
+    val container by animateColorAsState(if (visible) colors.secondaryContainer else Color.Transparent, motion.defaultEffectsSpec(), label = "PanelTileColor")
     val content = if (visible) colors.onSecondaryContainer else colors.onSurface.copy(alpha = .38f)
     val description = stringResource(R.string.panel_show_control, entry.label)
     Column(
         modifier
-            .clip(MaterialTheme.shapes.medium)
-            .toggleable(value = visible, role = Role.Checkbox, onValueChange = onToggle)
+            .clip(tileShape)
+            .toggleable(value = visible, interactionSource = interactionSource, indication = ripple(), role = Role.Checkbox, onValueChange = onToggle)
             .semantics { contentDescription = description }
             .then(gestures)
             .padding(vertical = 8.dp),
@@ -304,7 +313,7 @@ private fun PanelTile(entry: PanelEntry, visible: Boolean, dragged: Boolean, onT
     ) {
         Box(Modifier.graphicsLayer { scaleX = scale; scaleY = scale }) {
             Surface(
-                shape = CircleShape, color = container, contentColor = content,
+                shape = keyShape, color = container, contentColor = content,
                 border = if (visible) null else BorderStroke(1.dp, colors.outline.copy(alpha = .6f)),
                 shadowElevation = elevation, modifier = Modifier.padding(6.dp).size(64.dp)
             ) {

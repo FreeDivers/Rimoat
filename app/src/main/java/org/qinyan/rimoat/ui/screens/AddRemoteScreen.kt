@@ -1,21 +1,22 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
+import androidx.compose.material3.ButtonDefaults
+import org.qinyan.rimoat.ui.components.rememberExpressiveShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import org.qinyan.rimoat.ui.components.getCategoryIcon
-
 import androidx.compose.foundation.layout.fillMaxHeight
 import org.qinyan.rimoat.ui.components.contentWidth
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
 import org.qinyan.rimoat.ui.components.rememberWideLayout
 import org.qinyan.rimoat.R
-
 import org.qinyan.rimoat.i18n.asString
-
 import org.qinyan.rimoat.ui.theme.Spacing
 import androidx.activity.compose.BackHandler
 import org.qinyan.rimoat.ui.motion.MotionContent
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.backPreview
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -50,7 +51,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Sensors
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -152,14 +153,16 @@ fun AddRemoteScreen(
                     showRestart = false
                     viewModel.restartMatching()
                 },
-                modifier = Modifier.heightIn(min = 48.dp)
+                modifier = Modifier.heightIn(min = 48.dp),
+                shapes = ButtonDefaults.shapes()
             ) { Text(stringResource(R.string.pairing_restart)) }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(
 
                 onClick = { showRestart = false },
-                modifier = Modifier.heightIn(min = 48.dp)
+                modifier = Modifier.heightIn(min = 48.dp),
+                shapes = ButtonDefaults.shapes()
             ) { Text(stringResource(R.string.screen_cancel)) }
         }
     )
@@ -363,7 +366,7 @@ fun CategorySelectionView(
 ) {
     if (isLoading && categories.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            LoadingIndicator()
         }
         return
     }
@@ -379,7 +382,10 @@ fun CategorySelectionView(
     val minimumCardWidth = with(LocalDensity.current) { labelWidth.toDp() } + 24.dp
     val wide = rememberWideLayout()
     val learnEntry: @Composable () -> Unit = {
+                val interactionSource = remember { MutableInteractionSource() }
+                val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
                 Card(
+                    shape = shape, interactionSource = interactionSource,
                     onClick = onCustomWizardClick,
 
                     modifier = Modifier
@@ -468,8 +474,11 @@ fun CategoryGridCard(
     label: String = category.displayName(LocalContext.current)
 ) {
     val icon = getCategoryIcon(category.code)
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
 
     Card(
+        shape = shape, interactionSource = interactionSource,
         onClick = onClick,
 
         modifier = Modifier
@@ -585,12 +594,12 @@ fun ConfirmRemoteView(
             enabled = canSave,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 56.dp)
+                .heightIn(min = 56.dp),
+            shapes = ButtonDefaults.shapes()
         ) {
             if (state.isSaving) {
-                CircularProgressIndicator(
+                LoadingIndicator(
                     modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
                     color = LocalContentColor.current
                 )
                 Spacer(modifier = Modifier.width(Spacing.small))

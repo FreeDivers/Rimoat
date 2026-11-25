@@ -2,9 +2,13 @@ package org.qinyan.rimoat.ui.learning
 
 import org.qinyan.rimoat.R
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +23,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 
 /** Shows actual remaining listening time without decorative looping waves. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun IrListeningRipple(
     modifier: Modifier = Modifier,
@@ -30,19 +35,19 @@ fun IrListeningRipple(
     val remainingAnnouncement = stringResource(R.string.screen_receive_remaining, safeRemaining)
     val secondsLabel = stringResource(R.string.screen_seconds, safeRemaining)
     val progress = animateFloatAsState((remainingSeconds.toFloat() / totalSeconds.coerceAtLeast(1)).coerceIn(0f, 1f),
-        AppMotion.tween(600), label = "ListeningCountdown")
-    Box(
-        modifier = modifier.size(96.dp).clearAndSetSemantics {
+        AppMotion.current.defaultEffectsSpec(), label = "ListeningCountdown")
+    Column(
+        modifier = modifier.widthIn(min = 96.dp).heightIn(min = 96.dp).clearAndSetSemantics {
             contentDescription = remainingAnnouncement
         },
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
     ) {
-        CircularProgressIndicator(
+        ContainedLoadingIndicator(
             progress = { progress.value },
-            modifier = Modifier.size(88.dp),
-            color = color,
-            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            strokeWidth = 4.dp
+            modifier = Modifier.size(56.dp),
+            indicatorColor = color,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
         )
         Text(secondsLabel, style = MaterialTheme.typography.labelLarge)
     }

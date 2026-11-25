@@ -5,12 +5,12 @@ import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.ui.motion.AppMotion
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -88,14 +89,18 @@ fun RemoteButtonView(
     showSelectionEntry: Boolean = false,
     onUnavailable: (() -> Unit)? = null
 ) {
+    SoundEffectOnInteraction(enabled = false) {
+    MaterialTheme(motionScheme = MotionScheme.standard()) {
+    val motion = AppMotion.current
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
+    val pressShape = rememberExpressiveShape(interactionSource, CircleShape, RoundedCornerShape(40))
     val clickHaptic = org.qinyan.rimoat.ui.rememberPressHaptic(interactionSource, enabled, isLearningMode)
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale = animateFloatAsState(
         targetValue = if (isPressed && enabled) 0.97f else 1f,
-        animationSpec = AppMotion.tween(if (isPressed) 90 else 140), label = "RemotePress"
+        animationSpec = motion.fastSpatialSpec(), label = "RemotePress"
     )
     var holdCancelled by remember { mutableStateOf(false) }
     var repeated by remember { mutableStateOf(false) }
@@ -199,30 +204,30 @@ fun RemoteButtonView(
         }
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        // Equal width and height keep CircleShape circular even in weighted grid cells.
+        // The touch target stays square while only the visible key shape responds to pressure.
         when {
             !enabled && onUnavailable != null -> FilledTonalButton(
-                onClick = click, modifier = buttonModifier, enabled = acceptsClick, shape = CircleShape,
+                onClick = click, modifier = buttonModifier, enabled = acceptsClick, shape = pressShape,
                 colors = ButtonDefaults.filledTonalButtonColors(
                     containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .12f),
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                 contentPadding = PaddingValues(0.dp), interactionSource = interactionSource, content = content
             )
             isLearningMode || variant == RemoteButtonVariant.OUTLINED -> OutlinedButton(
-                onClick = click, modifier = buttonModifier, enabled = enabled, shape = CircleShape,
+                onClick = click, modifier = buttonModifier, enabled = enabled, shape = pressShape,
                 contentPadding = PaddingValues(0.dp), interactionSource = interactionSource, content = content
             )
             variant == RemoteButtonVariant.POWER -> Button(
-                onClick = click, modifier = buttonModifier, enabled = enabled, shape = CircleShape,
+                onClick = click, modifier = buttonModifier, enabled = enabled, shape = pressShape,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
                 contentPadding = PaddingValues(0.dp), interactionSource = interactionSource, content = content
             )
             active == true -> Button(
-                onClick = click, modifier = buttonModifier, enabled = enabled, shape = CircleShape,
+                onClick = click, modifier = buttonModifier, enabled = enabled, shape = pressShape,
                 contentPadding = PaddingValues(0.dp), interactionSource = interactionSource, content = content
             )
             else -> FilledTonalButton(
-                onClick = click, modifier = buttonModifier, enabled = enabled, shape = CircleShape,
+                onClick = click, modifier = buttonModifier, enabled = enabled, shape = pressShape,
                 contentPadding = PaddingValues(0.dp), interactionSource = interactionSource, content = content
             )
         }
@@ -235,7 +240,7 @@ fun RemoteButtonView(
                         role = Role.Button
                         contentDescription = selectionLabel
                         onClick { onSelectState(); true }
-                    }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    }, contentPadding = PaddingValues(horizontal = 4.dp), shapes = ButtonDefaults.shapes()) {
                     Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f, false), textAlign = TextAlign.Center)
                     Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
@@ -255,6 +260,8 @@ fun RemoteButtonView(
             ) }
         }
     }
+    }
+    }
 }
 
 /** Icon-only remote controls retain the same haptic and learning behavior. */
@@ -268,9 +275,12 @@ fun RemoteIconButton(
     isLearningMode: Boolean = false,
     onLearn: (() -> Unit)? = null
 ) {
+    SoundEffectOnInteraction(enabled = false) {
+    MaterialTheme(motionScheme = MotionScheme.standard()) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
+    val pressShape = rememberExpressiveShape(interactionSource, CircleShape, RoundedCornerShape(40))
     val clickHaptic = org.qinyan.rimoat.ui.rememberPressHaptic(interactionSource, enabled, isLearningMode)
     val click: () -> Unit = {
         clickHaptic()
@@ -283,10 +293,12 @@ fun RemoteIconButton(
         if (enabled) onClick { click(); true } else disabled()
     }
     ActionTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn, "学习%1\$s", label) else label) {
-    if (isLearningMode) OutlinedIconButton(onClick = click, enabled = enabled, modifier = accessibleModifier, shape = CircleShape, interactionSource = interactionSource) {
+    if (isLearningMode) OutlinedIconButton(onClick = click, enabled = enabled, modifier = accessibleModifier, shape = pressShape, interactionSource = interactionSource) {
         Icon(icon, contentDescription = null)
-    } else FilledTonalIconButton(onClick = click, enabled = enabled, modifier = accessibleModifier, shape = CircleShape, interactionSource = interactionSource) {
+    } else FilledTonalIconButton(onClick = click, enabled = enabled, modifier = accessibleModifier, shape = pressShape, interactionSource = interactionSource) {
         Icon(icon, contentDescription = null)
+    }
+    }
     }
     }
 }

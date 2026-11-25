@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.ui.components
 
+import androidx.compose.material3.ButtonDefaults
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -323,7 +324,7 @@ fun ScreenRotationPromptDialog(
                     onConfirmRotate(dontAskAgain)
                 },
                 modifier = Modifier.heightIn(min = 48.dp)
-            ) {
+            , shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.rotation_prompt_confirm))
             }
         },
@@ -334,7 +335,7 @@ fun ScreenRotationPromptDialog(
                     onDismissPrompt(dontAskAgain)
                 },
                 modifier = Modifier.heightIn(min = 48.dp)
-            ) {
+            , shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.rotation_prompt_cancel))
             }
         }

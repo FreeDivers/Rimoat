@@ -5,6 +5,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.ui.theme.Spacing
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import org.qinyan.rimoat.hardware.IrSignal
+import org.qinyan.rimoat.ui.motion.AppMotion
 import java.text.NumberFormat
 
 /**
@@ -63,14 +65,14 @@ fun IrWaveformPreview(
         }.format(frequencyHz)
     }
 
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().animateContentSize(AppMotion.current.defaultSpatialSpec())) {
 
             // Canvas drawing Mark / Space pulses
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                shape = MaterialTheme.shapes.small,
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerHighest
             ) {
                 Canvas(

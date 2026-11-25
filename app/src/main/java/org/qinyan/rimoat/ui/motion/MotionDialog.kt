@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import org.qinyan.rimoat.R
@@ -36,12 +37,18 @@ internal fun MotionAlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             DialogWindowMotion()
-            confirmButton()
+            SoundEffectOnInteraction(enabled = false, content = confirmButton)
         },
         modifier = modifier,
-        dismissButton = dismissButton,
-        title = title,
-        text = text,
+        dismissButton = dismissButton?.let { content ->
+            { SoundEffectOnInteraction(enabled = false, content = content) }
+        },
+        title = title?.let { content ->
+            { SoundEffectOnInteraction(enabled = false, content = content) }
+        },
+        text = text?.let { content ->
+            { SoundEffectOnInteraction(enabled = false, content = content) }
+        },
         properties = properties
     )
 }
@@ -56,6 +63,6 @@ internal fun MotionBasicAlertDialog(
 ) {
     BasicAlertDialog(onDismissRequest, modifier, properties) {
         DialogWindowMotion()
-        content()
+        SoundEffectOnInteraction(enabled = false, content = content)
     }
 }

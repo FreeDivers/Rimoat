@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
@@ -78,82 +79,84 @@ fun TransmitterSelectionBottomSheet(
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { transmitterManager.refreshHardware() }
     ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(AppStrings.get(R.string.control_ir_channel, "红外发射通道"), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-            TextButton(onClick = { scope.launch { sheetState.hide(); onDismissRequest() } }) { Text(AppStrings.get(R.string.control_done, "完成")) }
-        }
-        val choices: @Composable () -> Unit = {
-            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ChannelChoice(AppStrings.get(R.string.control_auto_select, "自动选择"), Icons.Rounded.AutoMode, automatic, onClick = { select(null) })
-                if (usable.isNotEmpty()) {
-                    ChannelSectionTitle(AppStrings.get(R.string.control_available_devices, "可用设备"))
-                    usable.forEach { channel ->
-                        HardwareChannelItem(channel, usbDevices.any { it.pending },
-                            onSelect = { select(channel.type) },
-                            onPermission = transmitterManager::requestUsbPermission)
-                    }
-                }
-                if (attention.isNotEmpty()) {
-                    ChannelSectionTitle(AppStrings.get(R.string.control_pending_devices, "待处理设备"))
-                    attention.forEach { channel ->
-                        HardwareChannelItem(channel, usbDevices.any { it.pending },
-                            onSelect = { select(channel.type) },
-                            onPermission = transmitterManager::requestUsbPermission,
-                            onConfigure = if (channel.type == TransmitterType.USB_SERIAL) {
-                                { showSerialSettings = true }
-                            } else null)
-                    }
-                }
-                if (unavailable.isNotEmpty()) {
-                    HorizontalDivider(Modifier.padding(top = 8.dp))
-                    // This row expands information; it never looks like a channel choice.
-                    TextButton(
-                        onClick = { showUnavailable = !showUnavailable },
-                        modifier = Modifier.fillMaxWidth().semantics {
-                            stateDescription = if (showUnavailable) AppStrings.get(R.string.control_expanded, "已展开") else AppStrings.get(R.string.control_collapsed, "已收起")
-                        },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-                    ) {
-                        Text(AppStrings.get(R.string.control_unavailable_count, "不可用通道（%1\$d）", unavailable.size), Modifier.weight(1f))
-                        Icon(if (showUnavailable) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
-                    }
-                    ExpandSection(visible = showUnavailable) {
-                        Column { unavailable.forEach { UnavailableChannel(it) } }
-                    }
-                }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                ChannelChoice(AppStrings.get(R.string.control_demo_mode, "演示模式"), Icons.Rounded.SensorsOff, demoSelected,
-                    onClick = { select(TransmitterType.MOCK) })
+        SoundEffectOnInteraction(enabled = false) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(AppStrings.get(R.string.control_ir_channel, "红外发射通道"), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                TextButton(onClick = { scope.launch { sheetState.hide(); onDismissRequest() } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_done, "完成")) }
             }
-            if (!inlineSerialSettings) {
-                OutlinedButton(onClick = { showSerialSettings = true }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Rounded.Settings, null, Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(AppStrings.get(R.string.control_serial_config, "串口模块配置"))
-                }
-            }
-        }
-        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f, fill = false)) {
-            if (maxWidth >= 480.dp) {
-                TwoPaneLayout(primaryFraction = .4f, primaryMaxWidth = 320.dp,
-                    primary = {
-                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                            ActiveChannelSummary(currentActive, ready)
+            val choices: @Composable () -> Unit = {
+                Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ChannelChoice(AppStrings.get(R.string.control_auto_select, "自动选择"), Icons.Rounded.AutoMode, automatic, onClick = { select(null) })
+                    if (usable.isNotEmpty()) {
+                        ChannelSectionTitle(AppStrings.get(R.string.control_available_devices, "可用设备"))
+                        usable.forEach { channel ->
+                            HardwareChannelItem(channel, usbDevices.any { it.pending },
+                                onSelect = { select(channel.type) },
+                                onPermission = transmitterManager::requestUsbPermission)
                         }
-                    }, secondary = {
-                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(20.dp)) { choices() }
-                    })
-            } else {
-                Column(Modifier.verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp).padding(bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    ActiveChannelSummary(currentActive, ready)
-                    choices()
+                    }
+                    if (attention.isNotEmpty()) {
+                        ChannelSectionTitle(AppStrings.get(R.string.control_pending_devices, "待处理设备"))
+                        attention.forEach { channel ->
+                            HardwareChannelItem(channel, usbDevices.any { it.pending },
+                                onSelect = { select(channel.type) },
+                                onPermission = transmitterManager::requestUsbPermission,
+                                onConfigure = if (channel.type == TransmitterType.USB_SERIAL) {
+                                    { showSerialSettings = true }
+                                } else null)
+                        }
+                    }
+                    if (unavailable.isNotEmpty()) {
+                        HorizontalDivider(Modifier.padding(top = 8.dp))
+                        // This row expands information; it never looks like a channel choice.
+                        TextButton(
+                            onClick = { showUnavailable = !showUnavailable },
+                            modifier = Modifier.fillMaxWidth().semantics {
+                                stateDescription = if (showUnavailable) AppStrings.get(R.string.control_expanded, "已展开") else AppStrings.get(R.string.control_collapsed, "已收起")
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                        , shapes = ButtonDefaults.shapes()) {
+                            Text(AppStrings.get(R.string.control_unavailable_count, "不可用通道（%1\$d）", unavailable.size), Modifier.weight(1f))
+                            Icon(if (showUnavailable) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
+                        }
+                        ExpandSection(visible = showUnavailable) {
+                            Column { unavailable.forEach { UnavailableChannel(it) } }
+                        }
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    ChannelChoice(AppStrings.get(R.string.control_demo_mode, "演示模式"), Icons.Rounded.SensorsOff, demoSelected,
+                        onClick = { select(TransmitterType.MOCK) })
+                }
+                if (!inlineSerialSettings) {
+                    OutlinedButton(onClick = { showSerialSettings = true }, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
+                        Icon(Icons.Rounded.Settings, null, Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(AppStrings.get(R.string.control_serial_config, "串口模块配置"))
+                    }
+                }
+            }
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+                if (maxWidth >= 480.dp) {
+                    TwoPaneLayout(primaryFraction = .4f, primaryMaxWidth = 320.dp,
+                        primary = {
+                            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                                ActiveChannelSummary(currentActive, ready)
+                            }
+                        }, secondary = {
+                            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(20.dp)) { choices() }
+                        })
+                } else {
+                    Column(Modifier.verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp).padding(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        ActiveChannelSummary(currentActive, ready)
+                        choices()
+                    }
                 }
             }
         }
@@ -228,7 +231,7 @@ private fun HardwareChannelItem(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedButton(onClick = { onPermission(device.deviceName) },
-                        enabled = !permissionPending, modifier = Modifier.fillMaxWidth()) {
+                        enabled = !permissionPending, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
                         Text(when {
                             device.pending -> AppStrings.get(R.string.control_waiting_permission, "等待授权")
                             device.denied -> AppStrings.get(R.string.control_reauthorize, "重新授权")
@@ -236,7 +239,7 @@ private fun HardwareChannelItem(
                         })
                     }
                 }
-                if (onConfigure != null) OutlinedButton(onClick = onConfigure, modifier = Modifier.fillMaxWidth()) {
+                if (onConfigure != null) OutlinedButton(onClick = onConfigure, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
                     Text(AppStrings.get(R.string.control_configure_module, "配置模块"))
                 }
             }
@@ -272,20 +275,12 @@ private fun ChannelChoice(
     description: String? = null,
     onClick: () -> Unit
 ) {
-    val colors = MaterialTheme.colorScheme
-    ListItem(
-        modifier = Modifier.clip(MaterialTheme.shapes.medium)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
-        headlineContent = { Text(title) },
-        supportingContent = description?.let { { Text(it) } },
-        leadingContent = { Icon(icon, null, Modifier.size(24.dp)) },
-        trailingContent = { RadioButton(selected = selected, onClick = null) },
-        colors = ListItemDefaults.colors(
-            containerColor = if (selected) colors.secondaryContainer else Color.Transparent,
-            headlineColor = if (selected) colors.onSecondaryContainer else colors.onSurface,
-            supportingColor = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
-            leadingIconColor = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
-        )
+    SingleChoiceListItem(
+        title = title,
+        selected = selected,
+        onClick = onClick,
+        description = description,
+        icon = icon
     )
 }
 

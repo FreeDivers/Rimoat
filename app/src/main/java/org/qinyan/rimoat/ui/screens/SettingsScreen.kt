@@ -1,5 +1,10 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
+import androidx.compose.material3.ripple
+import org.qinyan.rimoat.ui.components.rememberExpressiveShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -15,7 +20,7 @@ import kotlinx.coroutines.launch
 import org.qinyan.rimoat.ui.components.ActionIconButton
 import org.qinyan.rimoat.ui.components.SimpleDropdownMenu
 import org.qinyan.rimoat.ui.components.SimpleDropdownMenuItem
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import org.qinyan.rimoat.ui.components.AppSnackbarHost
 import androidx.compose.material3.Switch
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -147,7 +152,7 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
         snackbarHost = { AppSnackbarHost(snackbar) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            if (transferBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (transferBusy) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val settingsItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
                 item("appearance") { SettingsSection(stringResource(R.string.settings_group_appearance)) {
@@ -179,9 +184,13 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
                         optionEnabled = { index -> index == 0 || viewModel.isDynamicColorSupported },
                         onSelected = { index -> viewModel.setUseDynamicColor(index == 1) }
                     )
+                    val blackInteraction = remember { MutableInteractionSource() }
+                    val blackShape = rememberExpressiveShape(blackInteraction)
                     ListItem(
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).toggleable(
+                        modifier = Modifier.clip(blackShape).toggleable(
                             value = pureBlackBackground,
+                            interactionSource = blackInteraction,
+                            indication = ripple(),
                             enabled = screenActive,
                             role = Role.Switch,
                             onValueChange = viewModel::setPureBlackBackground
@@ -256,9 +265,13 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
                         border = if (autoRotateScreen) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)) else null
                     ) {
                         Column(Modifier.fillMaxWidth()) {
+                            val rotationInteraction = remember { MutableInteractionSource() }
+                            val rotationShape = rememberExpressiveShape(rotationInteraction)
                             ListItem(
-                                modifier = Modifier.clip(MaterialTheme.shapes.medium).toggleable(
+                                modifier = Modifier.clip(rotationShape).toggleable(
                                     value = autoRotateScreen,
+                                    interactionSource = rotationInteraction,
+                                    indication = ripple(),
                                     enabled = screenActive,
                                     role = Role.Switch,
                                     onValueChange = viewModel::setAutoRotateScreen
@@ -360,8 +373,8 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
         if (showIrFormats) MotionAlertDialog(onDismissRequest = { showIrFormats = false },
             title = { Text(stringResource(R.string.migration_ir_import)) },
             text = { Text(stringResource(R.string.migration_ir_formats)) },
-            dismissButton = { TextButton(onClick = { showIrFormats = false }) { Text(stringResource(R.string.cancel)) } },
-            confirmButton = { TextButton(onClick = { showIrFormats = false; irImportLauncher.launch(arrayOf("*/*")) }) {
+            dismissButton = { TextButton(onClick = { showIrFormats = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = { TextButton(onClick = { showIrFormats = false; irImportLauncher.launch(arrayOf("*/*")) }, shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.migration_choose_file))
             } })
         exportedUri?.let { saved ->
@@ -484,6 +497,8 @@ private fun SettingsValueRow(
     modifier: Modifier = Modifier,
     trailingOverlay: @Composable BoxScope.() -> Unit = {},
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = rememberExpressiveShape(interactionSource)
     val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
@@ -501,9 +516,9 @@ private fun SettingsValueRow(
 
     BoxWithConstraints(
         modifier = modifier.fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
+            .clip(shape)
             .semantics { stateDescription = value }
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .clickable(interactionSource = interactionSource, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
             .heightIn(min = 64.dp),
     ) {
         if (maxWidth < 300.dp || titleMinimum + valueMinimum > maxWidth - 84.dp - trailingWidth) {
@@ -570,11 +585,13 @@ private fun SettingsValueRow(
 
 @Composable
 private fun SettingsAction(title: String, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = rememberExpressiveShape(interactionSource)
     val contentColor = MaterialTheme.colorScheme.onSurface.let { if (enabled) it else it.copy(alpha = 0.38f) }
     val iconColor = MaterialTheme.colorScheme.onSurfaceVariant.let { if (enabled) it else it.copy(alpha = 0.38f) }
     ListItem(
-        modifier = Modifier.clip(MaterialTheme.shapes.medium)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick).heightIn(min = 64.dp),
+        modifier = Modifier.clip(shape)
+            .clickable(interactionSource = interactionSource, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick).heightIn(min = 64.dp),
         headlineContent = { Text(title) },
         leadingContent = { Icon(icon, null, Modifier.size(24.dp)) },
         trailingContent = { Icon(Icons.Rounded.ChevronRight, null, Modifier.size(24.dp)) },

@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.graphics.Color
 import org.qinyan.rimoat.data.AppColorMode
 import android.app.Activity
@@ -140,6 +141,6 @@ fun IrRemoteTheme(
         typography = Typography,
         shapes = Shapes,
         motionScheme = MotionScheme.expressive(),
-        content = content
+        content = { SoundEffectOnInteraction(enabled = false, content = content) }
     )
 }

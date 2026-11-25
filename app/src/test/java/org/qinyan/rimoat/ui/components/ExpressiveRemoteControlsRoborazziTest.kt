@@ -1,0 +1,165 @@
+package org.qinyan.rimoat.ui.components
+
+import android.app.Application
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoundEffect
+import androidx.compose.ui.platform.SoundEffect
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isToggleable
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
+import com.github.takahirom.roborazzi.LosslessWebPImageIoFormat
+import com.github.takahirom.roborazzi.RoborazziOptions
+import com.github.takahirom.roborazzi.captureRoboImage
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.qinyan.rimoat.R
+import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.localizedTimerDurationLabel
+import org.qinyan.rimoat.ui.theme.IrRemoteTheme
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import org.robolectric.annotation.LooperMode
+import java.util.TimeZone
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], qualifiers = "en-rUS-w411dp-h891dp-mdpi", application = Application::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@LooperMode(LooperMode.Mode.PAUSED)
+@OptIn(ExperimentalRoborazziApi::class)
+class ExpressiveRemoteControlsRoborazziTest {
+    @get:Rule val compose = createComposeRule()
+    private val app get() = RuntimeEnvironment.getApplication()
+    private val originalTimeZone = TimeZone.getDefault()
+    private val options = RoborazziOptions(
+        recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat())
+    )
+
+    @Before fun initializeStrings() {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        AppStrings.initialize(app)
+    }
+
+    @After fun restoreTimeZone() = TimeZone.setDefault(originalTimeZone)
+
+    @Test fun pressedRemoteRestoresBoundsAndSendsOnceWithoutSystemClickSound() {
+        var sends = 0
+        var clickSounds = 0
+        val sound = object : SoundEffect {
+            override fun playClickSound() { clickSounds++ }
+        }
+        val label = AppStrings.get(R.string.control_power_on)
+        compose.setContent {
+            CompositionLocalProvider(LocalSoundEffect provides sound) {
+                IrRemoteTheme(dynamicColor = false) {
+                    Surface(Modifier.fillMaxSize()) {
+                        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                            RemoteButtonView(label, iconName = "power", onClick = { sends++ },
+                                variant = RemoteButtonVariant.POWER, diameter = 72.dp)
+                            TextButton(onClick = {}, modifier = Modifier.testTag("ordinary_action")) {
+                                Text(AppStrings.get(R.string.control_done))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val key = compose.onNodeWithContentDescription(label)
+        val restingBounds = key.fetchSemanticsNode().boundsInRoot
+        capture("expressive_remote_resting")
+        compose.mainClock.autoAdvance = false
+        key.performTouchInput { down(center) }
+        compose.mainClock.advanceTimeBy(160)
+        compose.runOnIdle { assertEquals(0, sends) }
+        capture("expressive_remote_pressed")
+        key.performTouchInput { up() }
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(1, sends)
+            assertEquals(0, clickSounds)
+        }
+        assertEquals(restingBounds, key.fetchSemanticsNode().boundsInRoot)
+        capture("expressive_remote_released")
+        compose.onNodeWithTag("ordinary_action").performTouchInput { click() }
+        compose.runOnIdle { assertEquals(0, clickSounds) }
+    }
+
+    @Test fun timerTogglePresetUpdatesSelectionBeforeToolbarSends() = exerciseTimer(fontScale = 1f)
+
+    @Test
+    @Config(qualifiers = "en-rUS-w320dp-h891dp-mdpi")
+    fun timerActionsStayReadableOnNarrowScreenWithLargeText() = exerciseTimer(fontScale = 2f)
+
+    private fun exerciseTimer(fontScale: Float) {
+        RuntimeEnvironment.setFontScale(fontScale)
+        var sentMinutes: Int? = null
+        compose.setContent {
+            IrRemoteTheme(dynamicColor = false) {
+                AcTimerBottomSheet(
+                    options = listOf(0, 30, 60, 120, 240, 480),
+                    currentMinutes = 60,
+                    powerOn = true,
+                    onDismiss = {},
+                    onSend = { sentMinutes = it },
+                    nowMillis = { 1_704_110_400_000L }
+                )
+            }
+        }
+        val titleLayouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(AppStrings.get(R.string.control_timer_off), useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(titleLayouts) }
+        val titleLayout = titleLayouts.single()
+        assertEquals(fontScale, titleLayout.layoutInput.density.fontScale, 0.001f)
+        if (fontScale > 1f) {
+            assertTrue("Dialog title must render with enlarged text",
+                titleLayout.getLineBottom(0) - titleLayout.getLineTop(0) > 40f)
+        }
+        val prefix = if (fontScale == 1f) "expressive_timer" else "expressive_timer_large_text"
+        capture("${prefix}_initial", dialog = true)
+        val preset = compose.onNode(hasText(localizedTimerDurationLabel(120)) and isToggleable())
+        preset.performScrollTo().performClick().assertIsOn().assertIsSelected()
+        compose.runOnIdle { assertEquals(null, sentMinutes) }
+        capture("${prefix}_selected", dialog = true)
+        compose.onNodeWithText(AppStrings.get(R.string.control_disable_timer)).assertIsDisplayed()
+        compose.onNodeWithText(AppStrings.get(R.string.control_set_timer)).assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(120, sentMinutes) }
+    }
+
+    private fun capture(name: String, dialog: Boolean = false) =
+        (if (dialog) compose.onNode(isDialog()) else compose.onRoot()).captureRoboImage(
+        "src/test/screenshots/$name.webp", roborazziOptions = options
+    )
+}

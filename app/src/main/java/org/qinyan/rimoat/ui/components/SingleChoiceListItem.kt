@@ -1,13 +1,19 @@
 package org.qinyan.rimoat.ui.components
 
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun SingleChoiceListItem(
@@ -19,16 +25,20 @@ fun SingleChoiceListItem(
     enabled: Boolean = true,
     icon: ImageVector? = null
 ) {
-    ListItem(
-        modifier = modifier.clip(MaterialTheme.shapes.medium)
-            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick),
-        headlineContent = { Text(title) },
-        supportingContent = description?.let { { Text(it) } },
-        leadingContent = icon?.let { { Icon(it, contentDescription = null) } },
-        trailingContent = { RadioButton(selected = selected, onClick = null, enabled = enabled) },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            headlineColor = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-        )
-    )
+    ToggleButton(
+        checked = selected,
+        onCheckedChange = { onClick() },
+        enabled = enabled,
+        modifier = modifier.fillMaxWidth().heightIn(min = 64.dp).semantics {
+            this.selected = selected
+            role = Role.RadioButton
+        },
+        icon = icon?.let { { Icon(it, contentDescription = null) } },
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            description?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        }
+    }
 }

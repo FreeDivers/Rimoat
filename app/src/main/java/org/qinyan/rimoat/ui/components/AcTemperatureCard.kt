@@ -9,10 +9,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.PowerSettingsNew
@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -65,10 +66,14 @@ fun AcTemperatureCard(
     unavailableDescriptions: Map<AcAction, String> = emptyMap(),
     onUnavailable: ((AcAction) -> Unit)? = null
 ) {
+    SoundEffectOnInteraction(enabled = false) {
+    MaterialTheme(motionScheme = MotionScheme.standard()) {
+    val motion = AppMotion.current
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val powerInteraction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val powerHaptic = org.qinyan.rimoat.ui.rememberPressHaptic(powerInteraction, canTogglePower, isLearningMode)
+    val powerShape = rememberExpressiveShape(powerInteraction, CircleShape, RoundedCornerShape(40))
     val powerLabel = if (isLearningMode) AppStrings.get(R.string.control_learn_power) else AppStrings.get(if (powerOn) R.string.control_power_off else R.string.control_power_on)
     val powerAction = if (powerOn) AcAction.POWER_OFF else AcAction.POWER_ON
     val fontScale = LocalDensity.current.fontScale
@@ -87,7 +92,7 @@ fun AcTemperatureCard(
                 FilledIconToggleButton(
                     checked = powerOn,
                     interactionSource = powerInteraction,
-                    shape = CircleShape,
+                    shape = powerShape,
                     modifier = Modifier.then(powerHaptic.modifier).size(72.dp).clearAndSetSemantics {
                         contentDescription = powerLabel
                         if (canTogglePower) onClick { powerHaptic(); onTogglePower(); true } else disabled()
@@ -137,7 +142,7 @@ fun AcTemperatureCard(
                 val readout: @Composable () -> Unit = {
                     AnimatedContent(
                         targetState = temperature,
-                        transitionSpec = { fadeIn(AppMotion.tween(120)) togetherWith fadeOut(AppMotion.tween(90)) },
+                        transitionSpec = { fadeIn(motion.fastEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()) },
                         label = "Temperature",
                         modifier = Modifier.clearAndSetSemantics {
                             contentDescription = statusSummary ?: AppStrings.get(R.string.control_temperature_description, "%1\$s %2\$d 摄氏度", localizedLabel(if (isDemonstrating) "模拟设定" else "设定温度"), temperature)
@@ -168,6 +173,8 @@ fun AcTemperatureCard(
             }
             Spacer(Modifier.height(16.dp))
         }
+    }
+    }
     }
 }
 

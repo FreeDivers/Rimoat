@@ -5,7 +5,8 @@ import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.ui.motion.AppMotion
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Surface
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -67,6 +70,8 @@ fun DpadController(
     onUnavailable: ((String) -> Unit)? = null,
     visibleKeys: Set<String> = setOf("上", "下", "左", "右", "OK")
 ) {
+    SoundEffectOnInteraction(enabled = false) {
+    MaterialTheme(motionScheme = MotionScheme.standard()) {
     Surface(modifier = modifier.size(size.coerceAtLeast(216.dp)).semantics { isTraversalGroup = true }, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainer) {
         Box(Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
             listOf(
@@ -88,6 +93,8 @@ fun DpadController(
             }
         }
     }
+    }
+    }
 }
 
 @Composable
@@ -102,11 +109,17 @@ private fun DpadKey(
     traversalOrder: Float,
     modifier: Modifier
 ) {
+    val motion = AppMotion.current
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val active = LocalMotionActive.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val interactionSource = remember { MutableInteractionSource() }
+    val pressShape = rememberExpressiveShape(
+        interactionSource,
+        if (label == "OK") MaterialTheme.shapes.medium else CircleShape,
+        if (label == "OK") RoundedCornerShape(16.dp) else RoundedCornerShape(40)
+    )
     val clickHaptic = org.qinyan.rimoat.ui.rememberPressHaptic(interactionSource, enabled, isLearningMode)
     val pressed by interactionSource.collectIsPressedAsState()
     var repeated by remember { mutableStateOf(false) }
@@ -152,7 +165,7 @@ private fun DpadKey(
             }
         }
     }
-    val scale = animateFloatAsState(if (pressed) 0.97f else 1f, AppMotion.tween(if (pressed) 90 else 140), label = "DpadPress")
+    val scale = animateFloatAsState(if (pressed) 0.97f else 1f, motion.fastSpatialSpec(), label = "DpadPress")
     val click = {
         if (!enabled && onUnavailable != null) diagnose()
         if (active && enabled && (isLearningMode || !holdCancelled) && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
@@ -202,14 +215,14 @@ private fun DpadKey(
         }
         if (isLearningMode) OutlinedButton(
             onClick = click, enabled = acceptsClick, modifier = keyModifier,
-            shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(0.dp), interactionSource = interactionSource
+            shape = pressShape, contentPadding = PaddingValues(0.dp), interactionSource = interactionSource
         ) { content() }
         else Button(
             colors = if (enabled) ButtonDefaults.buttonColors() else ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                 contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)),
             onClick = click, enabled = acceptsClick, modifier = keyModifier,
-            shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(0.dp), interactionSource = interactionSource
+            shape = pressShape, contentPadding = PaddingValues(0.dp), interactionSource = interactionSource
         ) { content() }
     } else {
         val content: @Composable () -> Unit = {
@@ -220,9 +233,9 @@ private fun DpadKey(
         }
         if (isLearningMode) OutlinedIconButton(
             onClick = click, enabled = acceptsClick, modifier = keyModifier,
-            interactionSource = interactionSource, content = content
+            interactionSource = interactionSource, shape = pressShape, content = content
         )
-        else IconButton(onClick = click, enabled = acceptsClick, modifier = keyModifier, interactionSource = interactionSource,
+        else IconButton(onClick = click, enabled = acceptsClick, modifier = keyModifier, interactionSource = interactionSource, shape = pressShape,
             colors = if (enabled) IconButtonDefaults.iconButtonColors() else IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)), content = content)
     }
     }

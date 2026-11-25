@@ -8,14 +8,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.SettingsInputAntenna
 import androidx.compose.material3.Icon
@@ -57,10 +52,10 @@ fun HardwareStatusButton(
     transmitFeedback: TransmitLog? = null,
     onFeedbackFinished: (TransmitLog) -> Unit = {}
 ) {
+    val motion = AppMotion.current
     var feedbackActive by remember { mutableStateOf(false) }
     val latestOnFeedbackFinished by rememberUpdatedState(onFeedbackFinished)
-    // Repeated results extend the active interval without recreating the wave
-    // animation. Only the timeout restarts; the drawing phase keeps advancing.
+    // Repeated results extend the active interval without restarting the feedback spring.
     LaunchedEffect(transmitFeedback) {
         feedbackActive = transmitFeedback?.isSuccess == true
         if (transmitFeedback?.isSuccess == true) {
@@ -82,15 +77,14 @@ fun HardwareStatusButton(
     }
     val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    val successColor = if (isSystemInDarkTheme()) Color(0xFFA8C7FA) else Color(0xFF0B57D0)
+    val successColor = MaterialTheme.colorScheme.tertiary
     val iconColor by animateColorAsState(if (feedbackActive) successColor else contentColor,
-        animationSpec = AppMotion.tween(if (feedbackActive) 80 else 360), label = "TransmitIconColor")
+        animationSpec = motion.fastEffectsSpec(), label = "TransmitIconColor")
     // The drawing layer sits outside IconButton's round press clip, so waves can
     // extend to 28dp while the touch target stays 48dp and doesn't move neighbours.
     Box(modifier.size(48.dp), contentAlignment = Alignment.Center) {
-    // Keep the same wave phase through the tail. A new send during fade-out
-    // reverses the fade instead of replacing the animation with its first frame.
-    AnimatedVisibility(feedbackActive, enter = fadeIn(AppMotion.tween(80)), exit = fadeOut(AppMotion.tween(360))) {
+    // A new send during fade-out reverses the fade without restarting the wave.
+    AnimatedVisibility(feedbackActive, enter = fadeIn(motion.fastEffectsSpec()), exit = fadeOut(motion.defaultEffectsSpec())) {
         TransmitWaves(successColor)
     }
     ActionIconButton(
@@ -114,20 +108,19 @@ fun HardwareStatusButton(
 
 @Composable
 private fun TransmitWaves(color: Color) {
+    val motion = AppMotion.current
     // This composable is keyed by the active interval, never by a transmission.
-    val transition = rememberInfiniteTransition(label = "TransmitWaves")
-    val phase = transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(600, easing = AppMotion.Standard), RepeatMode.Restart),
-        label = "TransmitWavePhase"
-    )
+    val phase = remember { Animatable(0f) }
+    LaunchedEffect(motion) {
+        phase.animateTo(1f, motion.slowSpatialSpec())
+    }
     Box(Modifier.size(48.dp).drawWithContent {
             // Read animation state only while drawing; the remote layout does
             // not need to recompose or remeasure on every animation frame.
-            val progress = phase.value
+            val progress = phase.value.coerceIn(0f, 1f)
             repeat(2) { index ->
-                val wave = (progress + index * .5f) % 1f
+                val start = index * .2f
+                val wave = ((progress - start) / (1f - start)).coerceIn(0f, 1f)
                 val radius = (4 + 24 * wave).dp.toPx()
                 drawCircle(color.copy(alpha = (1 - wave) * 0.5f), radius,
                     style = Stroke(width = 1.5.dp.toPx()))

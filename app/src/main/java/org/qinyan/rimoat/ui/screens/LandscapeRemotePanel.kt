@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
 import android.content.res.Configuration
@@ -204,7 +206,7 @@ internal fun LandscapeRemotePanel(
                             if (split.numbers.isNotEmpty() && (!tabs || selectedPage == 0)) {
                                 val label = stringResource(if (showNumberPad) R.string.screen_collapse_numbers else R.string.screen_expand_numbers)
                                 ActionTooltip(label) {
-                                    FilledTonalIconToggleButton(checked = showNumberPad, onCheckedChange = onNumberPadChange, modifier = Modifier.size(48.dp)) {
+                                    FilledTonalIconToggleButton(checked = showNumberPad, onCheckedChange = onNumberPadChange, modifier = Modifier.size(48.dp), shapes = IconButtonDefaults.toggleableShapes()) {
                                         Icon(if (showNumberPad) Icons.Rounded.KeyboardHide else Icons.Rounded.Dialpad, contentDescription = label)
                                     }
                                 }

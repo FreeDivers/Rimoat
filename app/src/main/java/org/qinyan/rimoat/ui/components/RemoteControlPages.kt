@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 fun RemoteControlPages(hasMore: Boolean, labels: List<String> = listOf(localizedLabel("常规功能"), localizedLabel("更多功能")),
     selectedPage: Int = 0, onPageSelected: (Int) -> Unit = {}, content: @Composable (more: Boolean) -> Unit) {
     if (!hasMore) { content(false); return }
+    val motion = MaterialTheme.motionScheme
     val pager = rememberPagerState(initialPage = selectedPage, pageCount = { 2 })
     LaunchedEffect(selectedPage) { if (pager.currentPage != selectedPage) pager.scrollToPage(selectedPage) }
     LaunchedEffect(pager.currentPage) { onPageSelected(pager.currentPage) }
@@ -26,7 +27,7 @@ fun RemoteControlPages(hasMore: Boolean, labels: List<String> = listOf(localized
     Column(Modifier.fillMaxSize()) {
         SecondaryTabRow(selectedTabIndex = pager.currentPage, containerColor = MaterialTheme.colorScheme.surface) {
             labels.forEachIndexed { index, label ->
-                Tab(selected = pager.currentPage == index, onClick = { scope.launch { pager.animateScrollToPage(index, animationSpec = org.qinyan.rimoat.ui.motion.AppMotion.tween(240)) } },
+                Tab(selected = pager.currentPage == index, onClick = { scope.launch { pager.animateScrollToPage(index, animationSpec = motion.defaultSpatialSpec()) } },
                     modifier = Modifier.padding(horizontal = 4.dp), text = { Text(label) })
             }
         }

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -128,11 +130,11 @@ internal fun AppUpdateDialog(
         confirmButton = {
             FlowRow(horizontalArrangement = Arrangement.End, verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
                 action?.let { (label, callback) ->
-                    TextButton(onClick = callback, modifier = Modifier.padding(end = Spacing.small)) {
+                    TextButton(onClick = callback, modifier = Modifier.padding(end = Spacing.small), shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(label))
                     }
                 }
-                TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) }
             }
         },
     )
@@ -167,10 +169,10 @@ private fun UpdateDialogBody(state: AppUpdateState, installedVersion: String, mo
             }
             UpdatePhase.DOWNLOADING -> {
                 val fraction = if (state.totalBytes > 0) (state.downloadedBytes.toDouble() / state.totalBytes).coerceIn(0.0, 1.0).toFloat() else 0f
-                val animated by animateFloatAsState(fraction, AppMotion.tween(180), label = "DownloadProgress")
+                val animated by animateFloatAsState(fraction, AppMotion.current.defaultEffectsSpec(), label = "DownloadProgress")
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(Spacing.large)) {
-                    LinearProgressIndicator(progress = { animated }, modifier = Modifier.fillMaxWidth().testTag("update_progress"))
+                    LinearWavyProgressIndicator(progress = { animated }, modifier = Modifier.fillMaxWidth().testTag("update_progress"))
                     Text(NumberFormat.getPercentInstance(locale).format(fraction.toDouble()),
                         style = MaterialTheme.typography.titleMedium)
                     val format = NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 1 }

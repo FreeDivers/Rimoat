@@ -45,9 +45,9 @@ fun SerialIrSettingsDialog(manager: IrTransmitterManager, onDismiss: () -> Unit)
         MotionAlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(AppStrings.get(R.string.control_serial_config, "串口模块配置")) },
-            text = { LinearProgressIndicator(Modifier.fillMaxWidth()) },
+            text = { LinearWavyProgressIndicator(Modifier.fillMaxWidth()) },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.get(R.string.control_cancel, "取消")) } }
+            dismissButton = { TextButton(onClick = onDismiss, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_cancel, "取消")) } }
         )
         return
     }
@@ -63,6 +63,7 @@ internal fun SerialIrSettingsForm(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val motion = AppMotion.current
     var module by rememberSaveable(saved) { mutableStateOf(saved.module) }
     var baud by rememberSaveable(saved) {
         mutableStateOf(if (saved.module == SerialIrModule.IR_TOY) "9600" else saved.baudRate.toString())
@@ -109,7 +110,7 @@ internal fun SerialIrSettingsForm(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Box {
-                            OutlinedButton(onClick = { deviceMenu = true }, enabled = devices.isNotEmpty() && !saving) {
+                            OutlinedButton(onClick = { deviceMenu = true }, enabled = devices.isNotEmpty() && !saving, shapes = ButtonDefaults.shapes()) {
                                 Text(selectedDevice?.label ?: if (selectionMissing) selectedLabel
                                     else if (saved.vendorId == null) AppStrings.get(R.string.control_select_serial, "选择 USB 串口") else AppStrings.get(R.string.control_keep_serial, "保留已绑定的 USB 串口"))
                             }
@@ -152,7 +153,7 @@ internal fun SerialIrSettingsForm(
                         SerialFormSection(visible = selectedDevice?.granted == false) {
                             TextButton(onClick = {
                                 selectedDevice?.takeUnless { it.granted }?.let { onRequestPermission(it.deviceName) }
-                            }, enabled = !saving && selectedDevice?.granted == false) {
+                            }, enabled = !saving && selectedDevice?.granted == false, shapes = ButtonDefaults.shapes()) {
                                 Text(AppStrings.get(R.string.control_authorize_usb, "授权所选 USB 设备"))
                             }
                         }
@@ -176,8 +177,8 @@ internal fun SerialIrSettingsForm(
                 }
                 // Keep the outgoing message until its exit completes, including its spacing.
                 AnimatedContent(error, transitionSpec = {
-                    (fadeIn(AppMotion.tween(180)) togetherWith fadeOut(AppMotion.tween(100)))
-                        .using(SizeTransform { _, _ -> AppMotion.tween(220) })
+                    (fadeIn(motion.defaultEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()))
+                        .using(SizeTransform { _, _ -> motion.defaultSpatialSpec() })
                 }, label = "SerialFormError") { message ->
                     if (message != null) Text(message, modifier = Modifier.padding(top = 12.dp),
                         color = MaterialTheme.colorScheme.error)
@@ -215,13 +216,13 @@ internal fun SerialIrSettingsForm(
                             .onFailure { error = it.message ?: AppStrings.get(R.string.control_config_save_failed, "配置保存失败") }
                     } finally { saving = false }
                 }
-            }) {
+            }, shapes = ButtonDefaults.shapes()) {
                 StateFade(saving) { active ->
                     Text(if (active) AppStrings.get(R.string.control_saving, "保存中…") else AppStrings.get(R.string.control_save, "保存"))
                 }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text(AppStrings.get(R.string.control_cancel, "取消")) } }
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_cancel, "取消")) } }
     )
 }
 

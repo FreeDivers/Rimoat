@@ -3,6 +3,7 @@ package org.qinyan.rimoat.ui.learning
 import org.qinyan.rimoat.R
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.animateContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Science
@@ -26,6 +27,7 @@ import org.qinyan.rimoat.ui.components.ActionIconButton
 import org.qinyan.rimoat.ui.components.SimpleDropdownMenu
 import org.qinyan.rimoat.ui.components.SimpleDropdownMenuItem
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
+import org.qinyan.rimoat.ui.motion.AppMotion
 
 /**
  * Keeps receiver status separate from capture status and recording actions.
@@ -47,7 +49,7 @@ fun HardwareStatusBanner(
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     LaunchedEffect(active, enabled) { if (!active || !enabled) expanded = false }
-    Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
+    Surface(modifier.fillMaxWidth().animateContentSize(AppMotion.current.defaultSpatialSpec()), shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(Modifier.padding(start = 12.dp, end = 4.dp).heightIn(min = 48.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

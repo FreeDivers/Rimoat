@@ -139,10 +139,9 @@ class SimpleDropdownMenuRoborazziTest {
     }
 
     private fun finishClosing() {
-        // Check the 120 ms fade within its frame budget, then let window disposal settle.
-        composeRule.mainClock.advanceTimeBy(64)
-        composeRule.waitForIdle()
-        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeUntil(timeoutMillis = 2_000) {
+            !popupView.isAttachedToWindow || popupView.alpha == 0f
+        }
         composeRule.runOnIdle {
             if (popupView.isAttachedToWindow) {
                 assertEquals("The fade must be complete", 0f, popupView.alpha, 0f)
@@ -214,7 +213,9 @@ class SimpleDropdownMenuRoborazziTest {
         composeRule.runOnUiThread { expanded = true }
         composeRule.mainClock.advanceTimeByFrame()
         composeRule.waitForIdle()
-        composeRule.mainClock.advanceTimeBy(240)
+        composeRule.mainClock.advanceTimeUntil(timeoutMillis = 2_000) {
+            popupView.alpha == 1f && popupView.scaleX == 1f
+        }
         composeRule.onNode(isPopup()).assertIsDisplayed()
         composeRule.runOnIdle {
             assertSame(originalView, popupView)

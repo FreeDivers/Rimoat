@@ -29,7 +29,9 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
@@ -66,7 +69,7 @@ import org.qinyan.rimoat.ui.components.ActionIconButton
 import kotlinx.coroutines.launch
 
 /**
- * MD3 Single Button IR Learning Dialog with full lifecycle support:
+ * Expressive single-button learning dialog with full lifecycle support:
  * Ready -> Listening (with IrListeningRipple) -> Captured (with IrWaveformPreview + Test-Before-Save)
  * -> Timeout / Error handling.
  *
@@ -216,6 +219,7 @@ fun SingleButtonLearningDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SingleButtonLearningDialogContent(
     button: RemoteButton,
@@ -293,13 +297,34 @@ fun SingleButtonLearningDialogContent(
                                     }
                                 }
                                 IrWaveformPreview(signal = visibleState.signal)
-                                OutlinedButton(onClick = { onTestEmit(visibleState.signal) },
-                                    enabled = !isTesting && !isSaving, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                                    if (isTesting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                                    else Icon(Icons.Rounded.PlayArrow, null, Modifier.size(20.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(if (isTesting) stringResource(R.string.screen_testing_transmit) else stringResource(R.string.screen_test_transmit))
-                                }
+                                val testLabel = stringResource(if (isTesting) R.string.screen_testing_transmit else R.string.screen_test_transmit)
+                                val saveLabel = stringResource(if (isSaving) R.string.screen_saving_progress else R.string.screen_save_button)
+                                LearningActionBar(
+                                    primaryLabel = saveLabel,
+                                    secondaryLabel = testLabel,
+                                    secondary = {
+                                        SoundEffectOnInteraction(enabled = false) {
+                                            OutlinedButton(onClick = { onTestEmit(visibleState.signal) },
+                                                shapes = ButtonDefaults.shapes(), enabled = !isTesting && !isSaving,
+                                                modifier = Modifier.heightIn(min = 48.dp)) {
+                                                if (isTesting) LoadingIndicator(Modifier.size(20.dp))
+                                                else Icon(Icons.Rounded.PlayArrow, null, Modifier.size(20.dp))
+                                                Spacer(Modifier.width(8.dp))
+                                                Text(testLabel)
+                                            }
+                                        }
+                                    },
+                                    primary = { actionModifier ->
+                                        Button(onClick = { onSave(visibleState.signal) }, shapes = ButtonDefaults.shapes(),
+                                            enabled = !isSaving && !isTesting, modifier = actionModifier.heightIn(min = 48.dp)) {
+                                            if (isSaving) {
+                                                LoadingIndicator(Modifier.size(20.dp))
+                                                Spacer(Modifier.width(8.dp))
+                                            }
+                                            Text(saveLabel)
+                                        }
+                                    }
+                                )
                                 testFeedbackMessage?.asString()?.takeIf { it.isNotBlank() }?.let { feedback ->
                                     Text(
                                         feedback,
@@ -331,9 +356,9 @@ fun SingleButtonLearningDialogContent(
                             verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             hardware()
                             if (state is LearningState.Listening) {
-                                TextButton(onCancelLearning) { Text(stringResource(R.string.screen_cancel_receive)) }
+                                TextButton(onCancelLearning, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.screen_cancel_receive)) }
                             } else {
-                                Button(onStartLearning, enabled = isHardwareAvailable && !isSaving && !isTesting) {
+                                Button(onStartLearning, shapes = ButtonDefaults.shapes(), enabled = isHardwareAvailable && !isSaving && !isTesting) {
                                     Text(stringResource(if (state is LearningState.Captured) R.string.screen_rerecord else R.string.screen_start_record))
                                 }
                             }
@@ -343,9 +368,6 @@ fun SingleButtonLearningDialogContent(
                             verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             Text(buttonLabel, style = MaterialTheme.typography.titleMedium)
                             captureDetails()
-                            if (state is LearningState.Captured) Button({ onSave(state.signal) }, enabled = !isSaving && !isTesting) {
-                                Text(stringResource(if (isSaving) R.string.screen_saving_progress else R.string.screen_save_button))
-                            }
                         }
                     })
                 }
@@ -359,19 +381,17 @@ fun SingleButtonLearningDialogContent(
         },
         confirmButton = {
             if (!splitDialog) when (state) {
-                is LearningState.Captured -> Button({ onSave(state.signal) }, enabled = !isSaving && !isTesting, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text(if (isSaving) stringResource(R.string.screen_saving_progress) else stringResource(R.string.screen_save_button))
-                }
-                is LearningState.Listening -> TextButton(onCancelLearning, modifier = Modifier.heightIn(min = 48.dp)) {
+                is LearningState.Captured -> Unit
+                is LearningState.Listening -> TextButton(onCancelLearning, shapes = ButtonDefaults.shapes(), modifier = Modifier.heightIn(min = 48.dp)) {
                     Text(stringResource(R.string.screen_cancel_receive))
                 }
-                else -> Button(onStartLearning, enabled = isHardwareAvailable, modifier = Modifier.heightIn(min = 48.dp)) {
+                else -> Button(onStartLearning, shapes = ButtonDefaults.shapes(), enabled = isHardwareAvailable, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text(if (state is LearningState.Idle) stringResource(R.string.screen_start_record) else stringResource(R.string.screen_retry))
                 }
             }
         },
         dismissButton = {
-            TextButton(onDismiss, enabled = !isSaving, modifier = Modifier.heightIn(min = 48.dp)) {
+            TextButton(onDismiss, shapes = ButtonDefaults.shapes(), enabled = !isSaving, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.screen_close))
             }
         }

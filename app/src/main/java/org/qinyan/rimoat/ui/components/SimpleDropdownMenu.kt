@@ -2,7 +2,6 @@ package org.qinyan.rimoat.ui.components
 
 import android.graphics.Rect
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,6 +35,7 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -68,9 +68,6 @@ object SimpleDropdownMenuDefaults {
 
 private val LocalSelectedMenuItemMeasurer = compositionLocalOf<((Int) -> Unit)?> { null }
 private val LocalMenuInteractive = compositionLocalOf { true }
-// Match the enter duration of the Material 3 DropdownMenu.
-private const val MenuTransitionDurationMillis = 120
-
 /**
  * SimpleMenu-styled [DropdownMenu] that aligns the currently selected item (or first item)
  * directly over the trigger anchor while clamping within the visible window margins.
@@ -90,15 +87,16 @@ fun SimpleDropdownMenu(
     shadowElevation: Dp = SimpleDropdownMenuDefaults.ShadowElevation,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val motion = AppMotion.current
     var menuPresent by remember { mutableStateOf(expanded) }
     val dismissProgress = remember { Animatable(0f) }
     LaunchedEffect(expanded) {
         if (expanded) {
             if (!menuPresent) dismissProgress.snapTo(0f)
             menuPresent = true
-            dismissProgress.animateTo(0f, tween(MenuTransitionDurationMillis, easing = AppMotion.Enter))
+            dismissProgress.animateTo(0f, motion.fastEffectsSpec())
         } else if (menuPresent) {
-            dismissProgress.animateTo(1f, tween(MenuTransitionDurationMillis, easing = AppMotion.Exit))
+            dismissProgress.animateTo(1f, motion.fastEffectsSpec())
             menuPresent = false
         }
     }
@@ -230,7 +228,9 @@ fun SimpleDropdownMenu(
             LocalSelectedMenuItemMeasurer provides reportSelectedCenter,
             LocalMenuInteractive provides expanded
         ) {
-            content()
+            SoundEffectOnInteraction(enabled = false) {
+                content()
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ import org.qinyan.rimoat.i18n.localizedTimerTargetLabel
 import org.qinyan.rimoat.i18n.rememberLocalizedDateTimeFormatter
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -18,10 +19,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.rememberTextMeasurer
 import org.qinyan.rimoat.data.timerDurationLabel
 import org.qinyan.rimoat.ui.HapticHelper
 import kotlinx.coroutines.delay
@@ -37,7 +44,12 @@ internal fun timerPresets(options: List<Int>): List<Int> =
 internal fun TimerDurationSlider(options: List<Int>, selected: Int, enabled: Boolean,
     onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    Slider(selected.toFloat(), { value ->
+    val sliderState = rememberSliderState(
+        value = selected.toFloat(), steps = options.size - 2,
+        trackRange = 0f..options.lastIndex.toFloat()
+    )
+    sliderState.value = selected.toFloat()
+    Slider(state = sliderState, onValueChange = { value ->
         val next = value.roundToInt().coerceIn(options.indices)
         if (next != selected) {
             onSelect(next)
@@ -46,13 +58,14 @@ internal fun TimerDurationSlider(options: List<Int>, selected: Int, enabled: Boo
         }
     }, modifier = modifier.semantics {
         contentDescription = AppStrings.get(R.string.control_timer_duration, "定时时长"); stateDescription = localizedTimerDurationLabel(options[selected])
-    }, enabled = enabled, valueRange = 0f..options.lastIndex.toFloat(), steps = options.size - 2)
+    }, enabled = enabled)
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean,
-    onDismiss: () -> Unit, onSend: (Int) -> Unit) {
+    onDismiss: () -> Unit, onSend: (Int) -> Unit,
+    nowMillis: () -> Long = System::currentTimeMillis) {
     if (options.size < 2) return
     var selected by rememberSaveable(options, currentMinutes) {
         val target = currentMinutes.takeIf { it > 0 } ?: 60
@@ -64,8 +77,8 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
     val context = LocalContext.current
     var sending by remember { mutableStateOf(false) }
     val timeFormatter = rememberLocalizedDateTimeFormatter(includeDate = false)
-    val now by produceState(System.currentTimeMillis()) {
-        while (true) { delay(60_000 - System.currentTimeMillis() % 60_000); value = System.currentTimeMillis() }
+    val now by produceState(nowMillis()) {
+        while (true) { delay(60_000 - nowMillis() % 60_000); value = nowMillis() }
     }
     fun select(index: Int) { selected = index; HapticHelper.performSelection(context = context) }
     fun send(value: Int) {
@@ -76,6 +89,7 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
         scope.launch { sheet.hide(); onDismiss() }
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+    SoundEffectOnInteraction(enabled = false) {
         Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(if (powerOn) AppStrings.get(R.string.control_timer_off, "定时关机") else AppStrings.get(R.string.control_timer_on, "定时开机"), style = MaterialTheme.typography.titleLarge)
@@ -94,20 +108,54 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
                     Icon(Icons.Rounded.Add, AppStrings.get(R.string.control_extend_timer, "延长定时"))
                 }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 timerPresets(options).forEach { preset ->
-                    FilterChip(selected = minutes == preset, onClick = { select(options.indexOf(preset)) },
-                        enabled = !sending, label = { Text(localizedTimerDurationLabel(preset)) })
+                    ToggleButton(checked = minutes == preset,
+                        onCheckedChange = { select(options.indexOf(preset)) }, enabled = !sending,
+                        modifier = Modifier.semantics {
+                            this.selected = minutes == preset
+                            role = Role.RadioButton
+                        }) {
+                        Text(localizedTimerDurationLabel(preset))
+                    }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            if (0 in options && minutes > 0) TextButton({ send(0) }, enabled = !sending) { Text(AppStrings.get(R.string.control_disable_timer, "关闭定时")) }
-            Button({ send(minutes) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = !sending) {
-                Text(if (minutes == 0) AppStrings.get(R.string.control_disable_timer, "关闭定时") else AppStrings.get(R.string.control_set_timer, "设置定时"))
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(16.dp)) {
+            val disableLabel = AppStrings.get(R.string.control_disable_timer, "关闭定时")
+            val confirmLabel = if (minutes == 0) disableLabel else AppStrings.get(R.string.control_set_timer, "设置定时")
+            val showDisable = 0 in options && minutes > 0
+            val density = LocalDensity.current
+            val textMeasurer = rememberTextMeasurer()
+            val style = MaterialTheme.typography.labelLarge
+            val labelWidth = with(density) {
+                (textMeasurer.measure(confirmLabel, style).size.width +
+                    if (showDisable) textMeasurer.measure(disableLabel, style).size.width else 0).toDp()
+            }
+            val stacked = labelWidth + (if (showDisable) 112.dp else 64.dp) > maxWidth
+            val disableAction: @Composable () -> Unit = {
+                TextButton({ send(0) }, enabled = !sending, shapes = ButtonDefaults.shapes()) {
+                    Text(disableLabel)
+                }
+            }
+            val confirmAction: @Composable (Modifier) -> Unit = { buttonModifier ->
+                Button({ send(minutes) }, modifier = buttonModifier.heightIn(min = 48.dp),
+                    enabled = !sending, shapes = ButtonDefaults.shapes()) {
+                    Text(confirmLabel)
+                }
+            }
+            if (stacked) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (showDisable) disableAction()
+                    confirmAction(Modifier.fillMaxWidth())
+                }
+            } else HorizontalFloatingToolbar(expanded = true, modifier = Modifier.fillMaxWidth()) {
+                if (showDisable) disableAction()
+                confirmAction(Modifier.weight(1f))
             }
         }
+    }
     }
 }
 

@@ -1,7 +1,6 @@
 package org.qinyan.rimoat.ui.components
 
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
@@ -38,6 +37,7 @@ fun SwipeRemoteCard(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val motion = AppMotion.current
     val density = LocalDensity.current
     val context = LocalContext.current
     val threshold = with(density) { 104.dp.toPx() }
@@ -66,21 +66,20 @@ fun SwipeRemoteCard(
                 val removing = completed && offset < 0
                 coroutineScope {
                     if (removing) launch {
-                        animate(1f, 0f, animationSpec = AppMotion.tween(180)) { value, _ ->
+                        animate(1f, 0f, animationSpec = motion.fastEffectsSpec()) { value, _ ->
                             actionOpacity = value
                         }
                     }
                     animate(
                         offset, if (removing) -width.toFloat() else 0f,
-                        animationSpec = if (removing) tween(240, easing = AppMotion.Exit)
-                            else AppMotion.tween(240)
+                        animationSpec = motion.defaultSpatialSpec()
                     ) { value, _ -> offset = value }
                 }
                 if (removing) {
                     removeAction()
                     // A storage failure must leave a usable card. Successful removal disposes it.
                     delay(700)
-                    animate(offset, 0f, animationSpec = AppMotion.tween(220)) { value, _ ->
+                    animate(offset, 0f, animationSpec = motion.defaultSpatialSpec()) { value, _ ->
                         offset = value
                     }
                 } else if (completed) {

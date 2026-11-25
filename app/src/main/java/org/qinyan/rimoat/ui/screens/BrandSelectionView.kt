@@ -1,5 +1,9 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.ui.components.rememberExpressiveShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.fillMaxHeight
 import org.qinyan.rimoat.ui.components.RemoteSearchBar
 import org.qinyan.rimoat.ui.components.clearSearchFocusOnTapOutside
@@ -10,7 +14,6 @@ import org.qinyan.rimoat.ui.components.rememberWideLayout
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import org.qinyan.rimoat.R
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
@@ -72,6 +75,7 @@ fun BrandSelectionView(
     precomputedGroupsCn: List<BrandIndexGroup>? = null,
     precomputedGroupsEn: List<BrandIndexGroup>? = null
 ) {
+    val motion = AppMotion.current
     val brandContext = androidx.compose.ui.platform.LocalContext.current
     val configuration = LocalConfiguration.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -130,7 +134,10 @@ fun BrandSelectionView(
                                         popular.chunked(columns).forEach { row ->
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 row.forEach { brand ->
+                                                    val interactionSource = remember { MutableInteractionSource() }
+                                                    val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
                                                     Card(
+                                                        shape = shape, interactionSource = interactionSource,
                                                         onClick = { keyboard?.hide(); onBrandClick(brand) },
                                                         enabled = !isLoading,
                                                         modifier = Modifier
@@ -204,8 +211,8 @@ fun BrandSelectionView(
                                     displayName = brand.displayName(preferEnglish, otherBrandLabel),
                                     enabled = !isLoading,
                                     modifier = Modifier.animateItem(
-                                        fadeInSpec = AppMotion.tween(160), placementSpec = AppMotion.tween(220),
-                                        fadeOutSpec = AppMotion.tween(100)
+                                        fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(),
+                                        fadeOutSpec = motion.fastEffectsSpec()
                                     ),
                                     onClick = {
                                         keyboard?.hide()
@@ -233,7 +240,7 @@ fun BrandSelectionView(
                 }
                 // Keep populated results in place while a selected brand's codes load.
                 if (isLoading && brands.isEmpty()) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    LoadingIndicator(Modifier.align(Alignment.Center))
                 }
             }
         }
@@ -273,12 +280,14 @@ private fun BrandListItem(
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
     val compact = maxWidth < 280.dp
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = rememberExpressiveShape(interactionSource)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .clip(shape)
+            .clickable(interactionSource = interactionSource, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = if (compact) 8.dp else 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

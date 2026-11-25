@@ -1,6 +1,11 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.clip
+import org.qinyan.rimoat.ui.components.rememberExpressiveShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
@@ -54,7 +59,9 @@ fun MigrationImportDialog(document: ImportDocument, existingIds: Set<String>, bu
                             val description = stringResource(R.string.migration_conflict_action, profile.name, currentLabel)
                             Box {
                                 OutlinedButton(onClick = { expanded = true }, enabled = !busy,
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = description }) {
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = description },
+                                    shapes = ButtonDefaults.shapes()
+                                ) {
                                     Text(currentLabel, Modifier.weight(1f))
                                     Icon(Icons.Rounded.ExpandMore, null)
                                 }
@@ -94,14 +101,16 @@ fun MigrationImportDialog(document: ImportDocument, existingIds: Set<String>, bu
                 item {
                     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) }
+                        TextButton(onClick = onDismiss, enabled = !busy, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) }
                         TextButton(enabled = !busy && (summary.added + summary.overwritten > 0 || document.backup.rooms.isNotEmpty() || dynamic || black),
                             onClick = {
                                 val prefs = document.backup.preferences?.let {
                                     PortablePreferences(it.dynamicColors.takeIf { dynamic }, it.pureBlack.takeIf { black })
                                 }?.takeIf { it.dynamicColors != null || it.pureBlack != null }
                                 onImport(choices, prefs)
-                            }) { Text(stringResource(R.string.migration_import_confirm)) }
+                            },
+                            shapes = ButtonDefaults.shapes()
+                        ) { Text(stringResource(R.string.migration_import_confirm)) }
                     }
                 }
             }
@@ -117,8 +126,11 @@ private fun conflictLabel(choice: ConflictChoice): Int = when (choice) {
 
 @Composable
 internal fun MigrationToggle(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
-        .toggleable(value = checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = rememberExpressiveShape(interactionSource)
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape)
+        .toggleable(value = checked, interactionSource = interactionSource, indication = ripple(),
+            enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
         Text(label, Modifier.weight(1f))

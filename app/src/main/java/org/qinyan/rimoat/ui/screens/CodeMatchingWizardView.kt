@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -206,8 +208,11 @@ private data class PairingFeedback(
 
 @Composable
 fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfirmTest: (Boolean) -> Unit) {
+    val motion = AppMotion.current
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val noResponse = stringResource(R.string.screen_no_response)
+    val responded = stringResource(R.string.screen_responded)
     val busy = state.isSendingTest || state.isLoading
     val remoteId = state.currentRemote?.remoteId
     val currentFeedback = if (state.canConfirmTest || state.testMessage != null ||
@@ -229,8 +234,8 @@ fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfir
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             AnimatedVisibility(visible, Modifier.fillMaxWidth(),
-                enter = expandVertically(AppMotion.tween(220), expandFrom = Alignment.Bottom) + fadeIn(AppMotion.tween(140)),
-                exit = shrinkVertically(AppMotion.tween(180), shrinkTowards = Alignment.Bottom) + fadeOut(AppMotion.tween(100))) {
+                enter = expandVertically(motion.defaultSpatialSpec(), expandFrom = Alignment.Bottom) + fadeIn(motion.defaultEffectsSpec()),
+                exit = shrinkVertically(motion.fastSpatialSpec(), shrinkTowards = Alignment.Bottom) + fadeOut(motion.fastEffectsSpec())) {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (feedback?.question != null) {
                         Text(
@@ -238,24 +243,28 @@ fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfir
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ButtonGroup(
+                            overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            expandedRatio = .08f
+                        ) {
                             val canAnswer = state.canConfirmTest && !busy && feedback.remoteId == remoteId
-                            OutlinedButton(
+                            clickableItem(
                                 onClick = {
                                     HapticHelper.performSelection(haptic, context)
                                     onConfirmTest(false)
                                 },
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                label = noResponse,
                                 enabled = canAnswer
-                            ) { Text(stringResource(R.string.screen_no_response)) }
-                            FilledTonalButton(
+                            )
+                            clickableItem(
                                 onClick = {
                                     HapticHelper.performSelection(haptic, context)
                                     onConfirmTest(true)
                                 },
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                label = responded,
                                 enabled = canAnswer
-                            ) { Text(stringResource(R.string.screen_responded)) }
+                            )
                         }
                     } else feedback?.message?.let { message ->
                         Text(
@@ -274,11 +283,14 @@ fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfir
                     }
                 }
             }
-            Button(
-                onClick = onMatched,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                enabled = state.currentRemote != null && !busy
-            ) { Text(stringResource(R.string.screen_use_code)) }
+            HorizontalFloatingToolbar(expanded = true, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onMatched,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    enabled = state.currentRemote != null && !busy,
+                    shapes = ButtonDefaults.shapes()
+                ) { Text(stringResource(R.string.screen_use_code)) }
+            }
         }
     }
 }

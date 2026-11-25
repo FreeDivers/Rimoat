@@ -1,7 +1,10 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.ui.components.rememberExpressiveShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import org.qinyan.rimoat.i18n.AppStrings
-
 import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -114,7 +117,7 @@ private fun OpenSourceLicensesContent(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding(), contentAlignment = Alignment.TopCenter) {
             when {
-                result == null -> CircularProgressIndicator(Modifier.padding(24.dp))
+                result == null -> LoadingIndicator(Modifier.padding(24.dp))
                 catalog == null || (!wide && libraryId != null && library == null) ->
                     Text(stringResource(R.string.licenses_unavailable), Modifier.padding(24.dp))
                 else -> {
@@ -130,9 +133,11 @@ private fun OpenSourceLicensesContent(
                             Text(stringResource(R.string.licenses_empty), Modifier.padding(24.dp))
                         }
                         items(filtered, key = { it.id }) { entry ->
+                            val interactionSource = remember { MutableInteractionSource() }
+                            val shape = rememberExpressiveShape(interactionSource)
                             ListItem(
-                                modifier = Modifier.clip(MaterialTheme.shapes.medium)
-                                    .clickable(enabled = active, role = Role.Button, onClick = { if (active) { selectedId = entry.id; onLibraryClick(entry.id) } })
+                                modifier = Modifier.clip(shape)
+                                    .clickable(interactionSource = interactionSource, indication = ripple(), enabled = active, role = Role.Button, onClick = { if (active) { selectedId = entry.id; onLibraryClick(entry.id) } })
                                     .heightIn(min = 64.dp),
                                 headlineContent = { Text(entry.name) },
                                 supportingContent = {
