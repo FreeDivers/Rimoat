@@ -25,11 +25,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.zIndex
@@ -64,6 +68,8 @@ fun <T : Any> MotionContent(
 ) {
     val active = LocalMotionActive.current
     val direction = if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else -1f
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val latestTarget by rememberUpdatedState(targetState)
     val latestBack by rememberUpdatedState(backTarget)
     val latestOnBack by rememberUpdatedState(onBack)
@@ -166,6 +172,14 @@ fun <T : Any> MotionContent(
             val outgoing = currentScene != null && pageKey == contentKey(currentScene.from)
             val interactive = active && visible && currentScene == null && pageKey == targetKey
             key(pageKey) {
+                var pageHasFocus by remember { mutableStateOf(false) }
+                val isPageTarget = pageKey == targetKey
+                LaunchedEffect(isPageTarget, pageHasFocus) {
+                    if (!isPageTarget && pageHasFocus) {
+                        keyboardController?.hide()
+                        focusManager.clearFocus(force = true)
+                    }
+                }
                 if (discardSavedStateOnExit(page)) {
                     DisposableEffect(pageKey) {
                         onDispose {
@@ -174,7 +188,9 @@ fun <T : Any> MotionContent(
                     }
                 }
                 Box(
-                    motionPageModifier(visible, outgoing, interactive, currentScene)
+                    motionPageModifier(visible, outgoing, interactive, currentScene) {
+                        pageHasFocus = it
+                    }
                 ) {
                     savedState.SaveableStateProvider(pageKey) {
                         CompositionLocalProvider(LocalMotionActive provides interactive) {
@@ -204,7 +220,8 @@ private fun motionPageModifier(
     visible: Boolean,
     outgoing: Boolean,
     interactive: Boolean,
-    scene: Scene<*>?
+    scene: Scene<*>?,
+    onFocusChanged: (Boolean) -> Unit
 ): Modifier = Modifier.fillMaxSize()
     .layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
@@ -219,6 +236,8 @@ private fun motionPageModifier(
         ) * size.width
     }
     .background(MaterialTheme.colorScheme.background)
+    .focusProperties { canFocus = visible && !outgoing }
+    .onFocusChanged { onFocusChanged(it.hasFocus) }
     .then(if (interactive) Modifier else Modifier.clearAndSetSemantics { })
 
 internal fun pageOffset(progress: Float, outgoing: Boolean, back: Boolean, direction: Float): Float {

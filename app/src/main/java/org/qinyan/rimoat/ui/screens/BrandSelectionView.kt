@@ -1,7 +1,10 @@
 package org.qinyan.rimoat.ui.screens
 
 import androidx.compose.foundation.layout.fillMaxHeight
+import org.qinyan.rimoat.ui.components.RemoteSearchBar
+import org.qinyan.rimoat.ui.components.clearSearchFocusOnTapOutside
 import org.qinyan.rimoat.ui.components.contentWidth
+import org.qinyan.rimoat.ui.components.rememberSearchFocusController
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
 import org.qinyan.rimoat.ui.components.rememberWideLayout
 import androidx.compose.foundation.rememberScrollState
@@ -72,6 +75,7 @@ fun BrandSelectionView(
     val brandContext = androidx.compose.ui.platform.LocalContext.current
     val configuration = LocalConfiguration.current
     val keyboard = LocalSoftwareKeyboardController.current
+    val searchFocus = rememberSearchFocusController()
     val preferEnglish = remember(brandContext, configuration) {
         org.qinyan.rimoat.i18n.AppLanguage.wrap(brandContext).resources.configuration.locales[0].language != "zh"
     }
@@ -151,11 +155,12 @@ fun BrandSelectionView(
                             }
     }
     val searchContent: @Composable () -> Unit = {
-        org.qinyan.rimoat.ui.components.RemoteSearchBar(
+        RemoteSearchBar(
             query = searchQuery,
             onQueryChange = onSearchChange,
             placeholder = stringResource(R.string.screen_brand_search),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            focusController = searchFocus
         )
     }
     val results: @Composable ColumnScope.() -> Unit = {
@@ -233,9 +238,10 @@ fun BrandSelectionView(
             }
         }
     }
+    val focusDismissModifier = Modifier.clearSearchFocusOnTapOutside(searchFocus)
     if (wide) {
         TwoPaneLayout(
-            modifier = Modifier.fillMaxSize().background(containerColor).imePadding(),
+            modifier = Modifier.fillMaxSize().background(containerColor).imePadding().then(focusDismissModifier),
             primaryFraction = .4f, primaryMaxWidth = 320.dp,
             primary = {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -250,7 +256,7 @@ fun BrandSelectionView(
             secondary = { Column(Modifier.fillMaxSize()) { results() } }
         )
     } else {
-        Column(Modifier.fillMaxSize().background(containerColor).imePadding().contentWidth(720.dp)) {
+        Column(Modifier.fillMaxSize().background(containerColor).imePadding().then(focusDismissModifier).contentWidth(720.dp)) {
             searchContent()
             results()
         }

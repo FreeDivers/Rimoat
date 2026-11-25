@@ -1,8 +1,13 @@
 package org.qinyan.rimoat
 
 import android.content.Intent
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -105,6 +110,25 @@ class PageLifecycleRoborazziTest {
                 assertFalse(reopened.isLearningMode.value)
             }
             capture("page_lifecycle_remote_reopened")
+        }
+    }
+
+    @Test fun leavingHomeToSettingsClearsSearchFocus() {
+        val profile = RemoteProfile(id = "fixture-remote", name = "Living room TV")
+        runBlocking { app.repository.awaitLoaded(); app.repository.saveRemote(profile) }
+        launch("list").use { scenario ->
+            awaitText(R.string.screen_search_remote)
+            compose.onNode(hasSetTextAction()).performClick()
+            compose.onNode(hasSetTextAction()).assertIsFocused()
+
+            compose.onNodeWithContentDescription(app.getString(R.string.screen_settings)).performClick()
+            awaitText(R.string.settings_title)
+            compose.onNodeWithText(app.getString(R.string.settings_title)).assertIsDisplayed()
+            capture("page_lifecycle_settings_after_search")
+
+            scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+            awaitText(R.string.screen_search_remote)
+            compose.onNode(hasSetTextAction()).assertIsNotFocused()
         }
     }
 }

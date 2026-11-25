@@ -133,6 +133,8 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.ui.components.HardwareStatusButton
 import org.qinyan.rimoat.ui.components.TransmitterSelectionBottomSheet
+import org.qinyan.rimoat.ui.components.clearSearchFocusOnTapOutside
+import org.qinyan.rimoat.ui.components.rememberSearchFocusController
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import java.util.UUID
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -230,7 +232,10 @@ fun RemoteListScreen(
         }
     }
 
+    val searchFocus = rememberSearchFocusController()
+
     Scaffold(
+        modifier = Modifier.clearSearchFocusOnTapOutside(searchFocus),
         snackbarHost = { AppSnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
@@ -305,7 +310,8 @@ fun RemoteListScreen(
                     query = searchQuery,
                     onQueryChange = viewModel::setSearchQuery,
                     placeholder = AppStrings.get(R.string.screen_search_remote, "搜索遥控器"),
-                    modifier = barModifier
+                    modifier = barModifier,
+                    focusController = searchFocus
                 )
             }
             val roomAndSortBar: @Composable () -> Unit = {

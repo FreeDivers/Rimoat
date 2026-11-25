@@ -11,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.lifecycle.SavedStateHandle
@@ -26,12 +28,15 @@ import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.*
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.ui.components.RemoteSearchBar
 import org.qinyan.rimoat.ui.learning.*
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.MotionContent
 import org.qinyan.rimoat.ui.screens.RemoteControlScreen
+import org.qinyan.rimoat.ui.screens.RemoteListScreen
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
+import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -220,5 +225,111 @@ class BugFixInteractionRoborazziTest {
             compose.runOnIdle { assertEquals(listOf(HapticFeedbackType.LongPress), haptics) }
             capture("side_presets_after")
         } finally { compose.runOnIdle { store.clear() } }
+    }
+
+    @Test fun homeSearchBarClearsFocusAndHidesKeyboardWhenTappingOutside() {
+        AppStrings.initialize(app)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val repository = RemoteRepository(app, scope)
+        val tv = RemoteProfile("living_tv", "客厅电视", category = DeviceCategory.TV, room = "客厅")
+        val fan = RemoteProfile("bedroom_fan", "卧室风扇", category = DeviceCategory.FAN, room = "卧室")
+        runBlocking {
+            repository.awaitLoaded()
+            repository.saveRemote(tv)
+            repository.saveRemote(fan)
+        }
+        val transmitter = IrTransmitterManager(app, scope)
+        val store = ViewModelStore()
+        val vm = RemoteListViewModel(repository, transmitter, ThemePreferences(app), BackupFileStore(app))
+            .also { store.put("home", it) }
+        var showCount = 0
+        var hideCount = 0
+        val keyboard = object : SoftwareKeyboardController {
+            override fun show() { showCount++ }
+            override fun hide() { hideCount++ }
+        }
+        try {
+            compose.setContent {
+                CompositionLocalProvider(LocalSoftwareKeyboardController provides keyboard) {
+                    IrRemoteTheme(darkTheme = false, dynamicColor = false) { RemoteListScreen(vm, {}, {}) }
+                }
+            }
+            compose.waitUntil(5_000) { vm.filteredRemotes.value.size == 2 }
+            val searchField = compose.onNode(hasSetTextAction())
+            searchField.performTouchInput { click() }
+            searchField.assertIsFocused()
+            searchField.performTextInput("客厅")
+            compose.waitUntil(5_000) { vm.filteredRemotes.value.map { it.id } == listOf(tv.id) }
+            capture("home_search_focused")
+
+            compose.onNodeWithContentDescription(app.getString(R.string.control_clear_search)).performTouchInput { click() }
+            compose.waitUntil(5_000) { vm.filteredRemotes.value.size == 2 }
+            searchField.assertIsFocused()
+
+            val hidesBeforeOutsideTap = hideCount
+            compose.onNodeWithTag("home_results").performTouchInput { click(androidx.compose.ui.geometry.Offset(width * 0.5f, height * 0.8f)) }
+            compose.waitForIdle()
+            searchField.assertIsNotFocused()
+            assertTrue(hideCount > hidesBeforeOutsideTap)
+
+            searchField.performTouchInput { click() }
+            searchField.assertIsFocused()
+            val hidesBeforeTabTap = hideCount
+            compose.onNodeWithText(app.getString(R.string.screen_category_tv)).performTouchInput { click() }
+            compose.waitUntil(5_000) { vm.filteredRemotes.value.map { it.id } == listOf(tv.id) }
+            searchField.assertIsNotFocused()
+            assertTrue(hideCount > hidesBeforeTabTap)
+            capture("home_search_unfocused")
+        } finally {
+            compose.runOnIdle { store.clear() }
+            transmitter.release()
+            scope.cancel()
+        }
+    }
+
+    @Test fun leavingRetainedMotionPageClearsSearchFocusAndHidesKeyboard() {
+        var page by mutableStateOf("home")
+        var query by mutableStateOf("")
+        var hideCount = 0
+        val keyboard = object : SoftwareKeyboardController {
+            override fun show() {}
+            override fun hide() { hideCount++ }
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalSoftwareKeyboardController provides keyboard) {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    MotionContent(
+                        targetState = page,
+                        contentKey = { it },
+                        isBack = { _, to -> to == "home" },
+                        retain = { it == "home" }
+                    ) { current ->
+                        if (current == "home") {
+                            androidx.compose.foundation.layout.Column {
+                                RemoteSearchBar(query = query, onQueryChange = { query = it }, placeholder = "搜索遥控器")
+                                Button(onClick = { page = "settings" }) { Text("设置") }
+                            }
+                        } else {
+                            androidx.compose.foundation.layout.Column {
+                                Text("设置页")
+                                Button(onClick = { page = "home" }) { Text("返回") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val searchField = compose.onNode(hasSetTextAction())
+        searchField.performTouchInput { click() }
+        searchField.assertIsFocused()
+        val hidesBeforeNav = hideCount
+
+        compose.onNodeWithText("设置").performClick()
+        compose.onNodeWithText("设置页").assertIsDisplayed()
+        compose.runOnIdle { assertTrue(hideCount > hidesBeforeNav) }
+
+        compose.onNodeWithText("返回").performClick()
+        compose.waitForIdle()
+        searchField.assertIsNotFocused()
     }
 }
