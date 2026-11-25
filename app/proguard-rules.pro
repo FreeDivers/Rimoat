@@ -1,5 +1,15 @@
 # JNI uses these exact class/method names from ac_encoder.cpp.
 -keep class org.qinyan.rimoat.data.NativeAcEncoder { *; }
+
+# Room constructs WorkManager's generated database implementation by reflection.
+-keep class androidx.work.impl.WorkDatabase_Impl {
+    public <init>();
+}
+# WorkManager creates input mergers by their stored class names.
+-keepclassmembers class * extends androidx.work.InputMerger {
+    public <init>();
+}
+
 # Glance restores callback classes by their name from a PendingIntent.
 -keep class org.qinyan.rimoat.widget.SendWidgetCommand { public <init>(); }
 -keep class org.qinyan.rimoat.widget.ReloadWidgets { public <init>(); }
