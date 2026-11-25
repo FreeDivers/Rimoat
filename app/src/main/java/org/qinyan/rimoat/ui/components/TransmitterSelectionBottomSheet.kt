@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.hardware.TransmitterType
 import org.qinyan.rimoat.ui.motion.ExpandSection
+import org.qinyan.rimoat.ui.theme.SilenceWindowClickSounds
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,6 +80,7 @@ fun TransmitterSelectionBottomSheet(
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { transmitterManager.refreshHardware() }
     ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState) {
+        SilenceWindowClickSounds()
         SoundEffectOnInteraction(enabled = false) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp),

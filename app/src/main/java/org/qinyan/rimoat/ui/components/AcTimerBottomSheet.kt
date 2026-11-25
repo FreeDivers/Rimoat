@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.rememberTextMeasurer
 import org.qinyan.rimoat.data.timerDurationLabel
 import org.qinyan.rimoat.ui.HapticHelper
+import org.qinyan.rimoat.ui.theme.SilenceWindowClickSounds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -44,21 +45,23 @@ internal fun timerPresets(options: List<Int>): List<Int> =
 internal fun TimerDurationSlider(options: List<Int>, selected: Int, enabled: Boolean,
     onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val sliderState = rememberSliderState(
-        value = selected.toFloat(), steps = options.size - 2,
-        trackRange = 0f..options.lastIndex.toFloat()
-    )
-    sliderState.value = selected.toFloat()
-    Slider(state = sliderState, onValueChange = { value ->
-        val next = value.roundToInt().coerceIn(options.indices)
-        if (next != selected) {
-            onSelect(next)
-            // One tick per changed stop, capped by the shared 60ms selection throttle.
-            HapticHelper.performSelection(context = context)
-        }
-    }, modifier = modifier.semantics {
-        contentDescription = AppStrings.get(R.string.control_timer_duration, "定时时长"); stateDescription = localizedTimerDurationLabel(options[selected])
-    }, enabled = enabled)
+    key(options.size) {
+        val sliderState = rememberSliderState(
+            value = selected.toFloat(), steps = options.size - 2,
+            trackRange = 0f..options.lastIndex.toFloat()
+        )
+        sliderState.value = selected.toFloat()
+        Slider(state = sliderState, onValueChange = { value ->
+            val next = value.roundToInt().coerceIn(options.indices)
+            if (next != selected) {
+                onSelect(next)
+                // One tick per changed stop, capped by the shared 60ms selection throttle.
+                HapticHelper.performSelection(context = context)
+            }
+        }, modifier = modifier.semantics {
+            contentDescription = AppStrings.get(R.string.control_timer_duration, "定时时长"); stateDescription = localizedTimerDurationLabel(options[selected])
+        }, enabled = enabled)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -89,6 +92,7 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
         scope.launch { sheet.hide(); onDismiss() }
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+    SilenceWindowClickSounds()
     SoundEffectOnInteraction(enabled = false) {
         Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {

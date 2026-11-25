@@ -1,6 +1,7 @@
 package org.qinyan.rimoat.ui.components
 
 import android.app.Application
+import android.view.View
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,8 +10,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoundEffect
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.SoundEffect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
@@ -32,11 +40,13 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.LosslessWebPImageIoFormat
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.After
 import org.junit.Before
@@ -47,6 +57,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.localizedTimerDurationLabel
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
+import org.qinyan.rimoat.ui.theme.SilenceWindowClickSounds
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -118,6 +129,60 @@ class ExpressiveRemoteControlsRoborazziTest {
     }
 
     @Test fun timerTogglePresetUpdatesSelectionBeforeToolbarSends() = exerciseTimer(fontScale = 1f)
+
+    @Test fun timerSliderRebuildsItsRangeWhenOptionsExpand() {
+        var timerOptions by mutableStateOf(listOf(0, 60))
+        var selected by mutableIntStateOf(0)
+        compose.setContent {
+            IrRemoteTheme(dynamicColor = false) {
+                Surface(Modifier.fillMaxSize()) {
+                    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(AppStrings.get(R.string.control_timer_duration))
+                        TimerDurationSlider(timerOptions, selected, enabled = true,
+                            onSelect = { selected = it })
+                        Text(localizedTimerDurationLabel(timerOptions[selected]))
+                    }
+                }
+            }
+        }
+        capture("expressive_timer_slider_short_range")
+        compose.runOnIdle { timerOptions = listOf(0, 30, 60, 120, 240, 480) }
+        compose.onNodeWithContentDescription(AppStrings.get(R.string.control_timer_duration))
+            .performSemanticsAction(SemanticsActions.SetProgress) { changeProgress ->
+                assertTrue(changeProgress(5f))
+            }
+        compose.runOnIdle { assertEquals(5, selected) }
+        compose.onNodeWithText(localizedTimerDurationLabel(480)).assertIsDisplayed()
+        capture("expressive_timer_slider_expanded_range")
+    }
+
+    @Test fun dialogHostDisablesClickSoundAndRestoresItsOriginalFlag() {
+        var showDialog by mutableStateOf(true)
+        lateinit var dialogView: View
+        var originalSoundEnabled = false
+        compose.setContent {
+            IrRemoteTheme(dynamicColor = false) {
+                if (showDialog) Dialog(onDismissRequest = { showDialog = false }) {
+                    val view = LocalView.current
+                    val original = remember(view) { view.isSoundEffectsEnabled }
+                    SilenceWindowClickSounds()
+                    SideEffect {
+                        dialogView = view
+                        originalSoundEnabled = original
+                    }
+                    Surface { Text(AppStrings.get(R.string.control_done)) }
+                }
+            }
+        }
+        compose.onNode(isDialog()).assertIsDisplayed()
+        compose.runOnIdle {
+            assertTrue("The new Dialog host starts with platform click sounds enabled", originalSoundEnabled)
+            assertFalse("Every control in the Dialog host must be silent", dialogView.isSoundEffectsEnabled)
+            showDialog = false
+        }
+        compose.waitForIdle()
+        compose.runOnIdle { assertEquals(originalSoundEnabled, dialogView.isSoundEffectsEnabled) }
+    }
 
     @Test
     @Config(qualifiers = "en-rUS-w320dp-h891dp-mdpi")

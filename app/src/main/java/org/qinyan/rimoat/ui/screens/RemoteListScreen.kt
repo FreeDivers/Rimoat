@@ -58,6 +58,7 @@ import org.qinyan.rimoat.ui.components.TwoPaneLayout
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -579,10 +580,12 @@ fun CategoryFilterBar(
                     ) { Text(label) }
                 },
                 menuContent = { menu ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        onClick = { menu.dismiss(); onSelectCategory(category) }
-                    )
+                    SoundEffectOnInteraction(enabled = false) {
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = { menu.dismiss(); onSelectCategory(category) }
+                        )
+                    }
                 }
             )
         }

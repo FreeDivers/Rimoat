@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +30,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.SoundEffectOnInteraction
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -244,27 +247,44 @@ fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfir
                             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                         )
                         ButtonGroup(
-                            overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
-                            modifier = Modifier.fillMaxWidth(),
+                            overflowIndicator = {
+                                ButtonGroupDefaults.OverflowIndicator(it,
+                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                        .testTag("pairing_answers_overflow"))
+                            },
+                            // Reserve the overflow control's height even when every answer is in its menu.
+                            modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.Start)
+                                .heightIn(min = 48.dp).testTag("pairing_answers_group"),
                             expandedRatio = .08f
                         ) {
                             val canAnswer = state.canConfirmTest && !busy && feedback.remoteId == remoteId
-                            clickableItem(
-                                onClick = {
+                            listOf(noResponse to false, responded to true).forEach { (label, answer) ->
+                                val onAnswer = {
                                     HapticHelper.performSelection(haptic, context)
-                                    onConfirmTest(false)
-                                },
-                                label = noResponse,
-                                enabled = canAnswer
-                            )
-                            clickableItem(
-                                onClick = {
-                                    HapticHelper.performSelection(haptic, context)
-                                    onConfirmTest(true)
-                                },
-                                label = responded,
-                                enabled = canAnswer
-                            )
+                                    onConfirmTest(answer)
+                                }
+                                customItem(
+                                    buttonGroupContent = {
+                                        val interactionSource = remember { MutableInteractionSource() }
+                                        Button(
+                                            onClick = onAnswer,
+                                            shapes = ButtonDefaults.shapes(),
+                                            enabled = canAnswer,
+                                            interactionSource = interactionSource,
+                                            modifier = Modifier.heightIn(min = 48.dp).animateWidth(interactionSource)
+                                        ) { Text(label, maxLines = 1, softWrap = false) }
+                                    },
+                                    menuContent = { menu ->
+                                        SoundEffectOnInteraction(enabled = false) {
+                                            DropdownMenuItem(
+                                                text = { Text(label) },
+                                                enabled = canAnswer,
+                                                onClick = { onAnswer(); menu.dismiss() }
+                                            )
+                                        }
+                                    }
+                                )
+                            }
                         }
                     } else feedback?.message?.let { message ->
                         Text(
@@ -283,7 +303,8 @@ fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfir
                     }
                 }
             }
-            HorizontalFloatingToolbar(expanded = true, modifier = Modifier.fillMaxWidth()) {
+            HorizontalFloatingToolbar(expanded = true,
+                modifier = Modifier.fillMaxWidth().testTag("pairing_confirmation_toolbar")) {
                 Button(
                     onClick = onMatched,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),

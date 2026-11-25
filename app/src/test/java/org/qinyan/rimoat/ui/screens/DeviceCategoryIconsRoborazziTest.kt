@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
 import com.github.takahirom.roborazzi.*
+import java.io.File
+import java.util.TimeZone
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -55,6 +57,7 @@ import org.robolectric.annotation.LooperMode
 class DeviceCategoryIconsRoborazziTest {
     @get:Rule val compose = createComposeRule()
     private val app get() = RuntimeEnvironment.getApplication()
+    private val originalTimeZone = TimeZone.getDefault()
     private val job = SupervisorJob()
     private val scope = CoroutineScope(job + Dispatchers.IO)
     private val store = ViewModelStore()
@@ -74,6 +77,7 @@ class DeviceCategoryIconsRoborazziTest {
     )) }
 
     @After fun release() {
+        TimeZone.setDefault(originalTimeZone)
         compose.runOnUiThread { store.clear() }
         if (::transmitter.isInitialized) transmitter.release()
         runBlocking { job.cancelAndJoin() }
@@ -174,6 +178,7 @@ class DeviceCategoryIconsRoborazziTest {
     }
 
     @Test fun savedApplianceTypesKeepTheirIconsThroughTrashAndRoomViews() {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         val vm = viewModel()
         runBlocking { profiles.forEach { repository.saveRemote(it) } }
         var page by mutableStateOf(0)
@@ -194,6 +199,11 @@ class DeviceCategoryIconsRoborazziTest {
         compose.onNodeWithText(app.getString(R.string.screen_trash_remote)).performClick()
         compose.onNodeWithText(app.getString(R.string.screen_delete)).performClick()
         waitFor { repository.remotes.value.none { it.id == stb.id } }
+        val deleted = runBlocking { repository.deletedEntries().single() }
+        val trashDirectory = File(app.filesDir, "remotes/.trash")
+        assertTrue(File(trashDirectory, deleted.entryId).renameTo(
+            File(trashDirectory, "${stb.id}-1600000000000-fixture.json")
+        ))
         compose.runOnIdle { page = 1 }
         waitFor { vm.trash.value?.size == 1 }
         compose.onNodeWithText(stb.name).assertIsDisplayed()

@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -143,9 +144,12 @@ class SettingsTransmitterRoborazziTest {
     }
 
     @Test
+    @Suppress("DEPRECATION")
     fun settingsShowsTransmitterChannelPickerInsteadOfMockModeSwitch() {
         val app = RuntimeEnvironment.getApplication()
         AppStrings.initialize(app)
+        val audioManager = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val wasWiredHeadsetOn = audioManager.isWiredHeadsetOn
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val repository = RemoteRepository(app, scope)
         runBlocking { repository.awaitLoaded() }
@@ -220,14 +224,29 @@ class SettingsTransmitterRoborazziTest {
             )
 
             // Switch to an available physical channel and verify Settings updates its displayed value.
+            audioManager.isWiredHeadsetOn = true
+            runBlocking { transmitterManager.refreshHardware() }
+            composeRule.waitUntil(10_000) {
+                transmitterManager.availableTransmitters.value.any { it.type == TransmitterType.AUDIO }
+            }
             composeRule.onNodeWithText(channelTitle).performClick()
-            composeRule.waitForIdle()
-            transmitterManager.audioTransmitter.updateHeadsetPlugged(true)
             composeRule.waitForIdle()
 
             val audioChannelTitle = app.getString(R.string.control_audio_accessory)
-            composeRule.onNode(hasText(audioChannelTitle) and hasAnyAncestor(isDialog())).performClick()
+            val audioOptionMatcher = hasText(audioChannelTitle) and hasClickAction() and
+                hasAnyAncestor(isDialog())
+            composeRule.waitUntil(10_000) {
+                composeRule.onAllNodes(audioOptionMatcher).fetchSemanticsNodes().size == 1
+            }
+            composeRule.onNode(audioOptionMatcher)
+                .performScrollTo()
+                .assertIsDisplayed()
+                .performClick()
+            composeRule.waitUntil(10_000) {
+                transmitterManager.transmitterType.value == TransmitterType.AUDIO
+            }
             composeRule.waitForIdle()
+            composeRule.onNode(audioOptionMatcher).assertIsSelected()
             assertFalse(transmitterManager.forceMockMode.value)
             assertEquals(TransmitterType.AUDIO, transmitterManager.selectedTransmitterType.value)
 
@@ -235,6 +254,7 @@ class SettingsTransmitterRoborazziTest {
             composeRule.waitForIdle()
             composeRule.onNodeWithText(app.getString(R.string.control_audio_ir)).assertIsDisplayed()
         } finally {
+            audioManager.isWiredHeadsetOn = wasWiredHeadsetOn
             transmitterManager.release()
             runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
         }

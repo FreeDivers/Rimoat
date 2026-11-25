@@ -1,6 +1,10 @@
 package org.qinyan.rimoat
 
 import android.app.Application
+import android.os.VibrationAttributes
+import android.os.VibrationEffect
+import android.os.VibratorManager
+import android.provider.Settings
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -8,9 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.hapticfeedback.HapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.*
@@ -40,8 +41,13 @@ import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.ClassName
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import org.robolectric.annotation.LooperMode
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowSystemVibrator
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "zh-rCN-w411dp-h891dp-mdpi", application = Application::class)
@@ -49,6 +55,23 @@ import org.robolectric.annotation.LooperMode
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class)
 class BugFixInteractionRoborazziTest {
+    @Implements(className = "android.os.SystemVibrator", isInAndroidSdk = false)
+    class CountingSystemVibrator : ShadowSystemVibrator() {
+        val effects = mutableListOf<VibrationEffect>()
+
+        @Implementation(minSdk = 31)
+        override fun vibrate(
+            uid: Int,
+            opPkg: String?,
+            @ClassName("android.os.VibrationEffect") effect: Any,
+            reason: String?,
+            @ClassName("android.os.VibrationAttributes") attributes: Any
+        ) {
+            effects += effect as VibrationEffect
+            super.vibrate(uid, opPkg, effect, reason, attributes)
+        }
+    }
+
     @get:Rule val compose = createComposeRule()
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
     private val app get() = RuntimeEnvironment.getApplication()
@@ -204,25 +227,28 @@ class BugFixInteractionRoborazziTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN-w891dp-h411dp-land-mdpi")
+    @Config(qualifiers = "zh-rCN-w891dp-h411dp-land-mdpi", shadows = [CountingSystemVibrator::class])
     fun sidePresetsPerformOneHapticPerClick() {
         AppStrings.initialize(app)
-        val haptics = mutableListOf<HapticFeedbackType>()
-        val feedback = object : HapticFeedback {
-            override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { haptics += hapticFeedbackType }
-        }
+        Settings.System.putInt(app.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1)
+        val vibrator = app.getSystemService(VibratorManager::class.java).defaultVibrator
+        val shadow = Shadow.extract<CountingSystemVibrator>(vibrator)
+        shadow.setHasVibrator(true)
         val store = ViewModelStore()
         val vm = RemoteControlViewModel("ac", initialProfile = RemoteProfile("ac", "卧室空调",
             category = DeviceCategory.AC, acProtocolId = 670)).also { store.put("remote", it) }
         try {
             compose.setContent {
-                CompositionLocalProvider(LocalHapticFeedback provides feedback) {
-                    IrRemoteTheme(darkTheme = false, dynamicColor = false) { RemoteControlScreen(vm, onBack = {}) }
-                }
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) { RemoteControlScreen(vm, onBack = {}) }
             }
             capture("side_presets_before")
-            compose.onNodeWithText(app.getString(R.string.screen_resend)).performClick()
-            compose.runOnIdle { assertEquals(listOf(HapticFeedbackType.LongPress), haptics) }
+            compose.runOnIdle { assertTrue(shadow.effects.isEmpty()) }
+            compose.onNodeWithContentDescription(app.getString(R.string.screen_resend)).performTouchInput { click() }
+            compose.runOnIdle {
+                assertEquals(1, shadow.effects.size)
+                val attributes = shadow.vibrationAttributesFromLastVibration as VibrationAttributes
+                assertEquals(VibrationAttributes.USAGE_TOUCH, attributes.usage)
+            }
             capture("side_presets_after")
         } finally { compose.runOnIdle { store.clear() } }
     }

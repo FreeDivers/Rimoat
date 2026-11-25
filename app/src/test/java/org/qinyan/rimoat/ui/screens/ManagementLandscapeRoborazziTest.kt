@@ -8,6 +8,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.github.takahirom.roborazzi.*
+import java.io.File
+import java.util.TimeZone
 import kotlinx.coroutines.*
 import org.junit.After
 import org.junit.Assert.*
@@ -34,11 +36,16 @@ class ManagementLandscapeRoborazziTest {
     @get:Rule val composeRule = createComposeRule()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val app get() = RuntimeEnvironment.getApplication()
+    private val originalTimeZone = TimeZone.getDefault()
     private val repository by lazy { RemoteRepository(app, scope) }
     private val transmitter by lazy { IrTransmitterManager(app, scope) }
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
 
-    @After fun release() { transmitter.release(); runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() } }
+    @After fun release() {
+        TimeZone.setDefault(originalTimeZone)
+        transmitter.release()
+        runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
+    }
 
     private fun viewModel(): RemoteListViewModel {
         AppStrings.initialize(app)
@@ -81,12 +88,26 @@ class ManagementLandscapeRoborazziTest {
     }
 
     @Test fun trashKeepsDistinctHistoryAndSelectsRemainingEntryAfterRestore() {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         val vm = viewModel()
         runBlocking {
             repository.saveRemote(RemoteProfile("history_remote", "第一份遥控器"))
             repository.deleteRemote("history_remote")
             repository.saveRemote(RemoteProfile("history_remote", "第二份遥控器"))
             repository.deleteRemote("history_remote")
+        }
+        val trashDirectory = File(app.filesDir, "remotes/.trash")
+        val deleted = runBlocking { repository.deletedEntries() }
+        assertEquals(2, deleted.size)
+        deleted.forEach { entry ->
+            val deletedAt = if (entry.profile.name == "第一份遥控器") {
+                1_600_000_000_000L
+            } else {
+                1_600_000_060_000L
+            }
+            assertTrue(File(trashDirectory, entry.entryId).renameTo(
+                File(trashDirectory, "${entry.profile.id}-$deletedAt-fixture.json")
+            ))
         }
         composeRule.setContent { IrRemoteTheme(darkTheme = false, dynamicColor = false) { TrashScreen(vm) {} } }
         waitFor { vm.trash.value?.size == 2 }

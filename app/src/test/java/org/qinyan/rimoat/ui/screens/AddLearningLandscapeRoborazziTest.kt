@@ -127,7 +127,11 @@ class AddLearningLandscapeRoborazziTest {
         question.assertIsDisplayed()
         assertTrue(question.fetchSemanticsNode().boundsInRoot.left > compose.onRoot().fetchSemanticsNode().boundsInRoot.width / 2)
         capture("pairing_feedback")
-        compose.onNodeWithText(app.getString(R.string.screen_responded)).performScrollTo().performClick()
+        val response = app.getString(R.string.screen_responded)
+        if (compose.onAllNodesWithText(response).fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithTag("pairing_answers_overflow").performScrollTo().performClick()
+        }
+        compose.onNodeWithText(response).performScrollTo().performClick()
         compose.onNodeWithText(app.getString(R.string.screen_use_code)).performScrollTo().performClick()
         assertEquals(1, sends); assertEquals(1, confirms); assertEquals(1, saves)
         capture("pairing_after")

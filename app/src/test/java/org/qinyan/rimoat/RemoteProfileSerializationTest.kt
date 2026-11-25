@@ -25,7 +25,9 @@ class RemoteProfileSerializationTest {
             for (extended in listOf(false, true)) {
                 val button = RemoteButton("power", "Power", signalType = SignalType.NEC,
                     necAddress = address, necCommand = 0x45, necExtended = extended)
-                val profile = RemoteProfile("remote", "Remote", buttons = listOf(button))
+                val profile = RemoteProfile(
+                    "remote", "Remote", buttons = listOf(button), updatedAt = 1L
+                )
                 val encoded = json.encodeToString(RemoteProfile.serializer(), profile)
                 val decoded = json.decodeFromString(RemoteProfile.serializer(), encoded)
 
