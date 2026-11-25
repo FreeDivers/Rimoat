@@ -1,11 +1,8 @@
 package org.qinyan.rimoat.ui.motion
 
-import org.qinyan.rimoat.ui.motion.AppMotion
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,6 +63,7 @@ fun <T : Any> MotionContent(
     discardSavedStateOnExit: (T) -> Boolean = { false },
     content: @Composable (T) -> Unit
 ) {
+    val motion = AppMotion.current
     val active = LocalMotionActive.current
     val direction = if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else -1f
     val focusManager = LocalFocusManager.current
@@ -97,7 +95,7 @@ fun <T : Any> MotionContent(
             val next = Scene(settled, latestTarget, isBack(settled, latestTarget), direction)
             scene = next
             try {
-                next.progress.animateTo(1f, tween(240, easing = AppMotion.Standard))
+                next.progress.animateTo(1f, motion.defaultSpatialSpec())
                 if (scene === next) settled = latestTarget
             } finally {
                 if (scene === next) scene = null
@@ -135,16 +133,14 @@ fun <T : Any> MotionContent(
                 } else if (scene === preview) {
                     val progress = checkNotNull(preview).progress
                     if (stillValid) {
-                        progress.animateTo(1f, tween(
-                            ((1f - progress.value) * 240).toInt().coerceAtLeast(1),
-                            easing = AppMotion.Standard))
+                        progress.animateTo(1f, motion.defaultSpatialSpec())
                         if (scene === preview && contentKey(latestTarget) == contentKey(origin)) {
                             settled = destination
                             scene = null
                             latestOnBack()
                         }
                     } else {
-                        progress.animateTo(0f, tween(180, easing = AppMotion.Standard))
+                        progress.animateTo(0f, motion.fastSpatialSpec())
                         if (scene === preview) scene = null
                     }
                 }
@@ -152,7 +148,7 @@ fun <T : Any> MotionContent(
                 val cancelledScene = preview
                 if (cancelledScene != null && scene === cancelledScene) {
                     withContext(NonCancellable) {
-                        cancelledScene.progress.animateTo(0f, tween(180, easing = AppMotion.Standard))
+                        cancelledScene.progress.animateTo(0f, motion.fastSpatialSpec())
                     }
                 }
                 throw cancelled
