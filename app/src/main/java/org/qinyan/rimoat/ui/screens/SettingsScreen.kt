@@ -69,7 +69,8 @@ import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsClick: () -> Unit = {}, onTrashClick: () -> Unit = {}, onAboutClick: () -> Unit = {}) {
+internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsClick: () -> Unit = {}, onTrashClick: () -> Unit = {}, onAboutClick: () -> Unit = {},
+    updateViewModel: org.qinyan.rimoat.ui.viewmodel.AppUpdateViewModel = appUpdateViewModel()) {
     val twoColumn = rememberWideLayout()
     val appearanceScroll = rememberLazyListState()
     val managementScroll = rememberLazyListState()
@@ -320,6 +321,7 @@ fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsCl
                         enabled = screenActive,
                         onClick = { showTransmitterSheet = true }
                     )
+                    SettingsAction(stringResource(R.string.update_check), Icons.Rounded.SystemUpdate, onClick = updateViewModel::check)
                     SettingsAction(stringResource(R.string.settings_about), Icons.Rounded.Info, onClick = onAboutClick)
                 } }
                 }
@@ -350,6 +352,7 @@ fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, onRoomsCl
     }
 
     if (screenActive) {
+        AppUpdateHost(updateViewModel)
         pendingImport?.let { document ->
             MigrationImportDialog(document, allRemotes.map { it.id }.toSet(), transferBusy,
                 onDismiss = viewModel::cancelImport, onImport = viewModel::commitImport)

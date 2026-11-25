@@ -124,12 +124,13 @@ roborazzi {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2025.04.01")
+    val composeBom = platform("androidx.compose:compose-bom:2025.05.01")
     implementation(composeBom)
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.glance:glance-material3:1.1.1")
     implementation("androidx.work:work-runtime-ktx:2.7.1")
-    implementation("androidx.compose.material3:material3")
+    // LoadingIndicator is an Expressive API in the SDK 35 compatible release line.
+    implementation("androidx.compose.material3:material3:1.4.0-alpha18")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")

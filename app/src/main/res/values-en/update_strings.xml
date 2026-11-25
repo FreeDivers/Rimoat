@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_check">Check for updates</string>
+    <string name="update_title_available">Update available</string>
+    <string name="update_title_downloading">Downloading update</string>
+    <string name="update_title_permission">Allow app updates</string>
+    <string name="update_title_ready">Update downloaded</string>
+    <string name="update_now">Update now</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_open_settings">Open settings</string>
+    <string name="update_install">Install</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_current">You are up to date (%1$s)</string>
+    <string name="update_installed">Installed version: %1$s</string>
+    <string name="update_no_notes">No release notes for this language</string>
+    <string name="update_download_size">%1$s / %2$s MB</string>
+    <string name="update_verifying">Verifying download…</string>
+    <string name="update_permission_message">To install the update, allow Rimoat to install unknown apps in system settings. Return here to continue.</string>
+    <string name="update_opening_installer">Opening the installer…</string>
+    <string name="update_downloaded">The APK is ready. Tap Install to open the system installer again.</string>
+    <string name="update_error_timeout">Update check timed out after 30 seconds. Try again.</string>
+    <string name="update_error_network">Cannot connect to GitHub. Check your connection and try again.</string>
+    <string name="update_error_rate_limit">GitHub is receiving too many requests. Try again later.</string>
+    <string name="update_error_no_release">No published release is available yet.</string>
+    <string name="update_error_release">Cannot read the release version. Try again later.</string>
+    <string name="update_error_no_apk">This release does not have a compatible APK yet. Try again later.</string>
+    <string name="update_error_download">Download failed or was interrupted. Check your connection and retry.</string>
+    <string name="update_error_storage">Not enough storage or the APK cannot be saved. Free up space and retry.</string>
+    <string name="update_error_apk">The APK is incomplete or incompatible with this installation. Download it again.</string>
+    <string name="update_error_signature">This APK uses a different signing certificate and cannot update the installed app.</string>
+    <string name="update_error_permission">Installation permission was not granted. Allow Rimoat to install unknown apps in settings.</string>
+    <string name="update_error_installer">Cannot open the installer. Check that app installation is available on this device.</string>
+</resources>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_check">アップデートを確認</string>
+    <string name="update_title_available">アップデートがあります</string>
+    <string name="update_title_downloading">アップデートをダウンロード中</string>
+    <string name="update_title_permission">インストールを許可</string>
+    <string name="update_title_ready">ダウンロード完了</string>
+    <string name="update_now">今すぐ更新</string>
+    <string name="update_retry">再試行</string>
+    <string name="update_open_settings">設定を開く</string>
+    <string name="update_install">インストール</string>
+    <string name="update_checking">アップデートを確認中…</string>
+    <string name="update_current">最新バージョンです（%1$s）</string>
+    <string name="update_installed">インストール済み：%1$s</string>
+    <string name="update_no_notes">この言語の更新情報はありません</string>
+    <string name="update_download_size">%1$s / %2$s MB</string>
+    <string name="update_verifying">インストールファイルを確認中…</string>
+    <string name="update_permission_message">システム設定で Rimoat に不明なアプリのインストールを許可し、ここに戻って続行してください。</string>
+    <string name="update_opening_installer">インストール画面を開いています…</string>
+    <string name="update_downloaded">APK の準備ができました。「インストール」をタップしてインストール画面を再度開けます。</string>
+    <string name="update_error_timeout">30 秒以内に最新バージョンを取得できませんでした。再試行してください。</string>
+    <string name="update_error_network">GitHub に接続できません。ネットワークを確認して再試行してください。</string>
+    <string name="update_error_rate_limit">GitHub へのリクエストが多すぎます。しばらくしてから再試行してください。</string>
+    <string name="update_error_no_release">公開済みのリリースはまだありません。</string>
+    <string name="update_error_release">リリースのバージョンを読み取れません。しばらくしてから再試行してください。</string>
+    <string name="update_error_no_apk">このリリースには利用可能な APK がありません。後でもう一度お試しください。</string>
+    <string name="update_error_download">ダウンロードが失敗または中断しました。ネットワークを確認して再試行してください。</string>
+    <string name="update_error_storage">空き容量が不足しているか、APK を保存できません。空き容量を確保して再試行してください。</string>
+    <string name="update_error_apk">APK が不完全か、現在のインストールと互換性がありません。再度ダウンロードしてください。</string>
+    <string name="update_error_signature">APK の署名がインストール済みのアプリと異なるため、更新できません。</string>
+    <string name="update_error_permission">インストール権限がありません。設定で Rimoat に不明なアプリのインストールを許可してください。</string>
+    <string name="update_error_installer">インストール画面を開けません。この端末でアプリをインストールできるか確認してください。</string>
+</resources>
