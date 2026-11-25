@@ -13,3 +13,8 @@
 
 # Localized picker providers also need independent Glance class identities.
 -keep class org.qinyan.rimoat.widget.* extends org.qinyan.rimoat.widget.RemoteAppWidget { public <init>(); }
+
+# Glance renders vectors without a Compose UI owner or its shared graphics cache.
+-assumevalues class androidx.compose.ui.ComposeUiFlags {
+    public static boolean isVectorDrawCacheSharingEnabled return false;
+}

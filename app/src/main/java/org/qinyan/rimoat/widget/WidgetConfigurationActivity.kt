@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
@@ -28,6 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.IrRemoteApplication
@@ -176,15 +180,15 @@ private fun WidgetConfigurationContent(
             Surface {
                 if (wide) {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onCancel, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.widget_cancel)) }
-                        Button(onClick = onSave, enabled = !saving && currentDraft?.shortcuts?.isNotEmpty() == true, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes(), enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.widget_cancel)) }
+                        Button(onClick = onSave, shapes = ButtonDefaults.shapes(), enabled = !saving && currentDraft?.shortcuts?.isNotEmpty() == true, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                             Text(if (saving) stringResource(R.string.widget_saving) else stringResource(R.string.widget_done))
                         }
                     }
                 } else {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = onCancel, enabled = !saving) { Text(stringResource(R.string.widget_cancel)) }
-                        Button(onClick = onSave, enabled = !saving && currentDraft?.shortcuts?.isNotEmpty() == true, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                        TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes(), enabled = !saving) { Text(stringResource(R.string.widget_cancel)) }
+                        Button(onClick = onSave, shapes = ButtonDefaults.shapes(), enabled = !saving && currentDraft?.shortcuts?.isNotEmpty() == true, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                             Text(if (saving) stringResource(R.string.widget_saving) else stringResource(R.string.widget_done))
                         }
                     }
@@ -193,15 +197,15 @@ private fun WidgetConfigurationContent(
     }
     Scaffold(
         topBar = { TopAppBar(title = { Text(title) }, navigationIcon = {
-            IconButton(onClick = onCancel, enabled = !saving) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.widget_cancel_config)) }
+            IconButton(onClick = onCancel, shapes = IconButtonDefaults.shapes(), enabled = !saving) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.widget_cancel_config)) }
         }) },
         bottomBar = { if (!wide) Box(Modifier.navigationBarsPadding()) { actions() } }
     ) { padding ->
         val content = recordItems {
-            if (!snapshot.loaded || currentDraft == null) item(key = "preview_loading") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            if (!snapshot.loaded || currentDraft == null) item(key = "preview_loading") { LinearWavyProgressIndicator(Modifier.fillMaxWidth()) }
             if (snapshot.error != null) item(key = "preview_error") {
                 Text(snapshot.error!!.asString(), color = MaterialTheme.colorScheme.error)
-                TextButton(onClick = onRetry) { Text(stringResource(R.string.widget_reload)) }
+                TextButton(onClick = onRetry, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.widget_reload)) }
             }
             if (currentDraft != null) {
                 val draft = currentDraft
@@ -209,7 +213,7 @@ private fun WidgetConfigurationContent(
                 if (error != null) item { Text(error!!, color = MaterialTheme.colorScheme.error) }
                 if (snapshot.profiles.isEmpty()) item {
                     Text(stringResource(R.string.widget_no_remotes), style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = onAddRemote) { Text(stringResource(R.string.widget_add_remote)) }
+                    TextButton(onClick = onAddRemote, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.widget_add_remote)) }
                 }
                 if (kind != WidgetKind.PANEL) {
                     item { Text(stringResource(R.string.widget_category_remote), style = MaterialTheme.typography.titleSmall) }
@@ -239,14 +243,14 @@ private fun WidgetConfigurationContent(
                     val controls: @Composable () -> Unit = {
                         Row {
                             if (kind != WidgetKind.SINGLE) {
-                                IconButton(enabled = index > 0 && !saving, onClick = {
+                                IconButton(shapes = IconButtonDefaults.shapes(), enabled = index > 0 && !saving, onClick = {
                                     val next = draft.shortcuts.toMutableList(); java.util.Collections.swap(next, index, index - 1); change(draft.copy(shortcuts = next))
                                 }) { Icon(Icons.Rounded.ArrowUpward, stringResource(R.string.widget_move_up, command?.displayLabel(profile, context).orEmpty())) }
-                                IconButton(enabled = index < draft.shortcuts.lastIndex && !saving, onClick = {
+                                IconButton(shapes = IconButtonDefaults.shapes(), enabled = index < draft.shortcuts.lastIndex && !saving, onClick = {
                                     val next = draft.shortcuts.toMutableList(); java.util.Collections.swap(next, index, index + 1); change(draft.copy(shortcuts = next))
                                 }) { Icon(Icons.Rounded.ArrowDownward, stringResource(R.string.widget_move_down, command?.displayLabel(profile, context).orEmpty())) }
-                                IconButton(enabled = !saving, onClick = { change(draft.copy(shortcuts = draft.shortcuts - shortcut)) }) { Icon(Icons.Rounded.Close, stringResource(R.string.widget_remove_button, command?.displayLabel(profile, context).orEmpty())) }
-                            } else IconButton(enabled = !saving, onClick = { chooseRemoteId = draft.remoteId; choosing = true }) { Icon(Icons.Rounded.Edit, stringResource(R.string.widget_change_button)) }
+                                IconButton(shapes = IconButtonDefaults.shapes(), enabled = !saving, onClick = { change(draft.copy(shortcuts = draft.shortcuts - shortcut)) }) { Icon(Icons.Rounded.Close, stringResource(R.string.widget_remove_button, command?.displayLabel(profile, context).orEmpty())) }
+                            } else IconButton(shapes = IconButtonDefaults.shapes(), enabled = !saving, onClick = { chooseRemoteId = draft.remoteId; choosing = true }) { Icon(Icons.Rounded.Edit, stringResource(R.string.widget_change_button)) }
                         }
                     }
                     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -264,16 +268,24 @@ private fun WidgetConfigurationContent(
                     }
                 }
                 if (kind != WidgetKind.SINGLE || draft.shortcuts.isEmpty()) item {
-                    OutlinedButton(enabled = !saving && draft.shortcuts.size < WidgetConfiguration.MAX_SHORTCUTS,
+                    OutlinedButton(shapes = ButtonDefaults.shapes(), enabled = !saving && draft.shortcuts.size < WidgetConfiguration.MAX_SHORTCUTS,
                         onClick = { chooseRemoteId = if (kind == WidgetKind.PANEL) "" else draft.remoteId; choosing = true }) {
                         Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.widget_add_shortcut))
                     }
                 }
                 if (kind == WidgetKind.PANEL) item {
                     Text(stringResource(R.string.widget_button_layout), style = MaterialTheme.typography.titleSmall)
-                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(draft.arrangement == WidgetArrangement.GRID, onClick = { change(draft.copy(arrangement = WidgetArrangement.GRID)) }, label = { Text(stringResource(R.string.widget_grid)) })
-                        FilterChip(draft.arrangement == WidgetArrangement.LIST, onClick = { change(draft.copy(arrangement = WidgetArrangement.LIST)) }, label = { Text(stringResource(R.string.widget_list)) })
+                    FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ToggleButton(checked = draft.arrangement == WidgetArrangement.GRID,
+                            onCheckedChange = { change(draft.copy(arrangement = WidgetArrangement.GRID)) },
+                            modifier = Modifier.heightIn(min = 48.dp).semantics {
+                                selected = draft.arrangement == WidgetArrangement.GRID; role = Role.RadioButton
+                            }) { Text(stringResource(R.string.widget_grid)) }
+                        ToggleButton(checked = draft.arrangement == WidgetArrangement.LIST,
+                            onCheckedChange = { change(draft.copy(arrangement = WidgetArrangement.LIST)) },
+                            modifier = Modifier.heightIn(min = 48.dp).semantics {
+                                selected = draft.arrangement == WidgetArrangement.LIST; role = Role.RadioButton
+                            }) { Text(stringResource(R.string.widget_list)) }
                     }
                 }
             }
@@ -307,7 +319,7 @@ private fun WidgetConfigurationContent(
                         })
                 }
             }
-        }, confirmButton = { TextButton(onClick = { choosingRemote = false }) { Text(stringResource(R.string.widget_cancel)) } })
+        }, confirmButton = { TextButton(shapes = ButtonDefaults.shapes(), onClick = { choosingRemote = false }) { Text(stringResource(R.string.widget_cancel)) } })
     }
     if (choosing && currentDraft != null) {
         val draft = currentDraft
@@ -346,8 +358,8 @@ private fun WidgetConfigurationContent(
                 if (wide) BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                     TwoPaneLayout(Modifier.fillMaxSize(), primaryFraction = .4f, primary = remotes, secondary = buttons)
                 } else if (selectedProfile == null) remotes() else buttons()
-            }, confirmButton = { TextButton(onClick = { choosing = false }) { Text(stringResource(R.string.widget_cancel)) } },
-            dismissButton = if (!wide && kind == WidgetKind.PANEL && selectedProfile != null) ({ TextButton(onClick = { chooseRemoteId = "" }) { Text(stringResource(R.string.widget_change_remote)) } }) else null)
+            }, confirmButton = { TextButton(shapes = ButtonDefaults.shapes(), onClick = { choosing = false }) { Text(stringResource(R.string.widget_cancel)) } },
+            dismissButton = if (!wide && kind == WidgetKind.PANEL && selectedProfile != null) ({ TextButton(shapes = ButtonDefaults.shapes(), onClick = { chooseRemoteId = "" }) { Text(stringResource(R.string.widget_change_remote)) } }) else null)
     }
 }
 
@@ -388,8 +400,9 @@ private fun rememberConfigurationPreview(widgetId: Int, configuration: WidgetCon
             records = snapshot.records.filterKeys { it in ids }
         )
     }
-    val previewKey = remember(configuration, selected, availableSize, device.uiMode, device.locales.toLanguageTags()) {
-        "$availableSize|${device.uiMode}|${device.locales.toLanguageTags()}|${configuration?.hashCode()}|${selected?.hashCode()}"
+    val previewKey = remember(configuration, selected, availableSize, device.uiMode, device.fontScale,
+        device.densityDpi, device.locales.toLanguageTags()) {
+        "$availableSize|${device.uiMode}|${device.fontScale}|${device.densityDpi}|${device.locales.toLanguageTags()}|${configuration?.hashCode()}|${selected?.hashCode()}"
     }
     var views by remember { mutableStateOf(WidgetPreviewComposer.cached(previewKey)) }
     var failed by remember { mutableStateOf(false) }
@@ -446,6 +459,7 @@ internal fun widgetPreviewSize(context: android.content.Context, id: Int, orient
     return previewCanvasSize(optionsSize)
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ConfigurationPreview(widgetId: Int, preview: WidgetPreview) {
     val context = LocalContext.current
@@ -469,11 +483,8 @@ private fun ConfigurationPreview(widgetId: Int, preview: WidgetPreview) {
                                 host.updateAppWidget(preview.views)
                             }
                         })
-                    Box(Modifier.matchParentSize().clickable(interactionSource = remember {
-                        androidx.compose.foundation.interaction.MutableInteractionSource()
-                    }, indication = null) {})
                 } else if (preview.failed || providerInfo == null) Text(stringResource(R.string.widget_preview_unavailable), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                else LoadingIndicator(Modifier.size(40.dp))
             }
         }
     }
@@ -484,9 +495,54 @@ internal fun createConfigurationPreviewHost(
     widgetId: Int,
     providerInfo: android.appwidget.AppWidgetProviderInfo,
     executor: java.util.concurrent.Executor = previewExecutor
-): android.appwidget.AppWidgetHostView = android.appwidget.AppWidgetHostView(
+): android.appwidget.AppWidgetHostView = object : android.appwidget.AppWidgetHostView(
     WidgetPreviewComposer.previewContext(context)
-).apply {
+) {
+    init {
+        viewTreeObserver.addOnScrollChangedListener { makePreviewOnly(this) }
+        viewTreeObserver.addOnPreDrawListener {
+            makePreviewOnly(this)
+            true
+        }
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        makePreviewOnly(this)
+    }
+
+    override fun dispatchDraw(canvas: android.graphics.Canvas) {
+        // Collection rows can be rebound without laying out the host again.
+        makePreviewOnly(this)
+        super.dispatchDraw(canvas)
+    }
+
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        makePreviewOnly(this)
+        if (event.actionMasked != android.view.MotionEvent.ACTION_UP) return super.dispatchTouchEvent(event)
+        val cancel = android.view.MotionEvent.obtain(event).apply { action = android.view.MotionEvent.ACTION_CANCEL }
+        return try { super.dispatchTouchEvent(cancel) } finally { cancel.recycle() }
+    }
+
+    // Allow preview lists to scroll without launching activities or sending commands.
+    private fun makePreviewOnly(view: android.view.View) {
+        if (view is android.widget.AdapterView<*>) {
+            view.onItemClickListener = null
+            view.onItemLongClickListener = null
+        } else {
+            if (view.hasOnClickListeners()) view.setOnClickListener(null)
+            if (view.isClickable) view.isClickable = false
+        }
+        if (view.isLongClickable) {
+            view.setOnLongClickListener(null)
+            view.isLongClickable = false
+        }
+        if (view.isSoundEffectsEnabled) view.isSoundEffectsEnabled = false
+        if (view is android.view.ViewGroup) {
+            for (index in 0 until view.childCount) makePreviewOnly(view.getChildAt(index))
+        }
+    }
+}.apply {
     setAppWidget(widgetId, providerInfo)
     setPadding(0, 0, 0, 0)
     if (android.os.Build.VERSION.SDK_INT >= 26) setExecutor(executor)

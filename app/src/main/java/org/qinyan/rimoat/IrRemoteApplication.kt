@@ -7,6 +7,7 @@ import org.qinyan.rimoat.data.ThemePreferences
 import org.qinyan.rimoat.data.db.IrDatabaseRepository
 import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
+import org.qinyan.rimoat.ui.ComposeCompatibility
 import org.qinyan.rimoat.ui.learning.WizardDrafts
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -69,6 +70,7 @@ class IrRemoteApplication : Application() {
     }
 
     override fun onCreate() {
+        ComposeCompatibility.initialize()
         super.onCreate()
         instance = this
         coldLaunchTimestampUptimeMs = android.os.SystemClock.uptimeMillis()

@@ -50,5 +50,5 @@ Thumbs.db
 desktop.ini
 ._*
 
-# For testing
-/app/src/test/screenshots/
+# Local screenshot baselines
+/app/src/test/screenshots/*

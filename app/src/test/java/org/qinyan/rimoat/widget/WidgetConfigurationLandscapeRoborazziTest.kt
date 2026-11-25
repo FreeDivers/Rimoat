@@ -187,7 +187,9 @@ class WidgetConfigurationLandscapeRoborazziTest {
             composeRule.onNode(hasText("Input") and dialog).performClick()
             composeRule.onNode(isDialog()).assertDoesNotExist()
             configurationPane.performScrollToNode(hasText(app.getString(R.string.widget_list)))
-            composeRule.onNodeWithText(app.getString(R.string.widget_list)).performClick()
+            composeRule.onNodeWithText(app.getString(R.string.widget_grid)).assertIsSelected()
+            composeRule.onNodeWithText(app.getString(R.string.widget_list)).assertIsNotSelected().performClick().assertIsSelected()
+            composeRule.onNodeWithText(app.getString(R.string.widget_grid)).assertIsNotSelected()
             configurationPane.performScrollToNode(hasText(app.getString(R.string.widget_done)))
             composeRule.onNodeWithText(app.getString(R.string.widget_done)).performClick()
             composeRule.waitUntil(10_000) { saved == 1 }

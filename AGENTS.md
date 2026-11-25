@@ -12,6 +12,7 @@
    - 凡是修改 Jetpack Compose 界面布局、样式、文案、主题适配、表单输入、按钮点击、页面状态流转以及常规 Bug 修复，一律在 `src/test/` 下编写或更新与改动相关的 JVM 本地测试，不需要用户每次另行要求。
    - 使用 `./gradlew :app:recordRoborazziDebug --tests '<相关测试类>' --console=plain -q`（Windows 使用 `.\gradlew.bat`，其他模块替换 `:app:`），运行相关交互，通过 `captureRoboImage()` 导出交互前后的**无损 WebP**截图，并直接打开图片做视觉验收，确认真实界面、文字和操作结果正常，不是白屏或黑屏。WebP 是用户确认的长期格式，不改回 PNG。
    - 保持 `isIncludeAndroidResources = true` 和 `GraphicsMode.NATIVE`；复用真实页面和资源，使用有意义的交互、状态断言。已有参考图先检查差异，确认变化符合预期再更新，不能靠重新录图掩盖回归；需要比对时使用对应的 `verifyRoborazziDebug` 任务。
+   - MD3E 组件与动效修改须覆盖实际点击、选择、忙碌禁用和操作结果，并同步校验截图。弹簧动画按状态收敛等待，不依赖旧的固定补间时长。Dialog 等独立宿主的大字号测试在创建内容前用 `RuntimeEnvironment.setFontScale()` 设置真实资源字号，核对实际 `fontScale` 和按钮滚动可达性，不能只在外层覆盖 `LocalDensity`。
    - **严禁**在上述常规开发中启动 Android CLI 无头模拟器（QEMU）或调用 ADB；不能因本地测试尚未编写、依赖下载或编译失败就改走模拟器。
 
 2. **第二顺位（特殊 10% 场景，仅作为备用方案）：Android CLI + 无头 QEMU + ADB**
@@ -60,9 +61,11 @@
 | 品牌图标与矢量资源校验 | [tools/verify_brand_assets.py](tools/verify_brand_assets.py) |
 
 ## 1. 技术栈与运行环境
-- **语言**：Kotlin 2.0+（Coroutines、StateFlow、SharedFlow）
-- **UI 框架**：Jetpack Compose（Material 3），单 Activity 架构
-- **桌面小组件**：Jetpack Glance（`androidx.glance:glance-appwidget`），已用于单键、遥控面板和电器状态小组件；依赖与验证边界以第 8 节和当前工程为准。
+- **语言**：Kotlin 2.2+（当前 `2.2.10`，Coroutines、StateFlow、SharedFlow）；使用 AGP 内置 Kotlin，Compose 与 Serialization 插件保持兼容版本。
+- **工具链**：AGP `9.5.2`、Gradle `9.6.0`、JDK 21；`compileSdk` 为 `37.1`（`release(37) { minorApiLevel = 1 }`）。本机 JDK 路径仅在当前进程配置，不写入受跟踪文件。
+- **UI 框架**：Jetpack Compose BOM `2026.11.01`、Compose `1.13.0`、Material 3 `1.5.0`，采用 Material 3 Expressive（MD3E）与单 Activity 架构；依赖基线以 Gradle 配置为准。
+- **本地 UI 验证**：Robolectric + Roborazzi `1.79.0`，原生图形模式与无损 WebP，验证范围遵循第 0 节。
+- **桌面小组件**：Jetpack Glance `1.2.0`（`glance-appwidget`、`glance-material3` 同版本），用于单键、遥控面板和电器状态小组件；以 Glance 实现静态 MD3E 视觉，依赖不受 Compose BOM 管理，工程与验证边界见第 8 节。
 - **序列化与存储**：`kotlinx.serialization-json` + `context.filesDir` 下的本地 JSON 文件（纯离线，无云端依赖）
 - **硬件接口**：
   - 内置红外：Android 原生 `android.hardware.ConsumerIrManager`
@@ -88,7 +91,7 @@ UI 层与小组件层不得感知红外信号由内置红外、USB 外设、串�
 
 ## 5. 严格编码规范
 1. **禁止传统 XML 界面布局**：应用页面使用 Jetpack Compose，小组件主体使用 Jetpack Glance。保留 `AndroidManifest.xml`、USB filter 和 Widget provider 元数据；允许必要的字符串、颜色、尺寸、主题、drawable 等 Android XML 资源。`res/layout` 仅允许系统小组件预览、初始加载和组合失败回退所需的最小布局（优先复用 Glance 内置资源），不得借此新增 XML 应用页面或另做一套 XML 小组件主界面。详见第 8 节。
-2. **强制触觉反馈**：Compose 中每次遥控按键触发都必须调用 `LocalHapticFeedback.current.performHapticFeedback(HapticFeedbackType.LongPress)` 或 `VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)`，模拟实体按键触感。
+2. **触觉与无声点击**：Compose 中每次遥控按键触发都必须调用 `LocalHapticFeedback.current.performHapticFeedback(HapticFeedbackType.LongPress)` 或 `VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)`，模拟实体按键触感。所有应用点击音保持关闭：主题统一使用 `SoundEffectOnInteraction(enabled = false)`，Dialog、Popup 等独立宿主也须保持无声，不局部开启 Compose `clickable` 默认音效或添加自定义点击音；保留现有触觉反馈。
 3. **非阻塞硬件 I/O**：将 `ConsumerIrManager.transmit()` 与 USB/串口传输封装在 `withContext(Dispatchers.IO)` 中执行，确保高频连按不会阻塞主线程与 UI 帧率。
 4. **防御性硬件检查**：妥善处理缺失 `FEATURE_CONSUMER_IR` 及 USB 动态插拔事件，严禁崩溃；在无红外硬件的设备或模拟器上提供模拟/日志模式。
 5. **复用成熟协议实现（避免重复造轮子）**：当遇到红外发射失败、硬件通信、协议编码或码库异常时，优先对照 [USB 红外协议说明](docs/USB_IR_PROTOCOLS.md) 与成熟的开源红外协议实现（Android 原生 `ConsumerIrManager`、各类 USB 红外外设帧格式、NEC/Raw/空调状态码编码逻辑）进行排查。
@@ -123,17 +126,23 @@ UI 层与小组件层不得感知红外信号由内置红外、USB 外设、串�
 ## 7. 设计规范
 
 - 界面视觉、配色、字体、间距、组件样式、动效与交互设计统一以 [DESIGN.md](DESIGN.md) 与 `ui/theme/`（`Color.kt`、`Shape.kt`、`Spacing.kt`、`Theme.kt`、`Type.kt`）为准；涉及 UI 设计或修改时，先阅读并遵循 [DESIGN.md](DESIGN.md)。
-- 涉及 Material 3 组件、Jetpack Compose / Glance 或 Android 系统 API 时，优先查阅 Android Developers 官方文档（`https://developer.android.com`）与 Material Design 3 官方规范（`https://m3.material.io/components`），并结合当前工程依赖版本核实 API 与默认令牌行为。
-- Compose 圆角遵循项目 Material 3 版本的组件默认形状和 `Shapes()` 主题令牌，不设全应用统一半径或覆盖标准组件绘制；小组件外框仍遵循系统 Host。
+- 应用设计系统为 MD3E：主题使用 `MaterialExpressiveTheme` 和 `MotionScheme.expressive()`；新增 UI 优先使用 MD3E 组件，动效从 `MaterialTheme.motionScheme`（或 `AppMotion.current`）读取弹簧参数，不另建固定时长体系。密集遥控区可局部使用 `MotionScheme.standard()` 降低弹跳，保持触控位置与命令次数稳定。
+- 模式、风速、挡位和筛选优先使用 `ButtonGroup` / `ToggleButton`，明确保留选择与无障碍语义；合适的操作区使用 `HorizontalFloatingToolbar`，多动作入口按场景评估 `FloatingActionButtonMenu` / `SplitButtonLayout`。加载使用 `LoadingIndicator` / `ContainedLoadingIndicator` / `LinearWavyProgressIndicator`，真实倒计时与确定进度不得用装饰动画代替。窄屏、大字号和长译文允许换行、滚动或纵向布局。
+- 涉及 MD3E 组件、Jetpack Compose / Glance 或 Android 系统 API 时，优先查阅 Android Developers 官方文档（`https://developer.android.com`）与 Material Design 3 官方规范（`https://m3.material.io/components`），并结合当前工程依赖版本核实 API 与默认令牌行为。
+- Compose 圆角遵循项目 Material 3 版本的组件默认形状和 `Shapes()` 主题令牌；支持形变的按钮优先使用组件 `shapes` 参数及官方默认值。自定义遥控按键使用主题弹簧驱动轻微按压形变，不缩小触控目标，不改变按键布局、连按和发射逻辑；不设全应用统一半径或覆盖标准组件绘制。小组件外框仍遵循系统 Host。
+- 完整保留 Material You 动态取色与 `pureBlackBackground`：AMOLED 纯黑只覆盖既定基础表面，容器对比度与动态色来源保持现有逻辑。UI 迁移和样式调整不得改动 ViewModel 业务逻辑、红外发射或外设通信，也不得顺带修改 `cpp/`、`hardware/`。普通 App UI 任务不顺带改动 `widget/`；明确的小组件任务遵循第 8 节。
 
 ## 8. 桌面小组件工程边界
 
 桌面小组件的视觉、官方依据表、响应式断点、系统圆角及按钮/文案禁令统一以 [DESIGN.md](DESIGN.md) 第 9 节为准；工程实现、配置与生命周期须遵守以下边界：
 
-- 主体使用 Glance；配置页使用 Compose，允许满足系统结果契约的最小配置 Activity。新小组件先说明场景、信息、首要操作与至少三种空间布局，再确定依赖、SizeMode、状态及验收方案。核对当前 Gradle 兼容性，不假定 Compose BOM 管理 Glance，不为套用示例自动升级工具链。
+- 主体使用 Glance `1.2.0`，通过静态形状、主次容器、配色和字重表达 MD3E，与应用 Compose 界面独立维护；不嵌入 `MaterialExpressiveTheme`、Compose 控件、按压形变或 `MotionScheme` 弹簧。配置页使用 Compose，允许满足系统结果契约的最小配置 Activity。新小组件先说明场景、信息、首要操作与至少三种空间布局，再确定依赖、SizeMode、状态及验收方案。核对当前 Gradle 兼容性，不假定 Compose BOM 管理 Glance，不为套用示例自动升级工具链。
+- Glance 独立组合没有 Compose UI `LocalOwner`；应用启动与 Robolectric 共用 `ComposeCompatibility.initialize()`，仅关闭 `ComposeUiFlags.isVectorDrawCacheSharingEnabled`，R8 保持相同值。保留其他 Compose 优化与独立矢量缓存，不使用仅测试生效的绕过。升级依赖时核对该兼容开关，并通过真实小组件预览测试验证后再调整。
 - 发射统一经过共用仓库、命令提交管线与 `IrTransmitterManager`，支持冷进程初始化和共享互斥。按 AppWidget id 持久化绑定，Action 使用稳定 ID 并重新读取、校验最新数据；模拟状态不得覆盖真实已保存状态，模拟通道沿用 App 设置，不提供独立演示模式选项。
 - 快速点击采用明确的有界策略，不能静默合并加减或积累无界队列；不把物理发射交给延迟重试任务，不在授权、重连、恢复或刷新时自动重放。刷新只读取本地数据；默认 `updatePeriodMillis=0`。
-- 以实际 Host 空间布局，优先共享 Responsive 尺寸桶，不能把 options 或 LocalSize 当作精确测量。日夜、动态色和 App 主题偏好变化须同步更新。
+- 以实际 Host 空间布局，共享 `WidgetLayoutSizes` 与预览尺寸桶，不能把 options 或 LocalSize 当作精确测量。主操作保持突出；副操作可按布局使用 `CircleIconButton`、`SquareIconButton` 或静态胶囊，热区不小于 48dp、间距不小于 8dp，关键文字使用适当字重。尺寸变化调整信息和列数，不等比缩小内容；具体形状、颜色与文字规则见 `DESIGN.md` 第 9 节。
+- 修改小组件视觉后同步校验真实 Glance 内容、配置预览和 Launcher 静态预览，覆盖四种语言、日夜、窄高尺寸与 200% 字号。配置预览允许滚动但禁止执行发射、跳转或播放音效；滚动新增的行同样受此限制。选择器图片复用 `WidgetPickerPreviewRoborazziTest` 生成并审阅后同步到对应 drawable，不另画一套布局。
+- 日夜、动态色和 App 颜色模式变化须同步更新。`WidgetVisualTheme` 从主 App 默认或动态方案映射颜色，`LocalWidgetSurfaces` 区分背景与内部容器；主键/电源使用 `SquareIconButton` 和主色，副键使用 `CircleIconButton` 及容器色。该桥接不等于在 RemoteViews 嵌入 Compose 主题；当前小组件未读取 `pureBlackBackground`，不得宣称已继承 AMOLED 覆盖。
 - 数据持久化后更新所有受影响实例，并处理活跃 Glance 会话、加载/错误回退、删除、恢复、ID 映射及失效绑定。配置先设 `RESULT_CANCELED`，保存更新后用相同 ID 返回 `RESULT_OK`；取消重配保留旧配置，删除 Widget 只删除实例设置。
 - 保留各具体 `GlanceAppWidget` 的独立类身份及 `ActionCallback` 反射入口；R8 映射检查、optimized 包及真实 Launcher 验证的启动边界按第 0 节执行，未验证项不得记为通过。
 

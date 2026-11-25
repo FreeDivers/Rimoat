@@ -123,8 +123,8 @@ roborazzi {
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.11.01")
     implementation(composeBom)
-    implementation("androidx.glance:glance-appwidget:1.1.1")
-    implementation("androidx.glance:glance-material3:1.1.1")
+    implementation("androidx.glance:glance-appwidget:1.2.0")
+    implementation("androidx.glance:glance-material3:1.2.0")
     implementation("androidx.work:work-runtime-ktx:2.7.1")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")

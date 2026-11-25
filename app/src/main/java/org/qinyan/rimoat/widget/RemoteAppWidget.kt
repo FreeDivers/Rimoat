@@ -26,11 +26,9 @@ import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.components.CircleIconButton
+import androidx.glance.appwidget.components.SquareIconButton
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.layout.*
-import androidx.glance.material3.ColorProviders
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -45,8 +43,6 @@ import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.ui.components.controlAppearance
 import org.qinyan.rimoat.ui.components.getIconVector
 import org.qinyan.rimoat.ui.components.getCategoryIcon
-import org.qinyan.rimoat.ui.theme.DarkColorScheme
-import org.qinyan.rimoat.ui.theme.LightColorScheme
 
 class SingleRemoteWidget : RemoteAppWidget(WidgetKind.SINGLE)
 class RemotePanelWidget : RemoteAppWidget(WidgetKind.PANEL)
@@ -88,22 +84,7 @@ open class RemoteAppWidget(private val kind: WidgetKind) : GlanceAppWidget(error
 
 @Composable
 internal fun WidgetColorTheme(snapshot: WidgetSnapshot, content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val colors = when {
-        snapshot.dynamicColor && Build.VERSION.SDK_INT >= 31 && snapshot.colorMode == AppColorMode.SYSTEM -> GlanceTheme.colors
-        snapshot.dynamicColor && Build.VERSION.SDK_INT >= 31 -> {
-            val scheme = when (snapshot.colorMode) {
-                AppColorMode.DARK -> dynamicDarkColorScheme(context)
-                AppColorMode.LIGHT -> dynamicLightColorScheme(context)
-                AppColorMode.SYSTEM -> dynamicLightColorScheme(context)
-            }
-            ColorProviders(scheme, scheme)
-        }
-        snapshot.colorMode == AppColorMode.DARK -> ColorProviders(DarkColorScheme, DarkColorScheme)
-        snapshot.colorMode == AppColorMode.LIGHT -> ColorProviders(LightColorScheme, LightColorScheme)
-        else -> ColorProviders(LightColorScheme, DarkColorScheme)
-    }
-    GlanceTheme(colors = colors, content = content)
+    WidgetVisualTheme(snapshot, content)
 }
 
 fun configurationIntent(context: Context, id: Int) = Intent(context, WidgetConfigurationActivity::class.java)
@@ -147,7 +128,7 @@ internal fun RemoteWidgetContent(kind: WidgetKind, widgetId: Int, snapshot: Widg
         else -> context.getString(R.string.widget_open_remote, profile?.name ?: context.getString(R.string.widget_category_remote))
     }
     var background = GlanceModifier.fillMaxSize().appWidgetBackground()
-        .background(ImageProvider(R.drawable.widget_background), colorFilter = ColorFilter.tint(GlanceTheme.colors.widgetBackground))
+        .background(ImageProvider(R.drawable.widget_background), colorFilter = ColorFilter.tint(LocalWidgetSurfaces.current.background))
         .clickable(open)
         .semantics { contentDescription = openDescription }
     if (Build.VERSION.SDK_INT >= 31) background = background.cornerRadius(android.R.dimen.system_app_widget_background_radius)
@@ -181,23 +162,24 @@ private fun StatusMessage(title: String, actionLabel: String, action: Action) {
             Text(actionLabel.ifBlank { title }, style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp), maxLines = 1,
                 modifier = GlanceModifier.semantics { contentDescription = "$title $actionLabel" })
         } else {
-            Text(title, style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp), maxLines = 1)
-            if (actionLabel.isNotBlank()) Text(actionLabel, style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 14.sp), maxLines = 1)
+            Text(title, style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            if (actionLabel.isNotBlank()) Text(actionLabel, style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 14.sp, fontWeight = FontWeight.Medium), maxLines = 1)
         }
     }
 }
 
 @Composable
-private fun Identity(profile: RemoteProfile, modifier: GlanceModifier, compact: Boolean = false) {
+private fun Identity(profile: RemoteProfile, modifier: GlanceModifier, compact: Boolean = false,
+                     showRoom: Boolean = true) {
     val largeFont = LocalWidgetFontScale.current >= 1.5f
     val context = LocalContext.current
     Column(modifier.clickable(actionStartActivity(remoteWidgetIntent(LocalContext.current, profile.id)))
         .semantics { contentDescription = if (profile.room.isBlank()) context.getString(R.string.widget_open_remote, profile.name) else context.getString(R.string.widget_open_remote_room, profile.name, profile.room) },
         verticalAlignment = Alignment.CenterVertically) {
         Text(profile.name,
-            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = if (compact) 14.sp else 16.sp,
-            fontWeight = FontWeight.Medium), maxLines = 1)
-        if (!(compact && largeFont)) {
+            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = if (compact) 14.sp else 18.sp,
+            fontWeight = FontWeight.Bold), maxLines = 1)
+        if (showRoom && !(compact && largeFont)) {
             if (profile.room.isNotBlank()) Text(profile.room, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp), maxLines = 1)
         }
     }
@@ -207,16 +189,25 @@ private fun Identity(profile: RemoteProfile, modifier: GlanceModifier, compact: 
 private fun SingleContent(id: Int, profile: RemoteProfile, config: WidgetConfiguration, state: WidgetSnapshot,
                           feedback: WidgetFeedback?, compact: Boolean, wide: Boolean) {
     val ac = profile.acProtocolId != null && !profile.useStaticAcButtons
+    val largeIdentity = !compact && wide && LocalWidgetFontScale.current >= 1.5f
+    val showRoom = !(largeIdentity && ac && LocalSize.current.height < 208.dp)
+    val identityHeight = when {
+        largeIdentity && showRoom -> 80.dp
+        largeIdentity -> 56.dp
+        else -> 48.dp
+    }
     Row(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
         Column(GlanceModifier.defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
-            Identity(profile, GlanceModifier.fillMaxWidth().height(48.dp), compact = true)
+            Identity(profile, GlanceModifier.fillMaxWidth().height(identityHeight),
+                compact = compact || !wide, showRoom = showRoom)
             if (!compact && ac) {
                 Spacer(GlanceModifier.height(8.dp))
                 AcReading(profile, state, compact = true, showMode = wide)
             }
         }
         Spacer(GlanceModifier.width(8.dp))
-        ShortcutIcon(id, config.shortcuts.first(), state, feedback?.busy == true)
+        ShortcutIcon(id, config.shortcuts.first(), state, feedback?.busy == true,
+            primary = true, size = if (!compact && wide) 56.dp else 48.dp)
     }
 }
 
@@ -274,8 +265,9 @@ private fun PanelKey(id: Int, shortcut: WidgetShortcut, state: WidgetSnapshot, b
                      list: Boolean, showRoom: Boolean) {
     val profile = state.profiles.firstOrNull { it.id == shortcut.remoteId }
     if (list) {
-        Row(GlanceModifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (profile != null) Identity(profile, GlanceModifier.defaultWeight().fillMaxHeight(), compact = true)
+        Row(GlanceModifier.fillMaxWidth().height(48.dp).widgetContainer(LocalWidgetSurfaces.current.container),
+            verticalAlignment = Alignment.CenterVertically) {
+            if (profile != null) Identity(profile, GlanceModifier.defaultWeight().fillMaxHeight().padding(start = 8.dp), compact = true)
             else Text(LocalContext.current.getString(R.string.widget_removed), modifier = GlanceModifier.defaultWeight(),
                 style = TextStyle(color = GlanceTheme.colors.error, fontSize = 14.sp), maxLines = 1)
             Spacer(GlanceModifier.width(8.dp))
@@ -285,7 +277,7 @@ private fun PanelKey(id: Int, shortcut: WidgetShortcut, state: WidgetSnapshot, b
         ShortcutIcon(id, shortcut, state, busy)
         Spacer(GlanceModifier.height(4.dp))
         Text(profile?.name ?: LocalContext.current.getString(R.string.widget_removed), modifier = GlanceModifier.fillMaxWidth(),
-            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 12.sp,
+            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                 textAlign = androidx.glance.text.TextAlign.Center), maxLines = 1)
         if (showRoom && profile?.room?.isNotBlank() == true) Text(profile.room,
             modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant,
@@ -308,32 +300,48 @@ private fun DeviceContent(id: Int, profile: RemoteProfile, config: WidgetConfigu
         Row(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             Column(GlanceModifier.defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
                 if (!largeFont) Text(profile.name, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 12.sp), maxLines = 1)
+                    fontSize = 12.sp, fontWeight = FontWeight.Medium), maxLines = 1)
                 if (ac) AcReading(profile, state, compact = true, showMode = wide && !largeFont)
                 else if (largeFont) Text(profile.name, style = TextStyle(color = GlanceTheme.colors.onSurface,
-                    fontSize = 14.sp), maxLines = 1)
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold), maxLines = 1)
                 else IndependentReading(profile, state, compact = true)
             }
             Spacer(GlanceModifier.width(8.dp))
-            ShortcutIcon(id, first, state, busy)
+            ShortcutIcon(id, first, state, busy, primary = true)
         }
-    } else if (!tall && !wide) {
+    } else if (tall && !wide && rest.size <= columns * 2) {
+        // Keep the reading and both rows of common controls visible in narrow previews.
+        Column(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            DeviceHeader(id, profile, first, state, busy, 48)
+            Spacer(GlanceModifier.height(8.dp))
+            Box(GlanceModifier.fillMaxWidth().height(48.dp).widgetContainer(LocalWidgetSurfaces.current.container),
+                contentAlignment = Alignment.Center) {
+                if (ac) AcReading(profile, state, compact = true) else IndependentReading(profile, state, compact = true)
+            }
+            rest.chunked(columns).forEach { row ->
+                Spacer(GlanceModifier.height(8.dp))
+                KeyRow(id, row, state, busy, GlanceModifier.fillMaxWidth().height(48.dp))
+            }
+        }
+    } else if (!tall && !wide && (!largeFont || LocalSize.current.width < 224.dp)) {
         // At 160dp two 48dp keys plus a temperature cannot share one padded row.
         // Put the reading next to the primary key; keep secondary controls on their own row.
         // Taller two-column buckets (152x208) get a second key row instead of centering
         // one row inside the extra height.
-        val headerHeight = if (largeFont) 64 else 56
+        val headerHeight = if (largeFont) 80 else 56
         val available = height - headerHeight - if (rest.isEmpty()) 0 else 8
         val rowCount = if (rest.isEmpty()) 0 else ((available + 8) / 56).toInt().coerceIn(0, 2)
         Column(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Row(GlanceModifier.fillMaxWidth().height(headerHeight.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(GlanceModifier.fillMaxWidth().height(headerHeight.dp)
+                .widgetContainer(LocalWidgetSurfaces.current.container), verticalAlignment = Alignment.CenterVertically) {
                 Column(GlanceModifier.defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(profile.name, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp), maxLines = 1)
+                    Text(profile.name, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium), maxLines = 1)
                     if (ac) AcReading(profile, state, compact = true, showMode = false)
                     else IndependentReading(profile, state, compact = true)
                 }
                 Spacer(GlanceModifier.width(8.dp))
-                ShortcutIcon(id, first, state, busy)
+                ShortcutIcon(id, first, state, busy, primary = true)
             }
             if (rowCount > 0) {
                 Spacer(GlanceModifier.height(8.dp))
@@ -345,8 +353,8 @@ private fun DeviceContent(id: Int, profile: RemoteProfile, config: WidgetConfigu
         }
     } else {
         val rows = rest.chunked(columns)
-        val headerHeight = if (largeFont) 72 else 48
-        val readingHeight = if (largeFont) 56 else if (tall && ac) 72 else 40
+        val headerHeight = if (largeFont && tall) 80 else if (largeFont) 56 else 48
+        val readingHeight = if (largeFont) 56 else if (tall && ac) 88 else 40
         val needed = headerHeight + 12 + readingHeight + if (rows.isEmpty()) 0 else 12 + rows.size * 56
         if (tall && needed > height) {
             Column(GlanceModifier.fillMaxSize()) {
@@ -365,8 +373,9 @@ private fun DeviceContent(id: Int, profile: RemoteProfile, config: WidgetConfigu
             DeviceHeader(id, profile, first, state, busy, headerHeight)
             if (!tall) {
                 Spacer(GlanceModifier.height(8.dp))
-                Row(GlanceModifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(GlanceModifier.defaultWeight()) {
+                Row(GlanceModifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(GlanceModifier.defaultWeight().fillMaxHeight().widgetContainer(LocalWidgetSurfaces.current.container),
+                        contentAlignment = Alignment.Center) {
                         if (ac) AcReading(profile, state, compact = largeFont, showMode = !largeFont)
                         else IndependentReading(profile, state, compact = true)
                     }
@@ -375,7 +384,8 @@ private fun DeviceContent(id: Int, profile: RemoteProfile, config: WidgetConfigu
                 }
             } else {
                 Spacer(GlanceModifier.height(12.dp))
-                Box(GlanceModifier.fillMaxWidth().height(readingHeight.dp), contentAlignment = Alignment.Center) {
+                Box(GlanceModifier.fillMaxWidth().height(readingHeight.dp).widgetContainer(LocalWidgetSurfaces.current.container),
+                    contentAlignment = Alignment.Center) {
                     if (ac) AcReading(profile, state, expanded = !largeFont) else IndependentReading(profile, state)
                 }
                 if (rows.isNotEmpty()) Spacer(GlanceModifier.height(12.dp))
@@ -389,9 +399,11 @@ private fun DeviceContent(id: Int, profile: RemoteProfile, config: WidgetConfigu
 private fun DeviceHeader(id: Int, profile: RemoteProfile, first: WidgetShortcut, state: WidgetSnapshot,
                          busy: Boolean, height: Int) {
     Row(GlanceModifier.fillMaxWidth().height(height.dp), verticalAlignment = Alignment.CenterVertically) {
-        Identity(profile, GlanceModifier.defaultWeight().fillMaxHeight(), compact = true)
+        Identity(profile, GlanceModifier.defaultWeight().fillMaxHeight(),
+            compact = LocalSize.current.width < 224.dp || (LocalWidgetFontScale.current >= 1.5f && height < 56),
+            showRoom = LocalWidgetFontScale.current < 1.5f || height >= 80)
         Spacer(GlanceModifier.width(8.dp))
-        ShortcutIcon(id, first, state, busy)
+        ShortcutIcon(id, first, state, busy, primary = true)
     }
 }
 
@@ -427,8 +439,8 @@ private fun AcReading(profile: RemoteProfile, snapshot: WidgetSnapshot, compact:
     val label = if (settings.powerOn) "${settings.temperature}°" else LocalContext.current.getString(R.string.widget_off)
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = TextStyle(color = GlanceTheme.colors.onSurface,
-                fontSize = if (compact && LocalWidgetFontScale.current >= 1.5f) 16.sp else if (compact) 20.sp else if (LocalWidgetFontScale.current >= 1.5f) 24.sp else 32.sp),
+            Text(label, style = TextStyle(color = GlanceTheme.colors.primary, fontWeight = FontWeight.Bold,
+                fontSize = if (compact && LocalWidgetFontScale.current >= 1.5f) 16.sp else if (compact) 20.sp else if (LocalWidgetFontScale.current >= 1.5f) 24.sp else 36.sp),
                 maxLines = 1, modifier = GlanceModifier.semantics {
                     contentDescription = if (settings.powerOn) context.getString(R.string.widget_set_temperature, settings.temperature) else context.getString(R.string.widget_power_off)
                 })
@@ -470,14 +482,16 @@ private fun shortcutAction(shortcut: WidgetShortcut): Action = actionRunCallback
     actionParametersOf(SendWidgetCommand.remoteKey to shortcut.remoteId, SendWidgetCommand.buttonKey to shortcut.buttonId))
 
 @Composable
-private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapshot, busy: Boolean) {
+private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapshot, busy: Boolean,
+                         primary: Boolean = false, size: androidx.compose.ui.unit.Dp = 48.dp) {
     val context = LocalContext.current
     val command = state.commands[shortcut.remoteId].orEmpty().firstOrNull { it.id == shortcut.buttonId }
     val profile = state.profiles.firstOrNull { it.id == shortcut.remoteId }
     val enabled = !busy && widgetCommandEnabled(shortcut, profile, state.records[shortcut.remoteId], state.simulated)
     if (command == null) {
-        CircleIconButton(widgetImage(Icons.Rounded.Edit), LocalContext.current.getString(R.string.widget_reselect_button),
+        SquareIconButton(widgetImage(Icons.Rounded.Edit), LocalContext.current.getString(R.string.widget_reselect_button),
             actionStartActivity(configurationIntent(LocalContext.current, id)),
+            modifier = GlanceModifier.size(size),
             backgroundColor = GlanceTheme.colors.errorContainer, contentColor = GlanceTheme.colors.onErrorContainer)
     } else {
         val acAction = widgetAcAction(profile, command)
@@ -486,7 +500,7 @@ private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapsho
         val power = command.isPower(profile, context)
         val active = appearance?.active == true
         val failure = LocalWidgetFeedback.current?.takeIf { it.error && it.shortcut == shortcut }
-        CircleIconButton(widgetImage(if (failure != null) Icons.Rounded.ErrorOutline else widgetCommandVector(profile, command, state, context)),
+        WidgetActionIcon(widgetImage(if (failure != null) Icons.Rounded.ErrorOutline else widgetCommandVector(profile, command, state, context)),
             listOfNotNull(profile?.name, profile?.room?.takeIf { it.isNotBlank() },
                 command.displayLabel(profile, context),
                 if (acAction == AcAction.TIMER && profile != null) {
@@ -495,9 +509,21 @@ private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapsho
                 } else appearance?.state?.let { localizedLabel(it, context) },
                 failure?.let { context.getString(R.string.widget_failure_retry, it.text) }).joinToString(" "),
             shortcutAction(shortcut), enabled = enabled,
-            backgroundColor = when { !enabled -> GlanceTheme.colors.surfaceVariant; failure != null -> GlanceTheme.colors.errorContainer; power -> GlanceTheme.colors.error; active -> GlanceTheme.colors.primary; else -> GlanceTheme.colors.secondaryContainer },
-            contentColor = when { !enabled -> GlanceTheme.colors.outline; failure != null -> GlanceTheme.colors.onErrorContainer; power -> GlanceTheme.colors.onError; active -> GlanceTheme.colors.onPrimary; else -> GlanceTheme.colors.onSecondaryContainer })
+            primary = primary || power, size = size,
+            backgroundColor = when { !enabled -> LocalWidgetSurfaces.current.container; failure != null -> GlanceTheme.colors.errorContainer; primary || power -> GlanceTheme.colors.primary; active -> GlanceTheme.colors.primaryContainer; else -> LocalWidgetSurfaces.current.container },
+            contentColor = when { !enabled -> GlanceTheme.colors.outline; failure != null -> GlanceTheme.colors.onErrorContainer; primary || power -> GlanceTheme.colors.onPrimary; active -> GlanceTheme.colors.onPrimaryContainer; else -> GlanceTheme.colors.onSurface })
     }
+}
+
+@Composable
+private fun WidgetActionIcon(image: ImageProvider, description: String, onClick: Action, enabled: Boolean,
+                             primary: Boolean, size: androidx.compose.ui.unit.Dp,
+                             backgroundColor: androidx.glance.unit.ColorProvider,
+                             contentColor: androidx.glance.unit.ColorProvider) {
+    if (primary) SquareIconButton(image, description, onClick, GlanceModifier.size(size), enabled,
+        backgroundColor = backgroundColor, contentColor = contentColor)
+    else CircleIconButton(image, description, onClick, GlanceModifier.size(size), enabled,
+        backgroundColor = backgroundColor, contentColor = contentColor)
 }
 
 class SendWidgetCommand : ActionCallback {
