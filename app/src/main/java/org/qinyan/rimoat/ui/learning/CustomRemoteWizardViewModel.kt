@@ -91,6 +91,14 @@ data class CustomRemoteWizardUiState(
 
     val canFinishEarly: Boolean
         get() = learnedCount >= 1
+
+    val hasLearningProgress: Boolean
+        get() = keyQueue.any {
+            it.capturedSignal != null ||
+                it.status != KeyLearnStatus.PENDING ||
+                it.builtinLabel == null ||
+                it.id.startsWith("custom_")
+        }
 }
 
 class CustomRemoteWizardViewModel(
@@ -217,7 +225,7 @@ class CustomRemoteWizardViewModel(
     fun setApplianceType(type: ApplianceType) {
         if (_uiState.value.selectedApplianceType == type) return
         _uiState.update {
-            if (it.step == WizardStep.SETUP) {
+            if (it.step == WizardStep.SETUP && !it.hasLearningProgress) {
                 it.copy(
                     category = type.category,
                     applianceType = type,

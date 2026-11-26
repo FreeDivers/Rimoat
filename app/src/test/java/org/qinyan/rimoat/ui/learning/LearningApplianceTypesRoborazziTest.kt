@@ -156,4 +156,55 @@ class LearningApplianceTypesRoborazziTest {
             assertSame(getCategoryIcon(type.catalogCode), getCategoryIcon(restored))
         }
     }
+
+    @Test fun returningFromLearningAndSwitchingTypePreservesLearnedQueueAndCustomKeys() {
+        AppStrings.initialize(app)
+        val learner = org.qinyan.rimoat.hardware.learning.IrLearnerManager(context = null)
+        learner.mockLearner.setSimulatedDelayMs(0L)
+        val vm = CustomRemoteWizardViewModel(learnerManager = learner).also { store.put("switch_preserve", it) }
+        try {
+            compose.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    CustomRemoteWizardScreen(vm, {}, {})
+                }
+            }
+            select(ApplianceType.TV, vm)
+            compose.onNode(hasSetTextAction() and hasText(app.getString(R.string.screen_remote_name)))
+                .performScrollTo().performTextInput("客厅电视")
+            compose.onNodeWithText(app.getString(R.string.screen_start_learning)).performScrollTo().performClick()
+            compose.waitForIdle()
+            assertEquals(WizardStep.LEARNING, vm.uiState.value.step)
+
+            val signal = org.qinyan.rimoat.hardware.IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1690))
+            learner.mockLearner.triggerManualSignal(signal)
+            vm.startLearningCurrentKey()
+            compose.waitUntil(3000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED
+            }
+            vm.confirmCurrentKey()
+            vm.addCustomKey("自定义键")
+            compose.waitForIdle()
+            val expectedQueue = vm.uiState.value.keyQueue
+            val expectedIndex = vm.uiState.value.currentIndex
+
+            compose.onNodeWithContentDescription(app.getString(R.string.screen_back)).performClick()
+            compose.waitForIdle()
+            assertEquals(WizardStep.SETUP, vm.uiState.value.step)
+
+            select(ApplianceType.AC, vm)
+            assertEquals(expectedQueue, vm.uiState.value.keyQueue)
+            assertEquals(expectedIndex, vm.uiState.value.currentIndex)
+
+            compose.onNodeWithText(app.getString(R.string.screen_start_learning)).performScrollTo().performClick()
+            compose.waitForIdle()
+            assertEquals(WizardStep.LEARNING, vm.uiState.value.step)
+            assertEquals(1, vm.uiState.value.learnedCount)
+            assertEquals(expectedQueue, vm.uiState.value.keyQueue)
+            assertEquals(expectedIndex, vm.uiState.value.currentIndex)
+            compose.onNodeWithText("自定义键").performScrollTo().assertIsDisplayed()
+        } finally {
+            learner.cancel()
+        }
+    }
 }

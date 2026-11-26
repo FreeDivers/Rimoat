@@ -49,6 +49,61 @@ class WizardRestorationTest {
         } finally { org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher); Dispatchers.resetMain() }
     }
 
+    @Test fun switchingTypeAfterReturningToSetupPreservesDraftOnDisk() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val dir = java.nio.file.Files.createTempDirectory("wizard-switch-type-").toFile()
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val draft = WizardDrafts.file(dir, UUID.randomUUID().toString())
+            val signal = IrSignal.Raw(patternMicros = intArrayOf(9000, 4500, 560, 1690))
+            val original = CustomRemoteWizardUiState(
+                step = WizardStep.LEARNING,
+                remoteName = "客厅电视",
+                category = org.qinyan.rimoat.data.DeviceCategory.TV,
+                applianceType = org.qinyan.rimoat.data.ApplianceType.TV,
+                currentIndex = 1,
+                keyQueue = listOf(
+                    WizardKeyItem(id = "power", label = "电源", builtinLabel = "电源", status = KeyLearnStatus.LEARNED, capturedSignal = signal),
+                    WizardKeyItem(id = "vol_up", label = "音量+", builtinLabel = "音量+"),
+                    WizardKeyItem(id = "custom_1", label = "睡眠")
+                )
+            )
+            assertTrue(draft.parentFile!!.mkdirs())
+            draft.writeText(Json.encodeToString(CustomRemoteWizardUiState.serializer(), original))
+
+            val vm = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("first", it) }
+            await(dispatcher) { !vm.uiState.value.isRestoring }
+
+            assertTrue(vm.handleBack())
+            assertEquals(WizardStep.SETUP, vm.uiState.value.step)
+
+            vm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.FAN)
+            assertEquals(org.qinyan.rimoat.data.ApplianceType.FAN, vm.uiState.value.selectedApplianceType)
+            assertEquals(original.keyQueue, vm.uiState.value.keyQueue)
+            assertEquals(1, vm.uiState.value.currentIndex)
+
+            await(dispatcher) {
+                val disk = WizardDrafts.read(draft) ?: return@await false
+                Json.decodeFromString<CustomRemoteWizardUiState>(disk).applianceType == org.qinyan.rimoat.data.ApplianceType.FAN
+            }
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+
+            val restored = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("restored", it) }
+            await(dispatcher) { !restored.uiState.value.isRestoring }
+            assertEquals(org.qinyan.rimoat.data.ApplianceType.FAN, restored.uiState.value.selectedApplianceType)
+            assertEquals(1, restored.uiState.value.learnedCount)
+            assertEquals(original.keyQueue, restored.uiState.value.keyQueue)
+            assertEquals(1, restored.uiState.value.currentIndex)
+            assertTrue(restored.proceedToLearning())
+            assertEquals(signal, restored.uiState.value.keyQueue.first().capturedSignal)
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+            dir.deleteRecursively()
+        }
+    }
+
     @Test fun completedWizardDeletesDiskAndSavedStateWithoutRecreatingDraft() {
         val dispatcher = StandardTestDispatcher()
         Dispatchers.setMain(dispatcher)
