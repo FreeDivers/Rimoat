@@ -2,6 +2,8 @@ package org.qinyan.rimoat.hardware.learning
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.hardware.usb.ElkSmartSession
+import org.qinyan.rimoat.hardware.usb.UsbBulkChannel
 import org.qinyan.rimoat.hardware.usb.usbEndpointPairs
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -38,26 +40,50 @@ class ElkSmartUsbLearner private constructor(
         private const val TAG = "ElkSmartUsbLearner"
         private const val AUTHORIZE_RETRY_COUNT = 3
 
-        fun open(usb: UsbManager, device: UsbDevice): ElkSmartUsbLearner? {
+        /** Called on Dispatchers.IO while the learning session owns USB access. */
+        suspend fun open(usb: UsbManager, device: UsbDevice): ElkSmartUsbLearner? {
             if (!UsbDeviceFilter.isElkSmart(device)) return null
             for (i in 0 until device.interfaceCount) {
                 val intf = device.getInterface(i)
-                val pair = usbEndpointPairs(intf).firstOrNull() ?: continue
-                val conn = usb.openDevice(device) ?: return null
-                if (!conn.claimInterface(intf, true)) {
-                    try {
-                        conn.close()
-                    } catch (_: Throwable) {
+                for (transferType in listOf(UsbConstants.USB_ENDPOINT_XFER_BULK, UsbConstants.USB_ENDPOINT_XFER_INT)) {
+                    for (pair in usbEndpointPairs(intf, transferType)) {
+                        currentCoroutineContext().ensureActive()
+                        val conn = usb.openDevice(device) ?: return null
+                        var claimed = false
+                        var selected = false
+                        try {
+                            claimed = conn.claimInterface(intf, true)
+                            if (!claimed) continue
+                            val session = ElkSmartSession(object : UsbBulkChannel {
+                                override fun read(buffer: ByteArray, timeoutMs: Int) =
+                                    conn.bulkTransfer(pair.inEp, buffer, buffer.size, timeoutMs)
+
+                                override fun write(data: ByteArray, timeoutMs: Int) =
+                                    conn.bulkTransfer(pair.outEp, data, data.size, timeoutMs)
+                            })
+                            try {
+                                session.identify()
+                            } catch (_: IOException) {
+                                continue
+                            }
+                            currentCoroutineContext().ensureActive()
+                            val learner = ElkSmartUsbLearner(
+                                device = device,
+                                connection = conn,
+                                claimedInterface = intf,
+                                outEndpoint = pair.outEp,
+                                inEndpoint = pair.inEp
+                            )
+                            selected = true
+                            return learner
+                        } finally {
+                            if (!selected) {
+                                if (claimed) runCatching { conn.releaseInterface(intf) }
+                                runCatching { conn.close() }
+                            }
+                        }
                     }
-                    continue
                 }
-                return ElkSmartUsbLearner(
-                    device = device,
-                    connection = conn,
-                    claimedInterface = intf,
-                    outEndpoint = pair.outEp,
-                    inEndpoint = pair.inEp
-                )
             }
             return null
         }

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal class LazyUsbLearner(
     val deviceName: String,
     override val type: LearnerType,
-    private val open: () -> IrLearner?
+    private val open: suspend () -> IrLearner?
 ) : IrLearner, AutoCloseable {
     private val _available = MutableStateFlow(true)
     override val isAvailable = _available.asStateFlow()
