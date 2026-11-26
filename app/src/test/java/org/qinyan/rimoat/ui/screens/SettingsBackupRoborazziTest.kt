@@ -12,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -38,6 +39,7 @@ import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.BackupFileStore
 import org.qinyan.rimoat.data.DeviceCategory
+import org.qinyan.rimoat.data.FlipperIrImporter
 import org.qinyan.rimoat.data.RemoteBackup
 import org.qinyan.rimoat.data.RemoteBackupCodec
 import org.qinyan.rimoat.data.RemoteButton
@@ -77,6 +79,101 @@ class SettingsBackupRoborazziTest {
             imageIoFormat = LosslessWebPImageIoFormat()
         )
     )
+
+    @Test
+    fun backupAndInfraredImportsSucceedAfterImportingALargeRawLibrary() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val jsonFile = File(app.cacheDir, "small-backup.json")
+        val irFile = File(app.cacheDir, "风扇遥控.ir")
+        try {
+            val repository = RemoteRepository(app, scope)
+            val libraryText = buildString {
+                appendLine("Filetype: IR signals file")
+                appendLine("Version: 1")
+                val pulses = List(1024) { "560" }.joinToString(" ")
+                repeat(384) { index ->
+                    appendLine("name: Key $index")
+                    appendLine("type: raw")
+                    appendLine("frequency: 38000")
+                    appendLine("duty_cycle: 0.33")
+                    appendLine("data: $pulses")
+                }
+            }
+            val library = FlipperIrImporter.decode(libraryText, "Raw library.ir").backup
+            assertTrue(libraryText.toByteArray().size < RemoteBackupCodec.MAX_BYTES)
+            assertTrue(RemoteBackupCodec.encode(library).toByteArray().size > RemoteBackupCodec.MAX_BYTES)
+            runBlocking {
+                repository.awaitLoaded()
+                assertEquals(library.remotes.size, repository.importBackup(library, emptyMap()))
+            }
+            val incoming = RemoteProfile(id = "small_backup", name = "客厅电视", category = DeviceCategory.TV)
+            jsonFile.writeText(RemoteBackupCodec.encode(listOf(incoming)))
+            irFile.writeText("""
+                Filetype: IR signals file
+                Version: 1
+                name: Power
+                type: raw
+                frequency: 38000
+                duty_cycle: 0.33
+                data: 9000 4500 560
+            """.trimIndent())
+            val viewModel = RemoteListViewModel(
+                repository = repository,
+                transmitterManager = IrTransmitterManager(app, scope),
+                themePreferences = ThemePreferences(app),
+                backupFiles = BackupFileStore(app)
+            )
+            val picker = TestDocumentPicker()
+            showSettings(viewModel, picker)
+
+            for ((kind, file) in listOf("backup" to jsonFile, "infrared" to irFile)) {
+                val before = repository.remotes.value
+                val inputUri = Uri.Builder().scheme("content").authority("org.qinyan.rimoat.test.backups")
+                    .appendPath(file.name).build()
+                Shadows.shadowOf(app.contentResolver).registerInputStreamSupplier(inputUri) { file.inputStream() }
+                val action = app.getString(if (file == irFile) R.string.migration_ir_import else R.string.settings_import_backup)
+                composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(action))
+                composeRule.onNodeWithText(action).performClick()
+                if (file == irFile) {
+                    composeRule.onNodeWithText(app.getString(R.string.migration_choose_file)).performClick()
+                }
+                assertTrue(picker.launchedContract is ActivityResultContracts.OpenDocument)
+                composeRule.runOnIdle { picker.select(inputUri) }
+                composeRule.waitUntil(timeoutMillis = 30_000) {
+                    Shadows.shadowOf(Looper.getMainLooper()).idle()
+                    !viewModel.transferBusy.value && viewModel.pendingImport.value != null
+                }
+                assertEquals(if (file == irFile) "风扇遥控" else incoming.name,
+                    viewModel.pendingImport.value!!.backup.remotes.single().name)
+                composeRule.onNodeWithText(app.getString(R.string.migration_import_title)).assertIsDisplayed()
+                composeRule.onNode(isDialog()).captureRoboImage(
+                    "src/test/screenshots/large_library_${kind}_before.webp", roborazziOptions = screenshotOptions
+                )
+                composeRule.onNodeWithText(app.getString(R.string.migration_import_confirm)).performClick()
+                val success = app.resources.getQuantityString(R.plurals.msg_import_finished, 1, 1)
+                composeRule.waitUntil(timeoutMillis = 30_000) {
+                    Shadows.shadowOf(Looper.getMainLooper()).idle()
+                    !viewModel.transferBusy.value &&
+                        composeRule.onAllNodesWithText(success).fetchSemanticsNodes().isNotEmpty()
+                }
+                assertNull(viewModel.errorMessage.value)
+                assertNull(viewModel.pendingImport.value)
+                assertEquals(before.size + 1, repository.remotes.value.size)
+                assertTrue(repository.remotes.value.containsAll(before))
+                assertEquals(before, runBlocking { repository.readRecoverySnapshot() }.remotes)
+                composeRule.onNodeWithText(success).assertIsDisplayed()
+                composeRule.onRoot().captureRoboImage(
+                    "src/test/screenshots/large_library_${kind}_after.webp", roborazziOptions = screenshotOptions
+                )
+            }
+        } finally {
+            jsonFile.delete()
+            irFile.delete()
+            runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
+        }
+    }
 
     @Test
     fun backupAllRemotesLaunchesDocumentPickerDirectlyWithoutConfirmationDialog() {

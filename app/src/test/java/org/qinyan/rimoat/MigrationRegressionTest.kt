@@ -84,31 +84,32 @@ class MigrationRegressionTest {
         .filter { it.isFile }
         .associate { it.relativeTo(dir).invariantSeparatorsPath to it.readBytes() }
 
-    private fun assertFileBytes(expected: Map<String, ByteArray>, dir: File) {
-        val actual = fileBytes(dir)
-        assertEquals(expected.keys, actual.keys)
-        expected.forEach { (path, bytes) -> assertArrayEquals(path, bytes, actual.getValue(path)) }
-    }
-
-    private suspend fun assertSnapshotPreflightFailure(repo: RemoteRepository, dir: File, prefs: MemoryPreferences) {
+    private suspend fun assertImportWithRecoverySnapshot(repo: RemoteRepository, dir: File, prefs: MemoryPreferences) {
         prefs.values["use_dynamic_color"] = false
         prefs.values["pure_black_background"] = true
-        val snapshot = File(dir, "migration/before-import.json")
-        assertTrue(snapshot.isFile)
-        val priorSnapshot = snapshot.readBytes()
-        val beforeFiles = fileBytes(dir)
-        val beforePreferences = prefs.values.toMap()
+        val beforeRemotes = repo.remotes.value
+        val beforeRooms = repo.rooms.value
+        val beforeFiles = fileBytes(File(dir, "remotes"))
+        val incoming = remote.copy(id = "migration_incoming", room = "Imported room")
 
-        val failure = runCatching {
-            repo.importBackup(RemoteBackup(remotes = listOf(remote.copy(id = "migration_preflight_incoming"))),
-                emptyMap(), PortablePreferences(true, false))
-        }.exceptionOrNull()
-        assertNotNull("Oversized recovery snapshots must fail before writes", failure)
+        assertEquals(1, repo.importBackup(RemoteBackup(remotes = listOf(incoming)),
+            emptyMap(), PortablePreferences(true, false)))
 
-        assertFileBytes(beforeFiles, dir)
-        assertArrayEquals(priorSnapshot, snapshot.readBytes())
-        assertEquals(beforePreferences, prefs.values)
+        beforeFiles.forEach { (path, bytes) -> assertArrayEquals(path, bytes, File(dir, "remotes/$path").readBytes()) }
+        assertEquals(beforeRemotes.size + 1, repo.remotes.value.size)
+        assertEquals(incoming, repo.getRemote(incoming.id))
+        assertTrue("Imported room" in repo.rooms.value)
+        assertEquals(PortablePreferences(true, false), repo.portablePreferences())
+        val snapshot = repo.readRecoverySnapshot()
+        assertEquals(beforeRemotes, snapshot.remotes)
+        assertEquals(beforeRooms, snapshot.rooms)
+        assertEquals(PortablePreferences(false, true), snapshot.preferences)
+        assertFalse(File(dir, "migration/before-import.json").readText().contains('\n'))
         assertFalse(File(dir, "migration/pending.json").exists())
+        repo.loadAllRemotes()
+        assertEquals(beforeRemotes.size + 1, repo.remotes.value.size)
+        assertEquals(incoming, repo.getRemote(incoming.id))
+        assertEquals(snapshot, repo.readRecoverySnapshot())
     }
 
     @Test fun migrationIncludesEmptyRoomsAndPreservesSnapshotBeforeOverwrite() = storage { repo, _, prefs ->
@@ -163,43 +164,72 @@ class MigrationRegressionTest {
         assertFalse(journal.exists())
     }
 
-    @Test fun snapshotPreflightRejectsMoreThanFiveHundredExistingProfilesWithoutMutation() = storage { repo, dir, prefs ->
-        repeat(500) { index ->
-            val id = "migration_preflight_profile_$index"
-            repo.saveRemote(remote.copy(id = id, name = id))
-        }
-        repo.importBackup(RemoteBackup(remotes = emptyList()), emptyMap())
-        val extra = remote.copy(id = "migration_preflight_profile_500", name = "migration_preflight_profile_500")
-        repo.saveRemote(extra)
+    @Test fun importAndRecoveryAllowMoreThanFiveHundredExistingProfiles() = storage { repo, dir, prefs ->
+        repo.importRemotes(List(500) { index -> remote.copy(id = "migration_profile_$index") }, ImportMode.MERGE)
+        repo.saveRemote(remote.copy(id = "migration_profile_500"))
 
-        assertSnapshotPreflightFailure(repo, dir, prefs)
-        assertEquals(501, repo.remotes.value.size)
-        assertNotNull(repo.getRemote(extra.id))
+        assertImportWithRecoverySnapshot(repo, dir, prefs)
+        assertEquals(501, repo.readRecoverySnapshot().remotes.size)
     }
 
-    @Test fun snapshotPreflightRejectsMoreThanFiveHundredIndependentRoomsWithoutMutation() = storage { repo, dir, prefs ->
-        repeat(500) { index -> repo.editRoom(null, "migration_preflight_room_$index") }
-        repo.importBackup(RemoteBackup(remotes = emptyList()), emptyMap())
-        repo.editRoom(null, "migration_preflight_room_500")
+    @Test fun importAndRecoveryAllowMoreThanFiveHundredIndependentRooms() = storage { repo, dir, prefs ->
+        repo.importBackup(RemoteBackup(remotes = emptyList(), rooms = List(500) { "Room $it" }), emptyMap())
+        repo.editRoom(null, "Room 500")
 
-        assertSnapshotPreflightFailure(repo, dir, prefs)
-        assertEquals(501, repo.rooms.value.size)
-        assertTrue("migration_preflight_room_500" in repo.rooms.value)
+        assertImportWithRecoverySnapshot(repo, dir, prefs)
+        assertEquals(501, repo.readRecoverySnapshot().rooms.size)
     }
 
-    @Test fun snapshotPreflightRejectsValidProfileDataOverEightMiBWithoutMutation() = storage { repo, dir, prefs ->
-        repo.importBackup(RemoteBackup(remotes = emptyList()), emptyMap())
+    @Test fun importAndRecoveryAllowCompactSnapshotsOverEightMiB() = storage { repo, dir, prefs ->
         val longPattern = List(20_000) { 99 }
-        val oversized = remote.copy(id = "migration_preflight_large", name = "Large profile",
+        val oversized = remote.copy(id = "migration_large", name = "Large profile",
             buttons = List(145) { index -> RemoteButton("raw_$index", "Key $index", rawPattern = longPattern) })
         RemoteBackupCodec.validate(oversized)
-        assertTrue(RemoteBackupCodec.encode(RemoteBackup(remotes = listOf(oversized)))
+        assertTrue(RemoteBackupCodec.encodeRecoverySnapshot(RemoteBackup(remotes = listOf(oversized)))
             .toByteArray(Charsets.UTF_8).size > RemoteBackupCodec.MAX_BYTES)
         repo.saveRemote(oversized)
         val savedOversized = checkNotNull(repo.getRemote(oversized.id))
 
-        assertSnapshotPreflightFailure(repo, dir, prefs)
+        assertImportWithRecoverySnapshot(repo, dir, prefs)
+        val snapshotFile = File(dir, "migration/before-import.json")
+        assertTrue(snapshotFile.length() > RemoteBackupCodec.MAX_BYTES)
+        assertTrue(runCatching { RemoteBackupCodec.decodeBackup(snapshotFile.readText()) }.isFailure)
         assertEquals(savedOversized, repo.getRemote(oversized.id))
+    }
+
+    @Test fun recoveryReadsPrettyPrintedSnapshotsAndStillRejectsInvalidContents() {
+        val backup = RemoteBackup(remotes = listOf(remote), rooms = listOf(remote.room),
+            preferences = PortablePreferences(false, true))
+        assertEquals(backup, RemoteBackupCodec.decodeRecoverySnapshot(RemoteBackupCodec.encode(backup)))
+        val invalid = listOf(
+            backup.copy(format = "unknown"), backup.copy(version = 3),
+            backup.copy(remotes = listOf(remote, remote)),
+            backup.copy(remotes = listOf(remote.copy(id = "../outside"))),
+            backup.copy(remotes = listOf(remote.copy(buttons = listOf(RemoteButton("bad", "Bad", rawPattern = listOf(0)))))),
+            backup.copy(rooms = listOf(" ")), backup.copy(rooms = listOf("Room", "Room")),
+            backup.copy(rooms = listOf("x".repeat(61)))
+        )
+        invalid.forEach {
+            assertTrue(runCatching { RemoteBackupCodec.decodeRecoverySnapshot(RemoteBackupCodec.encode(it)) }.isFailure)
+        }
+        assertTrue(runCatching { RemoteBackupCodec.decodeRecoverySnapshot("{") }.isFailure)
+    }
+
+    @Test fun externalImportsStillRejectProfileAndRoomCountsBeforeAnyWrites() = storage { repo, dir, _ ->
+        repo.saveRemote(remote)
+        repo.importBackup(RemoteBackup(remotes = emptyList()), emptyMap())
+        val beforeFiles = fileBytes(dir)
+        val invalid = listOf(
+            RemoteBackup(remotes = List(501) { remote.copy(id = "external_$it") }),
+            RemoteBackup(remotes = emptyList(), rooms = List(501) { "Room $it" })
+        )
+        invalid.forEach { backup ->
+            assertTrue(runCatching { RemoteBackupCodec.decodeBackup(RemoteBackupCodec.encode(backup)) }.isFailure)
+            assertTrue(runCatching { repo.importBackup(backup, emptyMap()) }.isFailure)
+            val actual = fileBytes(dir)
+            assertEquals(beforeFiles.keys, actual.keys)
+            beforeFiles.forEach { (path, bytes) -> assertArrayEquals(path, bytes, actual.getValue(path)) }
+        }
     }
 
     @Test fun portablePreferencesNeverExportSystemOrHardwareIdentities() = storage { repo, _, prefs ->

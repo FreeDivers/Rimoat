@@ -38,8 +38,16 @@ object RemoteBackupCodec {
     const val MAX_BYTES = 8 * 1024 * 1024
     const val MAX_PROFILES = 500
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = true }
+    private val snapshotJson = Json(json) { prettyPrint = false }
     fun encode(profiles: List<RemoteProfile>): String = encode(RemoteBackup(remotes = profiles))
     fun encode(backup: RemoteBackup): String = json.encodeToString(RemoteBackup.serializer(), backup)
+    // Internal snapshots cover the entire local library, not a single external import.
+    internal fun encodeRecoverySnapshot(backup: RemoteBackup): String =
+        snapshotJson.encodeToString(RemoteBackup.serializer(), backup)
+
+    internal fun decodeRecoverySnapshot(text: String): RemoteBackup =
+        snapshotJson.decodeFromString(RemoteBackup.serializer(), text).also(::validateContents)
+
     fun decode(text: String): List<RemoteProfile> = decodeBackup(text).remotes
     fun decodeBackup(text: String): RemoteBackup {
         require(text.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { AppStrings.get(R.string.msg_backup_too_large, "备份超过 8 MB") }
@@ -53,10 +61,15 @@ object RemoteBackupCodec {
         return backup.copy(rooms = (backup.rooms + backup.remotes.map { it.room }).filter { it.isNotBlank() }.distinct())
     }
     fun validateBackup(backup: RemoteBackup) {
-        require(backup.format == "rimoat.backup" && backup.version in 1..2) { AppStrings.get(R.string.msg_backup_format_unsupported) }
         require(backup.remotes.size <= MAX_PROFILES) { AppStrings.get(R.string.msg_backup_profile_count, "备份须包含 1–%1\$s 个遥控器", MAX_PROFILES.toString()) }
+        require(backup.rooms.size <= 500) { AppStrings.get(R.string.msg_name_room_invalid, "名称或房间不合法") }
+        validateContents(backup)
+    }
+
+    private fun validateContents(backup: RemoteBackup) {
+        require(backup.format == "rimoat.backup" && backup.version in 1..2) { AppStrings.get(R.string.msg_backup_format_unsupported) }
         require(backup.remotes.map { it.id }.distinct().size == backup.remotes.size) { AppStrings.get(R.string.msg_backup_duplicate_ids, "备份包含重复的遥控器标识") }
-        require(backup.rooms.size <= 500 && backup.rooms.all { it.isNotBlank() && it.length <= 60 } && backup.rooms.distinct().size == backup.rooms.size) { AppStrings.get(R.string.msg_name_room_invalid, "名称或房间不合法") }
+        require(backup.rooms.all { it.isNotBlank() && it.length <= 60 } && backup.rooms.distinct().size == backup.rooms.size) { AppStrings.get(R.string.msg_name_room_invalid, "名称或房间不合法") }
         backup.remotes.forEach(::validate)
     }
     fun plan(backup: RemoteBackup, existingIds: Set<String>, choices: Map<String, ConflictChoice>): List<RemoteProfile> =

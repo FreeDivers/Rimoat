@@ -346,7 +346,7 @@ class RemoteRepository(
         mutex.withLock {
             recoverMigration()
             check(recoverySnapshot.exists()) { AppStrings.get(R.string.migration_no_snapshot) }
-            RemoteBackupCodec.decodeBackup(recoverySnapshot.readText())
+            RemoteBackupCodec.decodeRecoverySnapshot(recoverySnapshot.readText())
         }
     }
 
@@ -383,9 +383,9 @@ class RemoteRepository(
             val originals = writes.keys.associateWith { migrationTarget(it).takeIf(File::exists)?.readText() }
             val currentPreferences = portablePreferences()
             val oldPreferences = preferences?.let { currentPreferences }
-            val snapshotText = RemoteBackupCodec.encode(RemoteBackup(
+            val snapshotText = RemoteBackupCodec.encodeRecoverySnapshot(RemoteBackup(
                 remotes = _remotes.value, rooms = _rooms.value, preferences = currentPreferences))
-            RemoteBackupCodec.decodeBackup(snapshotText)
+            RemoteBackupCodec.decodeRecoverySnapshot(snapshotText)
             AtomicLocalFile.write(recoverySnapshot, snapshotText)
             AtomicLocalFile.write(migrationJournal, json.encodeToString(MigrationJournal(originals, oldPreferences)))
             try {
