@@ -92,7 +92,7 @@ class RemoteCommandExecutor(
     private val readProfile: suspend (String) -> RemoteProfile?,
     private val commitSettings: suspend (String, AcSettings) -> Unit,
     private val encoder: AcSignalEncoder,
-    private val route: () -> TransmitterType,
+    private val route: suspend () -> TransmitterType,
     private val transmit: suspend (List<IrSignal>, String?, TransmitterType, suspend () -> Unit) -> TransmissionReceipt,
     val journal: RemoteCommandJournal
 ) {

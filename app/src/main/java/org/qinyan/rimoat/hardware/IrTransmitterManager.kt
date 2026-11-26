@@ -103,7 +103,7 @@ class IrTransmitterManager(
     init {
         registerReceivers()
         if (deferInitialHardwareCheck) {
-            scope.launch(Dispatchers.IO) { refreshHardware() }
+            scope.launch(Dispatchers.IO) { awaitInitialHardwareCheck() }
         }
     }
 
@@ -150,18 +150,22 @@ class IrTransmitterManager(
 
     suspend fun refreshHardware() = withContext(Dispatchers.IO) {
         hardwareRefreshMutex.withLock {
-            val sharedUsbDevices = try {
-                (appContext.getSystemService(Context.USB_SERVICE) as? UsbManager)?.deviceList?.values
-            } catch (_: Throwable) {
-                null
-            }
-            try { tiqiaaTransmitter.refreshState(sharedUsbDevices) } catch (_: Throwable) {}
-            try { elkSmartTransmitter.refreshState(sharedUsbDevices) } catch (_: Throwable) {}
-            try { usbSerialTransmitter.refreshState() } catch (_: Throwable) {}
-            try { audioTransmitter.refreshState() } catch (_: Throwable) {}
-            try { builtInTransmitter.checkHardwareAvailability() } catch (_: Throwable) {}
-            initialHardwareChecked = true
+            refreshHardwareLocked()
         }
+    }
+
+    private fun refreshHardwareLocked() {
+        val sharedUsbDevices = try {
+            (appContext.getSystemService(Context.USB_SERVICE) as? UsbManager)?.deviceList?.values
+        } catch (_: Throwable) {
+            null
+        }
+        try { tiqiaaTransmitter.refreshState(sharedUsbDevices) } catch (_: Throwable) {}
+        try { elkSmartTransmitter.refreshState(sharedUsbDevices) } catch (_: Throwable) {}
+        try { usbSerialTransmitter.refreshState() } catch (_: Throwable) {}
+        try { audioTransmitter.refreshState() } catch (_: Throwable) {}
+        try { builtInTransmitter.checkHardwareAvailability() } catch (_: Throwable) {}
+        initialHardwareChecked = true
     }
 
     fun setForceMockMode(forced: Boolean) {
@@ -262,7 +266,21 @@ class IrTransmitterManager(
 
     private val transmitMutex = Mutex()
 
+    suspend fun awaitInitialHardwareCheck() {
+        if (initialHardwareChecked) return
+        withContext(Dispatchers.IO) {
+            hardwareRefreshMutex.withLock {
+                if (!initialHardwareChecked) refreshHardwareLocked()
+            }
+        }
+    }
+
     fun currentTransmitterType(): TransmitterType = resolveActiveTransmitter().type
+
+    suspend fun currentTransmitterTypeAfterCheck(): TransmitterType {
+        awaitInitialHardwareCheck()
+        return resolveActiveTransmitter().type
+    }
 
     suspend fun transmit(signal: IrSignal, ownerId: String? = null): Result<Unit> = transmitSequence(listOf(signal), ownerId)
 
@@ -275,7 +293,7 @@ class IrTransmitterManager(
         beforeTransmission: suspend () -> Unit = {}
     ): Result<TransmissionReceipt> = withContext(Dispatchers.IO) {
         transmitMutex.withLock {
-            if (!initialHardwareChecked) refreshHardware()
+            awaitInitialHardwareCheck()
             // Read the source settings synchronously here. The derived StateFlow
             // may still be waiting for its dispatcher after a user changes the
             // channel; a send must never use the previous route in that window.

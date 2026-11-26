@@ -382,7 +382,7 @@ class RemoteControlViewModel(
                         result?.warning?.let { _operationError.value = it }
                         return@withLock
                     }
-                    val countKey = "${if (transmitterManager?.currentTransmitterType() == TransmitterType.MOCK) "demo" else "real"}:${button.id}"
+                    val countKey = "${if (transmitterManager?.currentTransmitterTypeAfterCheck() == TransmitterType.MOCK) "demo" else "real"}:${button.id}"
                     val index = pressCounts[countKey] ?: 0
                     val signal = button.toIrSignal(index)
                     if (transmitterManager != null) {
@@ -417,7 +417,7 @@ class RemoteControlViewModel(
                     val encoder = acSignalEncoder ?: throw UiTextException(UiText.Resource(R.string.msg_ac_state_library_unavailable))
                     if (profile.useStaticAcButtons) throw UiTextException(UiText.Resource(R.string.msg_learned_ac_use_panel))
                     val protocol = profile.acProtocolId ?: throw UiTextException(UiText.Resource(R.string.msg_independent_codes_no_state))
-                    val route = transmitterManager?.currentTransmitterType()
+                    val route = transmitterManager?.currentTransmitterTypeAfterCheck()
                     val base = if (route == TransmitterType.MOCK) _demoState.value ?: _acState.value else _acState.value
                     val (transformed, action) = transform(base, protocol) ?: return@withLock
                     val next = if (action == AcAction.TIMER) transformed else transformed.copy(timerMinutes = 0)

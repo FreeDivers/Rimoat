@@ -339,7 +339,7 @@ class AddRemoteViewModel(
         _uiState.update { it.copy(isSendingTest = true, testedButton = button, canConfirmTest = false, testMessage = null) }
         testJob = viewModelScope.launch {
             try {
-                val countKey = "${transmitterManager.currentTransmitterType()}:${button.id}"
+                val countKey = "${transmitterManager.currentTransmitterTypeAfterCheck()}:${button.id}"
                 val index = testPressCounts[countKey] ?: 0
                 val model = _uiState.value.currentRemote ?: run {
                     _uiState.update { it.copy(isSendingTest = false, testMessage = UiText.Resource(R.string.msg_code_set_closed)) }

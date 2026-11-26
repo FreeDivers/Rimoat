@@ -86,7 +86,7 @@ class IrRemoteApplication : Application() {
             readProfile = { id -> repository.awaitLoaded(); repository.getRemote(id) },
             commitSettings = repository::updateAcSettings,
             encoder = acSignals,
-            route = transmitterManager::currentTransmitterType,
+            route = transmitterManager::currentTransmitterTypeAfterCheck,
             transmit = { signals, owner, route, before ->
                 transmitterManager.transmitWithReceipt(signals, owner, route, before).getOrThrow()
             },

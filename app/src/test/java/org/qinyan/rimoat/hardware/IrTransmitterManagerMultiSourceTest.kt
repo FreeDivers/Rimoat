@@ -242,5 +242,261 @@ class IrTransmitterManagerMultiSourceTest {
         } finally { job.cancel(); manager.release() }
     }
 
+    @Test
+    fun coldStartCommandExecutorAndViewModelDoNotRouteAsMockBeforeInitialHardwareCheck() = runBlocking {
+        val app = RuntimeEnvironment.getApplication()
+        val irManager = app.getSystemService(Context.CONSUMER_IR_SERVICE) as ConsumerIrManager
+        Shadow.extract<FakeConsumerIrManager>(irManager).hasEmitter = true
+
+        // Construct on the main thread with a paused dispatcher so deferInitialHardwareCheck=true
+        // and the background refreshHardware() coroutine has not yet executed when sends begin.
+        // Note: init launches refreshHardware() with Dispatchers.IO, so use a Context wrapper that
+        // gates ConsumerIrManager.hasIrEmitter() or verify with a controlled IO race.
+        val gate = java.util.concurrent.CountDownLatch(1)
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val gatedContext = object : ContextWrapper(app) {
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? {
+                if (name == Context.USB_SERVICE && Thread.currentThread() != android.os.Looper.getMainLooper().thread) {
+                    entered.countDown()
+                    gate.await(5, java.util.concurrent.TimeUnit.SECONDS)
+                }
+                return super.getSystemService(name)
+            }
+        }
+
+        val job = SupervisorJob()
+        val managerScope = CoroutineScope(job + Dispatchers.Default)
+        val manager = IrTransmitterManager(gatedContext, managerScope)
+        try {
+            assertTrue("Background refreshHardware() should start on IO", entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            assertFalse(
+                "Precondition: deferred initial hardware check has not completed yet",
+                manager.builtInTransmitter.isReady.value
+            )
+            assertEquals(
+                "Synchronous currentTransmitterType() reflects pre-check MOCK state",
+                TransmitterType.MOCK,
+                manager.currentTransmitterType()
+            )
+
+            // 1. RemoteCommandExecutor (same wiring as IrRemoteApplication) sending AC state & button
+            val power = org.qinyan.rimoat.data.RemoteButton(
+                id = "power",
+                label = "Power",
+                rawPattern = listOf(9000, 4500, 560, 560),
+                alternateRawPattern = listOf(8000, 4000, 560, 560)
+            )
+            var acProfile = org.qinyan.rimoat.data.RemoteProfile(
+                id = "ac",
+                name = "AC",
+                category = org.qinyan.rimoat.data.DeviceCategory.AC,
+                acProtocolId = 27
+            )
+            val tvProfile = org.qinyan.rimoat.data.RemoteProfile(
+                id = "tv",
+                name = "TV",
+                category = org.qinyan.rimoat.data.DeviceCategory.TV,
+                buttons = listOf(power)
+            )
+            val journalFile = java.io.File.createTempFile("rimoat-cold-journal-", ".json")
+            journalFile.delete()
+            val journal = org.qinyan.rimoat.data.RemoteCommandJournal(journalFile)
+            val encoder = object : org.qinyan.rimoat.data.AcSignalEncoder {
+                override suspend fun protocolFor(sourceRemoteId: String) = 27
+                override suspend fun supportedModes(protocol: Int) = listOf(org.qinyan.rimoat.data.AcMode.COOL)
+                override suspend fun encode(
+                    protocol: Int,
+                    settings: org.qinyan.rimoat.data.AcSettings,
+                    action: org.qinyan.rimoat.data.AcAction
+                ) = listOf(IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560)))
+            }
+            val executor = org.qinyan.rimoat.data.RemoteCommandExecutor(
+                readProfile = { id ->
+                    when (id) {
+                        "ac" -> acProfile
+                        "tv" -> tvProfile
+                        else -> null
+                    }
+                },
+                commitSettings = { _, committed -> acProfile = acProfile.copy(acSettings = committed) },
+                encoder = encoder,
+                route = manager::currentTransmitterTypeAfterCheck,
+                transmit = { signals, owner, route, before ->
+                    manager.transmitWithReceipt(signals, owner, route, before).getOrThrow()
+                },
+                journal = journal
+            )
+
+            try {
+                // Release the initial hardware check shortly after execute starts so any caller that
+                // reads route() without waiting sees MOCK while transmitWithReceipt waits and sees BUILT_IN.
+                val releaser = launch(Dispatchers.Default) {
+                    kotlinx.coroutines.delay(50)
+                    gate.countDown()
+                }
+                val acResult = executor.changeAc("ac") { state, _ ->
+                    state.apply(org.qinyan.rimoat.data.AcAction.TEMP_UP) to org.qinyan.rimoat.data.AcAction.TEMP_UP
+                }!!
+                releaser.join()
+                assertFalse("Cold-start AC send must use BUILT_IN rather than MOCK", acResult.simulated)
+                assertEquals(27, acProfile.acSettings.temperature)
+                assertEquals(TransmitterType.BUILT_IN, manager.lastTransmitLog.value?.transmitterType)
+
+                val btnResult = executor.executeButton("tv", "power")!!
+                assertFalse("Cold-start button send must use BUILT_IN rather than MOCK", btnResult.simulated)
+                assertEquals(1, journal.records.value.getValue("tv").toggles["false:power"])
+                assertEquals(null, journal.records.value.getValue("tv").toggles["true:power"])
+                assertEquals(TransmitterType.BUILT_IN, manager.currentTransmitterTypeAfterCheck())
+            } finally {
+                gate.countDown()
+                journalFile.delete()
+            }
+        } finally {
+            gate.countDown()
+            job.cancel()
+            manager.release()
+        }
+    }
+
+    @Test
+    fun coldStartViewModelFallbackPathsDoNotFailRouteCheckOrUseDemoToggleKey() = runBlocking {
+        val app = RuntimeEnvironment.getApplication()
+        val irManager = app.getSystemService(Context.CONSUMER_IR_SERVICE) as ConsumerIrManager
+        Shadow.extract<FakeConsumerIrManager>(irManager).hasEmitter = true
+
+        fun createGatedContext(): Triple<Context, java.util.concurrent.CountDownLatch, java.util.concurrent.CountDownLatch> {
+            val entered = java.util.concurrent.CountDownLatch(1)
+            val gate = java.util.concurrent.CountDownLatch(1)
+            val ctx = object : ContextWrapper(app) {
+                override fun getApplicationContext(): Context = this
+                override fun getSystemService(name: String): Any? {
+                    if (name == Context.USB_SERVICE && Thread.currentThread() != android.os.Looper.getMainLooper().thread) {
+                        entered.countDown()
+                        gate.await(5, java.util.concurrent.TimeUnit.SECONDS)
+                    }
+                    return super.getSystemService(name)
+                }
+            }
+            return Triple(ctx, entered, gate)
+        }
+
+        // First manager for AC fallback path (no commandExecutor)
+        val (acCtx, acEntered, acGate) = createGatedContext()
+        val acJob = SupervisorJob()
+        val acManager = IrTransmitterManager(acCtx, CoroutineScope(acJob + Dispatchers.Default))
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            assertTrue(acEntered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            assertFalse(acManager.builtInTransmitter.isReady.value)
+            val encoder = object : org.qinyan.rimoat.data.AcSignalEncoder {
+                override suspend fun protocolFor(sourceRemoteId: String) = 27
+                override suspend fun supportedModes(protocol: Int) = listOf(org.qinyan.rimoat.data.AcMode.COOL)
+                override suspend fun encode(
+                    protocol: Int,
+                    settings: org.qinyan.rimoat.data.AcSettings,
+                    action: org.qinyan.rimoat.data.AcAction
+                ) = listOf(IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560)))
+            }
+            val acProfile = org.qinyan.rimoat.data.RemoteProfile(
+                id = "ac",
+                name = "AC",
+                category = org.qinyan.rimoat.data.DeviceCategory.AC,
+                acProtocolId = 27
+            )
+            val acVm = org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel(
+                remoteId = "ac",
+                transmitterManager = acManager,
+                initialProfile = acProfile,
+                acSignalEncoder = encoder
+            ).also { store.put("ac", it) }
+
+            val acReleaser = launch(Dispatchers.Default) {
+                kotlinx.coroutines.delay(50)
+                acGate.countDown()
+            }
+            acVm.increaseTemp()
+            withTimeout(5_000) {
+                while (acVm.isTransmitting.value || acManager.lastTransmitLog.value == null) {
+                    org.robolectric.shadows.ShadowLooper.shadowMainLooper().idle()
+                    kotlinx.coroutines.delay(10)
+                }
+            }
+            acReleaser.join()
+            assertTrue(
+                "Cold-start AC send failed: ${acManager.lastTransmitLog.value?.errorMessage}",
+                acManager.lastTransmitLog.value!!.isSuccess
+            )
+            assertEquals(null, acVm.operationError.value)
+            assertEquals(27, acVm.acState.value.temperature)
+            assertEquals(TransmitterType.BUILT_IN, acManager.lastTransmitLog.value?.transmitterType)
+
+            // Second fresh manager for button fallback path (countKey must use "real:power", not "demo:power")
+            val (tvCtx, tvEntered, tvGate) = createGatedContext()
+            val tvJob = SupervisorJob()
+            val tvManager = IrTransmitterManager(tvCtx, CoroutineScope(tvJob + Dispatchers.Default))
+            try {
+                assertTrue(tvEntered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                assertFalse(tvManager.builtInTransmitter.isReady.value)
+                val power = org.qinyan.rimoat.data.RemoteButton(
+                    id = "power",
+                    label = "Power",
+                    rawPattern = listOf(9000, 4500, 560, 560),
+                    alternateRawPattern = listOf(8000, 4000, 560, 560)
+                )
+                val tvProfile = org.qinyan.rimoat.data.RemoteProfile(
+                    id = "tv",
+                    name = "TV",
+                    category = org.qinyan.rimoat.data.DeviceCategory.TV,
+                    buttons = listOf(power)
+                )
+                val tvVm = org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel(
+                    remoteId = "tv",
+                    transmitterManager = tvManager,
+                    initialProfile = tvProfile
+                ).also { store.put("tv", it) }
+
+                val tvReleaser = launch(Dispatchers.Default) {
+                    kotlinx.coroutines.delay(50)
+                    tvGate.countDown()
+                }
+                // First send before initial hardware check completes
+                tvVm.sendButton(power)
+                withTimeout(5_000) {
+                    while (tvVm.isTransmitting.value || tvManager.lastTransmitLog.value == null) {
+                        org.robolectric.shadows.ShadowLooper.shadowMainLooper().idle()
+                        kotlinx.coroutines.delay(10)
+                    }
+                }
+                tvReleaser.join()
+                assertEquals(null, tvVm.operationError.value)
+                val firstLog = tvManager.lastTransmitLog.value!!
+                assertEquals(9000, (firstLog.signal as IrSignal.Raw).patternMicros.first())
+
+                // Ensure distinct timestamp so MutableStateFlow emits even if signal were duplicated
+                kotlinx.coroutines.delay(15)
+                // Second send after hardware check completed must alternate to 8000 (proving first used "real:power")
+                tvVm.sendButton(power)
+                withTimeout(5_000) {
+                    while (tvVm.isTransmitting.value || tvManager.lastTransmitLog.value == firstLog) {
+                        org.robolectric.shadows.ShadowLooper.shadowMainLooper().idle()
+                        kotlinx.coroutines.delay(10)
+                    }
+                }
+                val secondSignal = tvManager.lastTransmitLog.value!!.signal as IrSignal.Raw
+                assertEquals(8000, secondSignal.patternMicros.first())
+            } finally {
+                tvGate.countDown()
+                tvJob.cancel()
+                tvManager.release()
+            }
+        } finally {
+            acGate.countDown()
+            store.clear()
+            acJob.cancel()
+            acManager.release()
+        }
+    }
+
 }
 
