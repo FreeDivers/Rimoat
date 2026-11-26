@@ -173,6 +173,36 @@ class ElkSmartUsbLearnerRoborazziTest {
         }
     }
 
+    @Test fun opensUnknownFirmwareWithPaddedAndFragmentedReplies() = runBlocking {
+        val reply = ElkSmartProtocol.AUTHORIZE + byteArrayOf(7, 8)
+        val responses = listOf(listOf(reply.copyOf(64))) +
+            (1 until reply.size).map { split ->
+                listOf(reply.copyOfRange(0, split), reply.copyOfRange(split, reply.size))
+            } + listOf(reply.map { byteArrayOf(it) })
+        for (replies in responses) {
+            val attempt = ElkSmartOpeningAttempt(replies = replies)
+            manager.attempts.add(attempt)
+            requireNotNull(ElkSmartUsbLearner.open(usb, device(intf(0, 1 to INTERRUPT)))).close()
+            assertArrayEquals(ElkSmartProtocol.AUTHORIZE, attempt.writes.single().second)
+            assertReleased(attempt)
+        }
+    }
+
+    @Test fun firstLearningCompletesOpeningHandshakeAndRelearningAuthorizesAgain() = runBlocking {
+        val attempt = ElkSmartOpeningAttempt(learnPacket = learnedPacket())
+        manager.attempts.add(attempt)
+        requireNotNull(ElkSmartUsbLearner.open(usb, device(intf(0, 1 to BULK)))).use { learner ->
+            repeat(2) { index ->
+                assertArrayEquals(learnedPattern, learner.startLearning(1).getOrThrow().patternMicros)
+                assertEquals(
+                    List(index + 1) { listOf(0xFC, 0xFA, 0xFE, 0xFD) }.flatten(),
+                    attempt.writes.map { it.second[0].toInt() and 255 }
+                )
+            }
+        }
+        assertReleased(attempt)
+    }
+
     @Test fun shortLearnPayloadIgnoresFirstPacketPadding() = runBlocking {
         for (padding in listOf(0, 0xA5, 0xFF)) {
             val packet = learnedPacket()
@@ -214,15 +244,15 @@ class ElkSmartUsbLearnerRoborazziTest {
         assertReleased(attempt)
     }
 
-    @Test fun unknownFirmwareAndMissingRepliesReleaseEveryCandidate() = runBlocking {
-        val unknown = ElkSmartOpeningAttempt(replies = listOf(ElkSmartProtocol.AUTHORIZE + byteArrayOf(7, 8)))
+    @Test fun wrongPrefixAndMissingRepliesReleaseEveryCandidate() = runBlocking {
+        val wrongPrefix = ElkSmartOpeningAttempt(replies = listOf(ByteArray(64)))
         val missing = ElkSmartOpeningAttempt(replies = emptyList())
-        manager.attempts.addAll(listOf(unknown, missing))
+        manager.attempts.addAll(listOf(wrongPrefix, missing))
         val device = device(intf(0, 1 to BULK), intf(1, 2 to INTERRUPT))
 
         assertNull(ElkSmartUsbLearner.open(usb, device))
         assertEquals(2, manager.openCalls)
-        assertReleased(unknown)
+        assertReleased(wrongPrefix)
         assertReleased(missing)
         assertTrue(manager.attempts.flatMap { it.writes }.all { it.second.contentEquals(ElkSmartProtocol.AUTHORIZE) })
     }
@@ -304,6 +334,9 @@ class ElkSmartUsbLearnerRoborazziTest {
         val attempt = ElkSmartOpeningAttempt(authorizationReplies = replies, learnPacket = learnedPacket())
         manager.attempts.add(attempt)
         requireNotNull(ElkSmartUsbLearner.open(usb, device(intf(0, 1 to BULK)))).use { learner ->
+            assertArrayEquals(learnedPattern, learner.startLearning(3).getOrThrow().patternMicros)
+            assertEquals(listOf(0xFC, 0xFA, 0xFE, 0xFD), attempt.writes.map { it.second[0].toInt() and 255 })
+            attempt.writes.clear()
             val result = learner.startLearning(3)
             if (succeeds) {
                 val signal = result.getOrThrow()
@@ -317,7 +350,7 @@ class ElkSmartUsbLearnerRoborazziTest {
                     (learner.state.value as LearningState.Error).message
                 )
             }
-            val expectedCommands = List(expectedAttempts + 1) { 0xFC } +
+            val expectedCommands = List(expectedAttempts) { 0xFC } +
                 (if (succeeds) listOf(0xFA, 0xFE) else emptyList()) + 0xFD
             assertEquals(expectedCommands, attempt.writes.map { it.second[0].toInt() and 255 })
         }
@@ -388,10 +421,20 @@ class ElkSmartUsbLearnerRoborazziTest {
         )
     }
 
-    private fun assertDialogLearning(replies: List<ByteArray>, screenshotName: String) {
+    @Test fun unknownFirmwareWithPaddedPayloadRecordsAndSavesSignalThroughLearningDialog() {
+        assertDialogLearning(
+            listOf((ElkSmartProtocol.AUTHORIZE + byteArrayOf(7, 8)).copyOf(64)),
+            "elksmart_unknown_padded_learning",
+            learnedPacket().copyOf(64)
+        )
+    }
+
+    private fun assertDialogLearning(
+        replies: List<ByteArray>, screenshotName: String, packet: ByteArray = learnedPacket()
+    ) {
         val attempt = ElkSmartOpeningAttempt(
-            authorizationReplies = listOf(replies),
-            learnPacket = learnedPacket()
+            replies = replies,
+            learnPacket = packet
         )
         manager.attempts.add(attempt)
         val device = device(intf(0, 1 to INTERRUPT))
@@ -426,7 +469,7 @@ class ElkSmartUsbLearnerRoborazziTest {
             assertEquals(38000, saved!!.frequencyHz)
             assertFalse(attempt.transferredOnMain)
             assertTrue(attempt.writes.all { it.first.type == INTERRUPT })
-            assertEquals(listOf(0xFC, 0xFC, 0xFA, 0xFE, 0xFD), attempt.writes.map { it.second[0].toInt() and 255 })
+            assertEquals(listOf(0xFC, 0xFA, 0xFE, 0xFD), attempt.writes.map { it.second[0].toInt() and 255 })
             assertReleased(attempt)
             assertFalse(UsbSessionAccess.mutex.isLocked)
             compose.onNode(isDialog()).captureRoboImage(

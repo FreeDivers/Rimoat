@@ -2,8 +2,6 @@ package org.qinyan.rimoat.hardware.learning
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
-import org.qinyan.rimoat.hardware.usb.ElkSmartSession
-import org.qinyan.rimoat.hardware.usb.UsbBulkChannel
 import org.qinyan.rimoat.hardware.usb.usbEndpointPairs
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -54,19 +52,6 @@ class ElkSmartUsbLearner private constructor(
                         try {
                             claimed = conn.claimInterface(intf, true)
                             if (!claimed) continue
-                            val session = ElkSmartSession(object : UsbBulkChannel {
-                                override fun read(buffer: ByteArray, timeoutMs: Int) =
-                                    conn.bulkTransfer(pair.inEp, buffer, buffer.size, timeoutMs)
-
-                                override fun write(data: ByteArray, timeoutMs: Int) =
-                                    conn.bulkTransfer(pair.outEp, data, data.size, timeoutMs)
-                            })
-                            try {
-                                session.identify()
-                            } catch (_: IOException) {
-                                continue
-                            }
-                            currentCoroutineContext().ensureActive()
                             val learner = ElkSmartUsbLearner(
                                 device = device,
                                 connection = conn,
@@ -74,6 +59,17 @@ class ElkSmartUsbLearner private constructor(
                                 outEndpoint = pair.outEp,
                                 inEndpoint = pair.inEp
                             )
+                            try {
+                                learner.flushInput(250)
+                                // Learning uses the FC response prefix, independent of transmit encoding subtype.
+                                if (!learner.sendControl(ElkSmartProtocol.AUTHORIZE) ||
+                                    !learner.awaitAuthorizationResponse(System.currentTimeMillis() + 500L)
+                                ) continue
+                            } catch (_: IOException) {
+                                continue
+                            }
+                            learner.authorizationPending.set(true)
+                            currentCoroutineContext().ensureActive()
                             selected = true
                             return learner
                         } finally {
@@ -100,6 +96,7 @@ class ElkSmartUsbLearner private constructor(
 
     private val cancelled = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
+    private val authorizationPending = AtomicBoolean(false)
 
     override suspend fun startLearning(timeoutSeconds: Int): Result<IrSignal.Raw> = withContext(Dispatchers.IO) {
         if (closed.get() || !_isAvailable.value) {
@@ -115,11 +112,14 @@ class ElkSmartUsbLearner private constructor(
         val deadline = System.currentTimeMillis() + totalSec * 1000L
 
         try {
-            // 1. Flush stale input packets
-            flushInput(250)
-
-            // 2. Perform 4-byte authorization handshake
-            if (!authorize(deadline)) {
+            // Complete the opening FC exchange with FA once; later learning attempts need a fresh exchange.
+            val authorized = if (authorizationPending.getAndSet(false)) {
+                sendControl(ElkSmartProtocol.AUTHORIZE_ACK)
+            } else {
+                flushInput(250)
+                authorize(deadline)
+            }
+            if (!authorized) {
                 val err = if (closed.get() || !_isAvailable.value) {
                     AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
                 } else {
@@ -129,7 +129,7 @@ class ElkSmartUsbLearner private constructor(
                 return@withContext Result.failure(IOException(err))
             }
 
-            // 3. Send START_LEARN command (0xFE 0xFE 0xFE 0xFE)
+            // Send START_LEARN command (0xFE 0xFE 0xFE 0xFE)
             if (!sendControl(ElkSmartProtocol.START_LEARN)) {
                 val err = if (closed.get() || !_isAvailable.value) {
                     AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
@@ -193,33 +193,37 @@ class ElkSmartUsbLearner private constructor(
     }
 
     private suspend fun authorize(sessionDeadline: Long): Boolean {
-        val buf = ByteArray(64)
         repeat(AUTHORIZE_RETRY_COUNT) { attempt ->
             if (cancelled.get() || closed.get() || System.currentTimeMillis() >= sessionDeadline) return false
             if (!sendControl(ElkSmartProtocol.AUTHORIZE)) return false
-
-            // Accumulate the response header across reads; discard USB packet padding.
-            val response = ByteArray(6)
-            var received = 0
-            val attemptDeadline = minOf(sessionDeadline, System.currentTimeMillis() + 500L)
-            while (!cancelled.get() && !closed.get() && System.currentTimeMillis() < attemptDeadline) {
-                currentCoroutineContext().ensureActive()
-                val rc = connection.bulkTransfer(inEndpoint, buf, buf.size, 100)
-                yield()
-                if (rc > 0) {
-                    val count = minOf(rc, response.size - received)
-                    buf.copyInto(response, received, 0, count)
-                    received += count
-                    if (received == response.size) {
-                        if (ElkSmartProtocol.isAuthorizeResponse(response)) {
-                            Log.i(TAG, "ElkSmart authorized on attempt ${attempt + 1}")
-                            return sendControl(ElkSmartProtocol.AUTHORIZE_ACK)
-                        }
-                        received = 0
-                    }
-                }
+            if (awaitAuthorizationResponse(sessionDeadline)) {
+                Log.i(TAG, "ElkSmart authorized on attempt ${attempt + 1}")
+                return sendControl(ElkSmartProtocol.AUTHORIZE_ACK)
             }
             flushInput(150)
+        }
+        return false
+    }
+
+    private suspend fun awaitAuthorizationResponse(sessionDeadline: Long): Boolean {
+        val buf = ByteArray(64)
+        // Accumulate the complete response header across reads; discard USB packet padding.
+        val response = ByteArray(6)
+        var received = 0
+        val attemptDeadline = minOf(sessionDeadline, System.currentTimeMillis() + 500L)
+        while (!cancelled.get() && !closed.get() && System.currentTimeMillis() < attemptDeadline) {
+            currentCoroutineContext().ensureActive()
+            val rc = connection.bulkTransfer(inEndpoint, buf, buf.size, 100)
+            yield()
+            if (rc > 0) {
+                val count = minOf(rc, response.size - received)
+                buf.copyInto(response, received, 0, count)
+                received += count
+                if (received == response.size) {
+                    if (ElkSmartProtocol.isAuthorizeResponse(response)) return true
+                    received = 0
+                }
+            }
         }
         return false
     }
