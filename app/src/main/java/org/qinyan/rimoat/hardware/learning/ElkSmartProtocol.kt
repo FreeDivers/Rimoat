@@ -21,10 +21,10 @@ object ElkSmartProtocol {
     }
 
     /**
-     * Checks if packet is a valid 6-byte authorization response.
+     * Checks for a complete 6-byte authorization response, allowing trailing USB padding.
      */
     fun isAuthorizeResponse(packet: ByteArray): Boolean {
-        return packet.size == 6 && hasPrefix(packet, 0xFC)
+        return packet.size >= 6 && hasPrefix(packet, 0xFC)
     }
 
     /**

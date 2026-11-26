@@ -248,11 +248,109 @@ class ElkSmartUsbLearnerRoborazziTest {
         assertEquals(1, manager.openCalls)
     }
 
+    private val authorizationReply get() = ElkSmartProtocol.AUTHORIZE + byteArrayOf(0x70, 1)
+    private val learnedPattern get() = intArrayOf(9008, 4496, 560, 560, 560, 1696, 560, 560)
+    private fun learnedPacket(): ByteArray {
+        val payload = ElkSmartProtocol.encodePatternToPayload(learnedPattern)
+        return ElkSmartProtocol.START_LEARN + byteArrayOf(0, payload.size.toByte()) + payload
+    }
+
+    private suspend fun assertAuthorization(
+        replies: List<List<ByteArray?>>,
+        succeeds: Boolean = true,
+        expectedAttempts: Int = 1
+    ) {
+        val attempt = ElkSmartOpeningAttempt(authorizationReplies = replies, learnPacket = learnedPacket())
+        manager.attempts.add(attempt)
+        requireNotNull(ElkSmartUsbLearner.open(usb, device(intf(0, 1 to BULK)))).use { learner ->
+            val result = learner.startLearning(3)
+            if (succeeds) {
+                val signal = result.getOrThrow()
+                assertArrayEquals(learnedPattern, signal.patternMicros)
+                assertEquals(38000, signal.frequencyHz)
+                assertTrue(learner.state.value is LearningState.Captured)
+            } else {
+                assertTrue(result.exceptionOrNull() is IOException)
+                assertEquals(
+                    app.getString(R.string.msg_elksmart_handshake_failed),
+                    (learner.state.value as LearningState.Error).message
+                )
+            }
+            val expectedCommands = List(expectedAttempts + 1) { 0xFC } +
+                (if (succeeds) listOf(0xFA, 0xFE) else emptyList()) + 0xFD
+            assertEquals(expectedCommands, attempt.writes.map { it.second[0].toInt() and 255 })
+        }
+        assertReleased(attempt)
+    }
+
+    @Test fun acceptsPaddedAuthorizationResponse() = runBlocking {
+        assertAuthorization(listOf(listOf(authorizationReply + ByteArray(58) { 0xA5.toByte() })))
+    }
+
+    @Test fun acceptsFragmentedAuthorizationAcrossEmptyAndFailedReads() = runBlocking {
+        assertAuthorization(listOf(listOf(
+            authorizationReply.copyOfRange(0, 3), byteArrayOf(), null,
+            authorizationReply.copyOfRange(3, 6)
+        )))
+    }
+
+    @Test fun acceptsEveryAuthorizationSplitAndBytewiseReplies() = runBlocking {
+        for (split in 1 until authorizationReply.size) {
+            assertAuthorization(listOf(listOf(
+                authorizationReply.copyOfRange(0, split),
+                authorizationReply.copyOfRange(split, 6)
+            )))
+        }
+        assertAuthorization(listOf(authorizationReply.map { byteArrayOf(it) }))
+    }
+
+    @Test fun retriesIncompleteAuthorizationWithFreshResponseBuffer() = runBlocking {
+        assertAuthorization(
+            listOf(listOf(authorizationReply.copyOf(5)), listOf(authorizationReply.copyOf(64))),
+            expectedAttempts = 2
+        )
+    }
+
+    @Test fun partialAuthorizationCannotCombineAcrossRetries() = runBlocking {
+        assertAuthorization(
+            listOf(
+                listOf(authorizationReply.copyOfRange(0, 3)),
+                listOf(authorizationReply.copyOfRange(3, 6)),
+                emptyList()
+            ),
+            succeeds = false, expectedAttempts = 3
+        )
+    }
+
+    @Test fun rejectsWrongPrefixTruncatedAndMissingAuthorizationReplies() = runBlocking {
+        for (reply in listOf(listOf(ByteArray(64)), listOf(authorizationReply.copyOf(5)), emptyList())) {
+            assertAuthorization(List(3) { reply }, succeeds = false, expectedAttempts = 3)
+        }
+    }
+
+    @Test fun acceptsValidAuthorizationAfterUnrelatedPacket() = runBlocking {
+        assertAuthorization(listOf(listOf(ByteArray(64), authorizationReply)))
+    }
+
     @Test fun interruptOnlyReceiverRecordsAndSavesSignalThroughLearningDialog() {
-        val pattern = intArrayOf(9008, 4496, 560, 560, 560, 1696, 560, 560)
-        val payload = ElkSmartProtocol.encodePatternToPayload(pattern)
+        assertDialogLearning(listOf(authorizationReply), "elksmart_interrupt_learning")
+    }
+
+    @Test fun paddedAuthorizationRecordsAndSavesSignalThroughLearningDialog() {
+        assertDialogLearning(listOf(authorizationReply.copyOf(64)), "elksmart_padded_learning")
+    }
+
+    @Test fun fragmentedAuthorizationRecordsAndSavesSignalThroughLearningDialog() {
+        assertDialogLearning(
+            listOf(authorizationReply.copyOfRange(0, 3), authorizationReply.copyOfRange(3, 6)),
+            "elksmart_fragmented_learning"
+        )
+    }
+
+    private fun assertDialogLearning(replies: List<ByteArray>, screenshotName: String) {
         val attempt = ElkSmartOpeningAttempt(
-            learnPacket = ElkSmartProtocol.START_LEARN + byteArrayOf(0, payload.size.toByte()) + payload
+            authorizationReplies = listOf(replies),
+            learnPacket = learnedPacket()
         )
         manager.attempts.add(attempt)
         val device = device(intf(0, 1 to INTERRUPT))
@@ -276,14 +374,14 @@ class ElkSmartUsbLearnerRoborazziTest {
             }
             compose.onNodeWithText(app.getString(R.string.screen_start_record)).assertIsEnabled()
             compose.onNode(isDialog()).captureRoboImage(
-                "src/test/screenshots/elksmart_interrupt_learning_ready.webp", roborazziOptions = options
+                "src/test/screenshots/${screenshotName}_ready.webp", roborazziOptions = options
             )
             compose.onNodeWithText(app.getString(R.string.screen_start_record)).performClick()
             compose.waitUntil(10_000) { learner.state.value is LearningState.Captured }
             compose.waitForIdle()
             compose.onNodeWithContentDescription(app.getString(R.string.screen_received_waveform)).assertIsDisplayed()
             compose.onNodeWithText(app.getString(R.string.screen_save_button)).assertIsEnabled().performClick()
-            assertArrayEquals(pattern, requireNotNull(saved).patternMicros)
+            assertArrayEquals(learnedPattern, requireNotNull(saved).patternMicros)
             assertEquals(38000, saved!!.frequencyHz)
             assertFalse(attempt.transferredOnMain)
             assertTrue(attempt.writes.all { it.first.type == INTERRUPT })
@@ -291,7 +389,7 @@ class ElkSmartUsbLearnerRoborazziTest {
             assertReleased(attempt)
             assertFalse(UsbSessionAccess.mutex.isLocked)
             compose.onNode(isDialog()).captureRoboImage(
-                "src/test/screenshots/elksmart_interrupt_learning_captured.webp", roborazziOptions = options
+                "src/test/screenshots/${screenshotName}_captured.webp", roborazziOptions = options
             )
         } finally {
             learner.close()
@@ -309,12 +407,14 @@ class ElkSmartOpeningAttempt(
     val replies: List<ByteArray> = listOf(ElkSmartProtocol.AUTHORIZE + byteArrayOf(0x70, 1)),
     val shortWrite: Boolean = false,
     val releaseFailure: IOException? = null,
-    val learnPacket: ByteArray? = null
+    val learnPacket: ByteArray? = null,
+    val authorizationReplies: List<List<ByteArray?>> = listOf(replies)
 ) {
     val claims = mutableListOf<Int>()
     val releases = mutableListOf<Int>()
     val writes = mutableListOf<Pair<UsbEndpoint, ByteArray>>()
-    val pendingReads = ArrayDeque<ByteArray>()
+    val pendingReads = ArrayDeque<ByteArray?>()
+    var authorizationRequests = 0
     var onReply: () -> Unit = {}
     var closes = 0
     var transferredOnMain = false
@@ -351,7 +451,13 @@ class ElkSmartOpeningConnectionShadow {
             attempt.writes.add(endpoint to command)
             if (attempt.shortWrite) return length - 1
             when {
-                command.contentEquals(ElkSmartProtocol.AUTHORIZE) -> attempt.pendingReads.addAll(attempt.replies)
+                command.contentEquals(ElkSmartProtocol.AUTHORIZE) -> {
+                    val request = attempt.authorizationRequests++
+                    attempt.pendingReads.addAll(
+                        if (request == 0) attempt.replies
+                        else attempt.authorizationReplies.getOrElse(request - 1) { emptyList() }
+                    )
+                }
                 command.contentEquals(ElkSmartProtocol.START_LEARN) -> attempt.learnPacket?.let(attempt.pendingReads::addLast)
             }
             return length

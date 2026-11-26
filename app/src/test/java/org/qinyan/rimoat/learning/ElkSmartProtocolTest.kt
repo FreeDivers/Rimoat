@@ -27,14 +27,17 @@ class ElkSmartProtocolTest {
         // 6-byte packet with 0xFC prefix and 2-byte subtype (e.g. 0x70 0x01)
         val validResp = byteArrayOf(0xFC.toByte(), 0xFC.toByte(), 0xFC.toByte(), 0xFC.toByte(), 0x70, 0x01)
         assertTrue(ElkSmartProtocol.isAuthorizeResponse(validResp))
+        assertTrue(ElkSmartProtocol.isAuthorizeResponse(validResp.copyOf(64)))
+        assertTrue(ElkSmartProtocol.isAuthorizeResponse(validResp + ByteArray(58) { 0xA5.toByte() }))
 
-        // Wrong length
-        val shortResp = byteArrayOf(0xFC.toByte(), 0xFC.toByte(), 0xFC.toByte(), 0xFC.toByte())
-        assertFalse(ElkSmartProtocol.isAuthorizeResponse(shortResp))
+        for (length in 0 until validResp.size) {
+            assertFalse(ElkSmartProtocol.isAuthorizeResponse(validResp.copyOf(length)))
+        }
 
         // Wrong prefix
         val wrongPrefix = byteArrayOf(0xFE.toByte(), 0xFE.toByte(), 0xFE.toByte(), 0xFE.toByte(), 0x70, 0x01)
         assertFalse(ElkSmartProtocol.isAuthorizeResponse(wrongPrefix))
+        assertFalse(ElkSmartProtocol.isAuthorizeResponse(wrongPrefix.copyOf(64)))
     }
 
     @Test

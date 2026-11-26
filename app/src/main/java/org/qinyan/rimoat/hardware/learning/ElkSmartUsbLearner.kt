@@ -198,14 +198,25 @@ class ElkSmartUsbLearner private constructor(
             if (cancelled.get() || closed.get() || System.currentTimeMillis() >= sessionDeadline) return false
             if (!sendControl(ElkSmartProtocol.AUTHORIZE)) return false
 
+            // Accumulate the response header across reads; discard USB packet padding.
+            val response = ByteArray(6)
+            var received = 0
             val attemptDeadline = minOf(sessionDeadline, System.currentTimeMillis() + 500L)
             while (!cancelled.get() && !closed.get() && System.currentTimeMillis() < attemptDeadline) {
                 currentCoroutineContext().ensureActive()
                 val rc = connection.bulkTransfer(inEndpoint, buf, buf.size, 100)
                 yield()
-                if (rc == 6 && ElkSmartProtocol.isAuthorizeResponse(buf.copyOf(rc))) {
-                    Log.i(TAG, "ElkSmart authorized on attempt ${attempt + 1}")
-                    return sendControl(ElkSmartProtocol.AUTHORIZE_ACK)
+                if (rc > 0) {
+                    val count = minOf(rc, response.size - received)
+                    buf.copyInto(response, received, 0, count)
+                    received += count
+                    if (received == response.size) {
+                        if (ElkSmartProtocol.isAuthorizeResponse(response)) {
+                            Log.i(TAG, "ElkSmart authorized on attempt ${attempt + 1}")
+                            return sendControl(ElkSmartProtocol.AUTHORIZE_ACK)
+                        }
+                        received = 0
+                    }
                 }
             }
             flushInput(150)
