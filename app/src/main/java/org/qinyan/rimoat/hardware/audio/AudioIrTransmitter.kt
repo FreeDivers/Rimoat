@@ -4,6 +4,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
@@ -56,10 +57,62 @@ class AudioIrTransmitter(
         _isReady.value = isPlugged
     }
 
+    private fun isMediaOutputMuted(am: AudioManager): Boolean {
+        return am.getStreamVolume(AudioManager.STREAM_MUSIC) <= 0 ||
+            am.isStreamMute(AudioManager.STREAM_MUSIC)
+    }
+
+    private class FocusHandle(
+        private val am: AudioManager,
+        private val request: AudioFocusRequest?,
+        private val listener: AudioManager.OnAudioFocusChangeListener
+    ) {
+        fun abandon() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && request != null) {
+                    am.abandonAudioFocusRequest(request)
+                } else {
+                    @Suppress("DEPRECATION")
+                    am.abandonAudioFocus(listener)
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun acquireTransientExclusiveFocus(
+        am: AudioManager,
+        attributes: AudioAttributes
+    ): FocusHandle? {
+        val listener = AudioManager.OnAudioFocusChangeListener {}
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(attributes)
+                .setAcceptsDelayedFocusGain(false)
+                .setWillPauseWhenDucked(false)
+                .setOnAudioFocusChangeListener(listener)
+                .build()
+            val granted = am.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            if (granted) FocusHandle(am, request, listener) else null
+        } else {
+            @Suppress("DEPRECATION")
+            val granted = am.requestAudioFocus(
+                listener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            if (granted) FocusHandle(am, null, listener) else null
+        }
+    }
+
     override suspend fun transmit(signal: IrSignal): Result<Unit> = withContext(Dispatchers.IO) {
         refreshState()
-        if (!_isReady.value) {
+        val am = audioManager
+        if (!_isReady.value || am == null) {
             return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_output_missing, "未检测到有线音频输出，请连接红外发射头")))
+        }
+        if (isMediaOutputMuted(am)) {
+            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_volume_muted, "媒体音量为 0 或已静音，请先调高媒体音量后再发送")))
         }
         val rawSignal = when (signal) {
             is IrSignal.Raw -> signal
@@ -91,6 +144,9 @@ class AudioIrTransmitter(
             .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
             .build()
+
+        val focusHandle = acquireTransientExclusiveFocus(am, attributes)
+            ?: return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_focus_denied, "无法获取音频焦点，请先暂停其他音频播放后重试")))
 
         var track: AudioTrack? = null
 
@@ -129,6 +185,7 @@ class AudioIrTransmitter(
         } finally {
             try { track?.stop() } catch (_: Exception) {}
             try { track?.release() } catch (_: Exception) {}
+            focusHandle.abandon()
         }
     }
 }

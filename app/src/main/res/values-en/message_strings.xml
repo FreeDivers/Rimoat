@@ -111,6 +111,8 @@
     <string name="msg_usb_learning_active">USB learning is active. Finish or cancel it before sending.</string>
     <string name="msg_usb_ir_device">USB IR device</string>
     <string name="msg_audio_output_missing">No wired audio output detected. Connect an IR transmitter.</string>
+    <string name="msg_audio_volume_muted">Media volume is muted. Turn up the media volume before sending.</string>
+    <string name="msg_audio_focus_denied">Unable to acquire audio focus. Pause other audio and try again.</string>
     <string name="msg_audio_pcm_empty">The audio PCM sample is empty</string>
     <string name="msg_audio_write_incomplete">Audio samples were not fully written: %1$s/%2$s</string>
     <string name="msg_sample_rate_invalid">Invalid sample rate</string>

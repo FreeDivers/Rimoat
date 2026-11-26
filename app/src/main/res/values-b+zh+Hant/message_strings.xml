@@ -110,6 +110,8 @@
     <string name="msg_usb_learning_active">USB 正在學習，請完成或取消後再發射</string>
     <string name="msg_usb_ir_device">USB 紅外線裝置</string>
     <string name="msg_audio_output_missing">未檢測到有線音訊輸出，請連線紅外線發射頭</string>
+    <string name="msg_audio_volume_muted">媒體音量為 0 或已靜音，請先調高媒體音量後再傳送</string>
+    <string name="msg_audio_focus_denied">無法取得音訊焦點，請先暫停其他音訊播放後再試一次</string>
     <string name="msg_audio_pcm_empty">音訊 PCM 樣本為空</string>
     <string name="msg_audio_write_incomplete">音訊樣本未完整寫入: %1$s/%2$s</string>
     <string name="msg_sample_rate_invalid">取樣率無效</string>

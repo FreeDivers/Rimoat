@@ -110,6 +110,8 @@
     <string name="msg_usb_learning_active">USB で学習中です。完了またはキャンセルしてから送信してください。</string>
     <string name="msg_usb_ir_device">USB 赤外線機器</string>
     <string name="msg_audio_output_missing">有線オーディオ出力が検出されません。赤外線送信機を接続してください。</string>
+    <string name="msg_audio_volume_muted">メディア音量が 0 またはミュートです。音量を上げてから送信してください。</string>
+    <string name="msg_audio_focus_denied">オーディオフォーカスを取得できません。他の音声を停止してから再試行してください。</string>
     <string name="msg_audio_pcm_empty">オーディオ PCM サンプルが空です</string>
     <string name="msg_audio_write_incomplete">オーディオサンプルをすべて書き込めませんでした：%1$s/%2$s</string>
     <string name="msg_sample_rate_invalid">サンプルレートが無効です</string>
