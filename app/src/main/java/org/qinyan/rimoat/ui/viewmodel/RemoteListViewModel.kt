@@ -200,7 +200,10 @@ class RemoteListViewModel(
     }
     fun commitImport(choices: Map<String, ConflictChoice>, preferences: PortablePreferences?) = transfer {
         val document = _pendingImport.value ?: return@transfer
-        val count = repository.importBackup(document.backup, choices, preferences)
+        val applicablePreferences = preferences?.let {
+            if (isDynamicColorSupported) it else it.copy(dynamicColors = null)
+        }?.takeIf { it.dynamicColors != null || it.pureBlack != null }
+        val count = repository.importBackup(document.backup, choices, applicablePreferences)
         _pendingImport.value = null
         _transferMessage.value = UiText.plural(R.plurals.msg_import_finished, count, count)
     }

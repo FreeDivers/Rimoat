@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
@@ -31,6 +32,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -40,6 +42,8 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.BackupFileStore
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.FlipperIrImporter
+import org.qinyan.rimoat.data.ImportDocument
+import org.qinyan.rimoat.data.PortablePreferences
 import org.qinyan.rimoat.data.RemoteBackup
 import org.qinyan.rimoat.data.RemoteBackupCodec
 import org.qinyan.rimoat.data.RemoteButton
@@ -310,6 +314,132 @@ class SettingsBackupRoborazziTest {
         } finally {
             outputFile.delete()
             runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
+        }
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun importDialogHidesDynamicColorsWhenUnsupportedAndKeepsDefaultTheme() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val backupFile = File(app.cacheDir, "dynamic-prefs-backup.json")
+        try {
+            val repository = RemoteRepository(app, scope)
+            runBlocking { repository.awaitLoaded() }
+            val incoming = RemoteProfile(id = "pref_test_remote", name = "卧室空调", category = DeviceCategory.AC)
+            val backup = RemoteBackup(
+                remotes = listOf(incoming),
+                preferences = PortablePreferences(dynamicColors = true, pureBlack = true)
+            )
+            backupFile.writeText(RemoteBackupCodec.encode(backup))
+
+            val themePreferences = ThemePreferences(app)
+            assertFalse(themePreferences.isDynamicColorSupported)
+            assertFalse(themePreferences.useDynamicColor.value)
+
+            val viewModel = RemoteListViewModel(
+                repository = repository,
+                transmitterManager = IrTransmitterManager(app, scope),
+                themePreferences = themePreferences,
+                backupFiles = BackupFileStore(app)
+            )
+            val picker = TestDocumentPicker()
+            showSettings(viewModel, picker)
+
+            val inputUri = Uri.Builder().scheme("content").authority("org.qinyan.rimoat.test.backups")
+                .appendPath(backupFile.name).build()
+            Shadows.shadowOf(app.contentResolver).registerInputStreamSupplier(inputUri) { backupFile.inputStream() }
+
+            val importAction = app.getString(R.string.settings_import_backup)
+            composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(importAction))
+            composeRule.onNodeWithText(importAction).performClick()
+            composeRule.runOnIdle { picker.select(inputUri) }
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                Shadows.shadowOf(Looper.getMainLooper()).idle()
+                !viewModel.transferBusy.value && viewModel.pendingImport.value != null
+            }
+
+            composeRule.onNodeWithText(app.getString(R.string.migration_import_title)).assertIsDisplayed()
+            composeRule.onNodeWithText(app.getString(R.string.migration_dynamic_colors)).assertDoesNotExist()
+            composeRule.onNodeWithText(app.getString(R.string.migration_pure_black)).assertIsDisplayed()
+            composeRule.onNode(isDialog()).captureRoboImage(
+                filePath = "src/test/screenshots/import_dialog_no_dynamic_color.webp",
+                roborazziOptions = screenshotOptions
+            )
+
+            composeRule.onNodeWithText(app.getString(R.string.migration_pure_black)).performClick()
+            composeRule.onNodeWithText(app.getString(R.string.migration_import_confirm)).performClick()
+            val success = app.resources.getQuantityString(R.plurals.msg_import_finished, 1, 1)
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                Shadows.shadowOf(Looper.getMainLooper()).idle()
+                !viewModel.transferBusy.value &&
+                    composeRule.onAllNodesWithText(success).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            assertFalse(themePreferences.useDynamicColor.value)
+            assertTrue(themePreferences.pureBlackBackground.value)
+            assertEquals(listOf(incoming.id), repository.remotes.value.map { it.id })
+        } finally {
+            backupFile.delete()
+            runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
+        }
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun importDialogHidesPreferencesSectionWhenOnlyUnsupportedDynamicColorsPresent() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val document = ImportDocument(
+            RemoteBackup(
+                remotes = emptyList(),
+                preferences = PortablePreferences(dynamicColors = true, pureBlack = null)
+            )
+        )
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                MigrationImportDialog(
+                    document = document,
+                    existingIds = emptySet(),
+                    busy = false,
+                    onDismiss = {},
+                    onImport = { _, _ -> }
+                )
+            }
+        }
+        composeRule.onNodeWithText(app.getString(R.string.migration_preferences_title)).assertDoesNotExist()
+        composeRule.onNodeWithText(app.getString(R.string.migration_dynamic_colors)).assertDoesNotExist()
+        composeRule.onNodeWithText(app.getString(R.string.migration_import_confirm)).assertIsNotEnabled()
+    }
+
+    @Test
+    fun importDialogShowsDynamicColorsWhenSupportedOnAndroid12Plus() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        var importedPreferences: PortablePreferences? = null
+        val document = ImportDocument(
+            RemoteBackup(
+                remotes = emptyList(),
+                preferences = PortablePreferences(dynamicColors = true, pureBlack = false)
+            )
+        )
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                MigrationImportDialog(
+                    document = document,
+                    existingIds = emptySet(),
+                    busy = false,
+                    onDismiss = {},
+                    onImport = { _, prefs -> importedPreferences = prefs }
+                )
+            }
+        }
+        composeRule.onNodeWithText(app.getString(R.string.migration_preferences_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(app.getString(R.string.migration_dynamic_colors)).assertIsDisplayed().performClick()
+        composeRule.onNodeWithText(app.getString(R.string.migration_import_confirm)).performClick()
+        composeRule.runOnIdle {
+            assertEquals(PortablePreferences(dynamicColors = true, pureBlack = null), importedPreferences)
         }
     }
 

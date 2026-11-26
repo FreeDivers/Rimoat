@@ -2,6 +2,7 @@
 
 package org.qinyan.rimoat.ui.screens
 
+import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,7 +34,8 @@ import org.qinyan.rimoat.ui.motion.MotionBasicAlertDialog
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MigrationImportDialog(document: ImportDocument, existingIds: Set<String>, busy: Boolean,
-    onDismiss: () -> Unit, onImport: (Map<String, ConflictChoice>, PortablePreferences?) -> Unit) {
+    onDismiss: () -> Unit, onImport: (Map<String, ConflictChoice>, PortablePreferences?) -> Unit,
+    dynamicColorSupported: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
     val choicesSaver = mapSaver<Map<String, ConflictChoice>>(
         save = { values -> values.mapValues { it.value.name } },
         restore = { values -> values.mapValues { ConflictChoice.valueOf(it.value as String) } })
@@ -41,6 +43,8 @@ fun MigrationImportDialog(document: ImportDocument, existingIds: Set<String>, bu
     var dynamic by rememberSaveable(document) { mutableStateOf(false) }
     var black by rememberSaveable(document) { mutableStateOf(false) }
     val summary = importSummary(document.backup, existingIds, choices)
+    val showDynamic = document.backup.preferences?.dynamicColors != null && dynamicColorSupported
+    val showBlack = document.backup.preferences?.pureBlack != null
     MotionBasicAlertDialog(onDismissRequest = { if (!busy) onDismiss() }) {
         Surface(shape = AlertDialogDefaults.shape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 640.dp),
@@ -89,13 +93,13 @@ fun MigrationImportDialog(document: ImportDocument, existingIds: Set<String>, bu
                 items(document.skippedSignals) { signal ->
                     Text(stringResource(R.string.migration_skipped_signal, signal.name, signal.protocol))
                 }
-                document.backup.preferences?.let { preferences ->
+                if (showDynamic || showBlack) {
                     item { Text(stringResource(R.string.migration_preferences_title), style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.semantics { heading() }) }
-                    if (preferences.dynamicColors != null) item {
+                    if (showDynamic) item {
                         MigrationToggle(stringResource(R.string.migration_dynamic_colors), dynamic, !busy) { dynamic = it }
                     }
-                    if (preferences.pureBlack != null) item {
+                    if (showBlack) item {
                         MigrationToggle(stringResource(R.string.migration_pure_black), black, !busy) { black = it }
                     }
                 }
@@ -104,10 +108,13 @@ fun MigrationImportDialog(document: ImportDocument, existingIds: Set<String>, bu
                     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = onDismiss, enabled = !busy, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) }
-                        TextButton(enabled = !busy && (summary.added + summary.overwritten > 0 || document.backup.rooms.isNotEmpty() || dynamic || black),
+                        TextButton(enabled = !busy && (summary.added + summary.overwritten > 0 || document.backup.rooms.isNotEmpty() || (showDynamic && dynamic) || (showBlack && black)),
                             onClick = {
                                 val prefs = document.backup.preferences?.let {
-                                    PortablePreferences(it.dynamicColors.takeIf { dynamic }, it.pureBlack.takeIf { black })
+                                    PortablePreferences(
+                                        it.dynamicColors.takeIf { showDynamic && dynamic },
+                                        it.pureBlack.takeIf { showBlack && black }
+                                    )
                                 }?.takeIf { it.dynamicColors != null || it.pureBlack != null }
                                 onImport(choices, prefs)
                             },

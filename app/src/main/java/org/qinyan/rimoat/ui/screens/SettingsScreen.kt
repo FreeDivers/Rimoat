@@ -427,7 +427,8 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
         AppUpdateHost(updateViewModel)
         pendingImport?.let { document ->
             MigrationImportDialog(document, allRemotes.map { it.id }.toSet(), transferBusy,
-                onDismiss = viewModel::cancelImport, onImport = viewModel::commitImport)
+                onDismiss = viewModel::cancelImport, onImport = viewModel::commitImport,
+                dynamicColorSupported = viewModel.isDynamicColorSupported)
         }
         if (showIrFormats) MotionAlertDialog(onDismissRequest = { showIrFormats = false },
             title = { Text(stringResource(R.string.migration_ir_import)) },
