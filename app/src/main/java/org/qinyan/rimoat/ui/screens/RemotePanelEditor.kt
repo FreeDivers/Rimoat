@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -54,6 +56,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.*
+import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.ui.components.*
@@ -67,24 +70,45 @@ private data class PanelEntry(val id: String, val label: String, val icon: Image
 
 private data class PanelGroup(@StringRes val title: Int, val entries: List<PanelEntry>)
 
+private val PanelLayoutSaver = Saver<RemotePanelLayout, String>(
+    save = { Json.encodeToString(it) },
+    restore = { Json.decodeFromString(it) }
+)
+
 private fun buttonEntry(button: RemoteButton, label: String) = PanelEntry(panelKey(button), label, getIconVector(button.iconName))
 
 /** The preview and editable groups share the same saved visibility and ordering. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: (RemotePanelLayout) -> Unit,
-    onBack: () -> Unit) {
+fun RemotePanelEditor(
+    profile: RemoteProfile,
+    available: Set<AcAction>,
+    onSave: (RemotePanelLayout) -> Unit,
+    onBack: () -> Unit,
+    saveError: UiText? = null,
+    onDismissSaveError: () -> Unit = {}
+) {
     val motion = AppMotion.current
-    var serialized by rememberSaveable(profile.id) { mutableStateOf(Json.encodeToString(profile.panelLayout)) }
-    val layout = remember(serialized) { Json.decodeFromString<RemotePanelLayout>(serialized) }
+    var layout by rememberSaveable(profile.id, stateSaver = PanelLayoutSaver) {
+        mutableStateOf(profile.panelLayout)
+    }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     val wide = rememberWideLayout()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val screenActive = LocalMotionActive.current
+    LaunchedEffect(screenActive, saveError) {
+        if (screenActive) saveError?.let {
+            snackbarHostState.showSnackbar(it.resolve(context), duration = SnackbarDuration.Long)
+            onDismissSaveError()
+        }
+    }
     fun update(value: RemotePanelLayout, persist: Boolean = true) {
-        serialized = Json.encodeToString(value)
+        layout = value
         if (persist) onSave(value)
     }
 
-    val groups = buildList {
+    val baseGroups = buildList {
         val dynamic = profile.category == DeviceCategory.AC && !profile.useStaticAcButtons && profile.acProtocolId != null
         if (dynamic) {
             val main = setOf(AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.WIND_DIRECTION)
@@ -110,36 +134,49 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
                 add(PanelGroup(R.string.panel_group_extensions, (editable - top.toSet() - nav.toSet()).map { buttonEntry(it, localizedButtonLabel(it)) }))
             } else add(PanelGroup(R.string.panel_group_controls, editable.map { buttonEntry(it, localizedButtonLabel(it)) }))
         }
-    }.filter { it.entries.isNotEmpty() }.map { group -> group.copy(entries = group.entries.sortedBy { layout.rank(it.id) }) }
+    }.filter { it.entries.isNotEmpty() }
+    val groups = baseGroups.map { group -> group.copy(entries = group.entries.sortedBy { layout.rank(it.id) }) }
 
     val haptic = LocalHapticFeedback.current
     val gridState = rememberLazyGridState()
     val previewState = rememberLazyListState()
-    val currentGroups by rememberUpdatedState(groups)
-    val currentLayout by rememberUpdatedState(layout)
+    val currentBaseGroups by rememberUpdatedState(baseGroups)
     var draggingId by remember { mutableStateOf<String?>(null) }
     var dragOrigin by remember { mutableStateOf(Offset.Zero) }
     var dragDelta by remember { mutableStateOf(Offset.Zero) }
     var dragMoved by remember { mutableStateOf(false) }
+    var lastSwapLayoutInfo by remember { mutableStateOf<Any?>(null) }
+    var lastSwapTarget by remember { mutableStateOf<String?>(null) }
 
     fun reorder(ids: List<String>, from: Int, to: Int, persist: Boolean) {
         if (from !in ids.indices || to !in ids.indices || from == to) return
         val order = ids.toMutableList().apply { add(to, removeAt(from)) }
-        update(currentLayout.copy(order = currentLayout.order.filter { it !in order } + order), persist)
+        update(layout.copy(order = layout.order.filter { it !in order } + order), persist)
     }
     fun itemInfo(id: String): LazyGridItemInfo? = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }
-    fun groupIds(id: String) = currentGroups.firstOrNull { group -> group.entries.any { it.id == id } }?.entries?.map { it.id }.orEmpty()
+    fun groupIds(id: String): List<String> =
+        currentBaseGroups.firstOrNull { group -> group.entries.any { it.id == id } }
+            ?.entries
+            ?.sortedBy { layout.rank(it.id) }
+            ?.map { it.id }
+            .orEmpty()
     fun followPointer() {
         val id = draggingId ?: return
-        val self = itemInfo(id) ?: return
+        val layoutInfo = gridState.layoutInfo
+        val self = layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } ?: return
         val ids = groupIds(id)
         val center = dragOrigin + dragDelta + Offset(self.size.width / 2f, self.size.height / 2f)
-        val target = gridState.layoutInfo.visibleItemsInfo.firstOrNull { info ->
+        val target = layoutInfo.visibleItemsInfo.firstOrNull { info ->
             info.key != id && info.key in ids &&
                 center.x >= info.offset.x && center.x < info.offset.x + info.size.width &&
                 center.y >= info.offset.y && center.y < info.offset.y + info.size.height
         } ?: return
-        reorder(ids, ids.indexOf(id), ids.indexOf(target.key), persist = false)
+        val targetId = target.key as? String ?: return
+        // Avoid ping-ponging on repeated pointer moves before the grid lays out the swapped slots.
+        if (lastSwapLayoutInfo === layoutInfo && lastSwapTarget == targetId) return
+        lastSwapLayoutInfo = layoutInfo
+        lastSwapTarget = targetId
+        reorder(ids, ids.indexOf(id), ids.indexOf(targetId), persist = false)
         dragMoved = true
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
@@ -147,7 +184,9 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
         if (draggingId == null) return
         draggingId = null
         dragDelta = Offset.Zero
-        if (dragMoved) onSave(currentLayout)
+        lastSwapLayoutInfo = null
+        lastSwapTarget = null
+        if (dragMoved) onSave(layout)
         dragMoved = false
     }
     LaunchedEffect(wide) { finishDrag() }
@@ -178,6 +217,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
     ProvideExpressiveCanvas {
     Scaffold(
         containerColor = ExpressiveSurface.canvas,
+        snackbarHost = { AppSnackbarHost(snackbarHostState) },
         topBar = {
             ExpressiveCompactTopBar(
                 title = stringResource(R.string.panel_edit_title),
@@ -233,8 +273,18 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
                             }
                             .semantics {
                                 customActions = buildList {
-                                    if (index > 0) add(CustomAccessibilityAction(moveBefore) { reorder(ids, index, index - 1, true); true })
-                                    if (index < ids.lastIndex) add(CustomAccessibilityAction(moveAfter) { reorder(ids, index, index + 1, true); true })
+                                    if (index > 0) add(CustomAccessibilityAction(moveBefore) {
+                                        val currentIds = groupIds(entry.id)
+                                        val from = currentIds.indexOf(entry.id)
+                                        reorder(currentIds, from, from - 1, true)
+                                        true
+                                    })
+                                    if (index < ids.lastIndex) add(CustomAccessibilityAction(moveAfter) {
+                                        val currentIds = groupIds(entry.id)
+                                        val from = currentIds.indexOf(entry.id)
+                                        reorder(currentIds, from, from + 1, true)
+                                        true
+                                    })
                                 }
                             },
                         // Inside the toggle so a finished drag consumes its release before the tap handler sees it.

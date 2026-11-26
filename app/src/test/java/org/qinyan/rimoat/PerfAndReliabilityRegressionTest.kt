@@ -36,8 +36,10 @@ import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteCommandExecutor
 import org.qinyan.rimoat.data.RemoteCommandJournal
+import org.qinyan.rimoat.data.RemotePanelLayout
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.RemoteRepository
+import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.data.db.IrBrand
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.hardware.TransmissionReceipt
@@ -453,5 +455,106 @@ class PerfAndReliabilityRegressionTest {
         // Verify IrSignal.Raw clone safety check helper
         val cloneCheck = intArrayOf(9000, 4500)
         assertArrayEquals(intArrayOf(9000, 4500), cloneCheck.clone())
+    }
+
+    @Test
+    fun rapidPanelLayoutSavesPersistLatestLayoutWithoutOutOfOrderOverwrite() = runBlocking {
+        val repoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes.add(it) }
+        val context = createTestContext()
+        val repo = RemoteRepository(context, repoScope)
+        repo.awaitLoaded()
+        val profile = RemoteProfile(
+            id = "fan_layout",
+            name = "Fan",
+            category = DeviceCategory.FAN,
+            buttons = listOf(RemoteButton("power", "Power"), RemoteButton("speed", "Speed"))
+        )
+        repo.saveRemote(profile)
+        val vm = tracked(RemoteControlViewModel(profile.id, repository = repo, initialProfile = profile))
+        testDispatcher.scheduler.runCurrent()
+
+        repeat(40) { round ->
+            val first = RemotePanelLayout(
+                hidden = setOf("key:power"),
+                order = listOf("key:speed", "key:power", "round_first_$round")
+            )
+            val second = RemotePanelLayout(
+                hidden = setOf("key:speed"),
+                order = listOf("key:power", "key:speed", "round_second_$round")
+            )
+            vm.savePanelLayout(first)
+            vm.savePanelLayout(second)
+            withTimeout(5000) {
+                while (true) {
+                    testDispatcher.scheduler.runCurrent()
+                    val saved = repo.getRemote(profile.id)?.panelLayout
+                    if (saved == second) {
+                        // Give any straggler coroutine a brief moment to overwrite if out of order
+                        delay(20)
+                        testDispatcher.scheduler.runCurrent()
+                        assertEquals(
+                            "Round $round: older layout overwrote latest layout",
+                            second,
+                            repo.getRemote(profile.id)?.panelLayout
+                        )
+                        break
+                    }
+                    delay(5)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun panelSaveErrorUsesUiTextAndSurvivesVisibilityAndLifecycleCallbacksUntilClearedOrSaved() = runBlocking {
+        val repoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes.add(it) }
+        val context = createTestContext()
+        val repo = RemoteRepository(context, repoScope)
+        repo.awaitLoaded()
+        val profile = RemoteProfile(
+            id = "fan_err",
+            name = "Fan",
+            category = DeviceCategory.FAN,
+            buttons = listOf(RemoteButton("power", "Power"), RemoteButton("speed", "Speed"))
+        )
+        repo.saveRemote(profile)
+
+        val roomsFile = File(tempDir, "rooms.json")
+        if (roomsFile.exists()) assertTrue(roomsFile.delete())
+        File(roomsFile, "lock").apply {
+            parentFile!!.mkdirs()
+            writeText("locked")
+        }
+
+        val vm = tracked(RemoteControlViewModel(profile.id, repository = repo, initialProfile = profile))
+        val failedLayout = RemotePanelLayout(hidden = setOf("key:speed"))
+        vm.savePanelLayout(failedLayout)
+        withTimeout(5000) {
+            while (vm.panelSaveError.value == null) {
+                testDispatcher.scheduler.runCurrent()
+                delay(5)
+            }
+        }
+        val error = vm.panelSaveError.value
+        assertTrue(error is UiText.Resource && error.id == R.string.msg_remote_save_failed)
+        assertNull(vm.operationError.value)
+
+        vm.onScreenStopped()
+        vm.clearFeedback()
+        vm.onVisible()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(error, vm.panelSaveError.value)
+
+        // Unblock saving and verify a subsequent successful save clears panelSaveError.
+        assertTrue(roomsFile.deleteRecursively())
+        val recoveredLayout = RemotePanelLayout(hidden = setOf("key:power"))
+        vm.savePanelLayout(recoveredLayout)
+        withTimeout(5000) {
+            while (repo.getRemote(profile.id)?.panelLayout != recoveredLayout || vm.panelSaveError.value != null) {
+                testDispatcher.scheduler.runCurrent()
+                delay(5)
+            }
+        }
+        assertNull(vm.panelSaveError.value)
     }
 }

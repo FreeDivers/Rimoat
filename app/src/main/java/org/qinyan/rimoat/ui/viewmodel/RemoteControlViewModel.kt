@@ -57,6 +57,9 @@ class RemoteControlViewModel(
 
     private val operationLifetime = SupervisorJob()
     private val operationScope = CoroutineScope(viewModelScope.coroutineContext + operationLifetime)
+    private val panelSaveLock = Any()
+    private var pendingPanelLayout: org.qinyan.rimoat.data.RemotePanelLayout? = null
+    private var panelSaveActive = false
 
     private val _isLearningMode = MutableStateFlow(false)
     val isLearningMode: StateFlow<Boolean> = _isLearningMode.asStateFlow()
@@ -74,13 +77,48 @@ class RemoteControlViewModel(
         _isLearningMode.value = enabled
     }
 
+    private val _panelSaveError = MutableStateFlow<UiText?>(null)
+    val panelSaveError: StateFlow<UiText?> = _panelSaveError.asStateFlow()
+    fun clearPanelSaveError() { _panelSaveError.value = null }
+
     fun savePanelLayout(layout: org.qinyan.rimoat.data.RemotePanelLayout) {
+        val shouldLaunch = synchronized(panelSaveLock) {
+            if (!operationLifetime.isActive) return
+            pendingPanelLayout = layout
+            if (panelSaveActive) false else {
+                panelSaveActive = true
+                true
+            }
+        }
+        if (!shouldLaunch) return
         operationScope.launch {
             try {
-                repository?.updatePanelLayout(remoteId, layout)
-                _manualProfile.value = _manualProfile.value?.copy(panelLayout = layout)
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _operationError.value = AppStrings.get(R.string.msg_remote_save_failed, e.message ?: e.javaClass.simpleName) }
+                while (true) {
+                    val next = synchronized(panelSaveLock) {
+                        pendingPanelLayout.also { pendingPanelLayout = null }
+                            ?: run {
+                                panelSaveActive = false
+                                return@launch
+                            }
+                    }
+                    try {
+                        repository?.updatePanelLayout(remoteId, next)
+                        _manualProfile.value = _manualProfile.value?.copy(panelLayout = next)
+                        _panelSaveError.value = null
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        _panelSaveError.value = UiText.resource(
+                            R.string.msg_remote_save_failed,
+                            e.uiTextDetail(R.string.msg_storage_unavailable)
+                        )
+                    }
+                }
+            } finally {
+                synchronized(panelSaveLock) {
+                    panelSaveActive = false
+                }
+            }
         }
     }
 

@@ -159,14 +159,17 @@ fun RemoteControlScreen(
     ) {
         val remote by viewModel.remoteProfile.collectAsStateWithLifecycle()
         val available by viewModel.availableAcActions.collectAsStateWithLifecycle()
+        val panelSaveError by viewModel.panelSaveError.collectAsStateWithLifecycle()
         var showEditor by androidx.compose.runtime.saveable.rememberSaveable(viewModel.remoteId) { mutableStateOf(false) }
+        var visitRecorded by androidx.compose.runtime.saveable.rememberSaveable(viewModel.remoteId) { mutableStateOf(false) }
         val editing = showEditor && remote != null
         MotionContent(
             targetState = editing,
             contentKey = { if (it) "editor" else "controls" },
             isBack = { _, to -> !to },
             backTarget = if (editing) false else null,
-            onBack = { showEditor = false }
+            onBack = { showEditor = false },
+            discardSavedStateOnExit = { it }
         ) { editor ->
             if (editor) {
                 remote?.let { profile ->
@@ -174,14 +177,22 @@ fun RemoteControlScreen(
                         profile = profile,
                         available = available,
                         onSave = viewModel::savePanelLayout,
-                        onBack = { showEditor = false }
+                        onBack = { showEditor = false },
+                        saveError = panelSaveError,
+                        onDismissSaveError = viewModel::clearPanelSaveError
                     )
                 }
             } else {
-                RemoteControlContent(viewModel, onBack, onEdit = {
-                    viewModel.setLearningMode(false)
-                    showEditor = true
-                })
+                RemoteControlContent(
+                    viewModel = viewModel,
+                    onBack = onBack,
+                    onEdit = {
+                        viewModel.setLearningMode(false)
+                        showEditor = true
+                    },
+                    visitRecorded = visitRecorded,
+                    onVisitRecorded = { visitRecorded = true }
+                )
             }
         }
     }
@@ -192,7 +203,9 @@ fun RemoteControlScreen(
 private fun RemoteControlContent(
     viewModel: RemoteControlViewModel,
     onBack: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    visitRecorded: Boolean,
+    onVisitRecorded: () -> Unit
 ) {
     val wide = rememberWideLayout()
     var selectedControlPage by androidx.compose.runtime.saveable.rememberSaveable(viewModel.remoteId) { mutableStateOf(0) }
@@ -215,10 +228,9 @@ private fun RemoteControlContent(
     val isTransmitting by viewModel.isTransmitting.collectAsStateWithLifecycle()
     val screenActive = LocalMotionActive.current
     val hostActivity = androidx.compose.ui.platform.LocalContext.current.findActivity()
-    var visitRecorded by remember(viewModel) { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(screenActive, viewModel) {
         if (screenActive && !visitRecorded) {
-            visitRecorded = true
+            onVisitRecorded()
             viewModel.onVisible()
         }
     }
@@ -246,6 +258,7 @@ private fun RemoteControlContent(
     val learningDialogButton by viewModel.learningDialogButton.collectAsStateWithLifecycle()
     val capturedLearningSignal by viewModel.capturedLearningSignal.collectAsStateWithLifecycle()
     val operationError by viewModel.operationError.collectAsStateWithLifecycle()
+    val panelSaveError by viewModel.panelSaveError.collectAsStateWithLifecycle()
     val learningError by viewModel.learningError.collectAsStateWithLifecycle()
     val isSavingButton by viewModel.isSavingButton.collectAsStateWithLifecycle()
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -307,6 +320,12 @@ private fun RemoteControlContent(
         if (screenActive && learningDialogButton == null) operationError?.let {
             snackbarHostState.showSnackbar(it, duration = androidx.compose.material3.SnackbarDuration.Long)
             viewModel.clearOperationError()
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(screenActive, panelSaveError, learningDialogButton) {
+        if (screenActive && learningDialogButton == null) panelSaveError?.let {
+            snackbarHostState.showSnackbar(it.resolve(context), duration = androidx.compose.material3.SnackbarDuration.Long)
+            viewModel.clearPanelSaveError()
         }
     }
     var showTransmitterSheet by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
