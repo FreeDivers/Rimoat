@@ -26,6 +26,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.BackupFileStore
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
+import org.qinyan.rimoat.data.RemotePanelLayout
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.RemoteRepository
 import org.qinyan.rimoat.data.ThemePreferences
@@ -139,6 +140,41 @@ class LandscapeLayoutRoborazziTest {
         val swing = buttonBounds("摇头")
         assertTrue("power stays left of extension grid", power.right < swing.left)
         capture("fan")
+    }
+
+    @Test
+    fun singleHiddenCustomButtonShowsEmptyStateInLandscape() {
+        val app = RuntimeEnvironment.getApplication()
+        val onlyKey = key("mute", "静音")
+        val profile = RemoteProfile(
+            id = "land_hidden_single", name = "单键遥控器", category = DeviceCategory.CUSTOM,
+            buttons = listOf(onlyKey),
+            panelLayout = RemotePanelLayout(hidden = setOf("key:mute"))
+        )
+        showRemote(profile)
+        composeRule.onNodeWithText(app.getString(R.string.screen_no_buttons)).assertIsDisplayed()
+        composeRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("静音")).fetchSemanticsNodes().let {
+            assertTrue("hidden single button should not be displayed", it.isEmpty())
+        }
+        capture("hidden_single_empty")
+    }
+
+    @Test
+    fun twoCustomButtonsWithOneHiddenUsesSingleKeyLandscapeLayout() {
+        val visible = key("mute", "静音")
+        val hidden = key("menu", "菜单")
+        val profile = RemoteProfile(
+            id = "land_two_one_hidden", name = "简化遥控器", room = "书房", category = DeviceCategory.CUSTOM,
+            buttons = listOf(visible, hidden),
+            panelLayout = RemotePanelLayout(hidden = setOf("key:menu"))
+        )
+        showRemote(profile)
+        val name = bounds("简化遥控器")
+        val action = buttonBounds("静音")
+        assertTrue("identity sits beside the only visible button", name.right < action.left)
+        composeRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("菜单")).fetchSemanticsNodes().let {
+            assertTrue("hidden button should not be displayed", it.isEmpty())
+        }
     }
 
     @Test

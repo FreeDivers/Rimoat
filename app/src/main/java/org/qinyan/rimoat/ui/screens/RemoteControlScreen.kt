@@ -502,7 +502,7 @@ private fun RemoteControlContent(
                         onLoadChoices = viewModel::availableAcChoices, onSelectChoice = viewModel::selectAcState,
                         onResend = viewModel::resendAcSettings, onPreset = viewModel::applyAcPreset,
                         transmitterType = transmitterType,
-                        singleConfiguredKey = remote?.buttons?.size == 1,
+                        singleConfiguredKey = profile.buttons.size == 1,
                         primaryScroll = primaryScroll, secondaryScroll = secondaryScroll
                     )
                 } else {
