@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -46,6 +47,7 @@ val LocalMotionActive = compositionLocalOf { true }
 
 private class Scene<T>(val from: T, val to: T, val back: Boolean, val direction: Float) {
     val progress = Animatable(0f)
+    var reverting = false
 }
 
 /**
@@ -76,6 +78,7 @@ fun <T : Any> MotionContent(
     val savedState = rememberSaveableStateHolder()
     var settled by remember { mutableStateOf(targetState) }
     var scene by remember { mutableStateOf<Scene<T>?>(null) }
+    var pendingBack by remember { mutableStateOf<Scene<T>?>(null) }
     var retained by remember { mutableStateOf<List<T>>(emptyList()) }
     val targetKey = contentKey(targetState)
 
@@ -87,6 +90,14 @@ fun <T : Any> MotionContent(
     }
 
     LaunchedEffect(targetKey, active) {
+        val pending = pendingBack
+        if (pending != null && scene === pending && !pending.reverting && contentKey(pending.to) == targetKey) {
+            settled = latestTarget
+            scene = null
+            pendingBack = null
+            return@LaunchedEffect
+        }
+        if (pending != null) pendingBack = null
         if (contentKey(settled) != targetKey) {
             if (!active) {
                 settled = latestTarget
@@ -94,7 +105,9 @@ fun <T : Any> MotionContent(
                 return@LaunchedEffect
             }
             // External navigation supersedes a preview. Old gesture cleanup checks scene identity.
-            val next = Scene(settled, latestTarget, isBack(settled, latestTarget), direction)
+            val origin = if (pending != null && scene === pending && !pending.reverting) pending.to else settled
+            settled = origin
+            val next = Scene(origin, latestTarget, isBack(origin, latestTarget), direction)
             scene = next
             try {
                 next.progress.animateTo(1f, motion.defaultSpatialSpec())
@@ -107,6 +120,27 @@ fun <T : Any> MotionContent(
             // previous transition completes. Its cancelled effect cannot clear scene.
             settled = latestTarget
             scene = null
+        }
+    }
+
+    LaunchedEffect(pendingBack) {
+        val pending = pendingBack ?: return@LaunchedEffect
+        // Wait two frames so synchronous or flow-collected state updates from onBack() recompose first.
+        withFrameNanos { }
+        withFrameNanos { }
+        if (scene !== pending || pendingBack !== pending) return@LaunchedEffect
+        if (!active || contentKey(latestTarget) == contentKey(pending.to)) {
+            if (contentKey(latestTarget) == contentKey(pending.to)) settled = latestTarget
+            scene = null
+            pendingBack = null
+            return@LaunchedEffect
+        }
+        pending.reverting = true
+        try {
+            pending.progress.animateTo(0f, motion.fastSpatialSpec())
+        } finally {
+            if (scene === pending) scene = null
+            if (pendingBack === pending) pendingBack = null
         }
     }
 
@@ -136,10 +170,14 @@ fun <T : Any> MotionContent(
                     val progress = checkNotNull(preview).progress
                     if (stillValid) {
                         progress.animateTo(1f, motion.defaultSpatialSpec())
-                        if (scene === preview && contentKey(latestTarget) == contentKey(origin)) {
-                            settled = destination
-                            scene = null
+                        if (scene === preview && contentKey(latestTarget) == contentKey(origin) &&
+                            latestBack?.let(contentKey) == contentKey(destination)
+                        ) {
+                            pendingBack = preview
                             latestOnBack()
+                        } else if (scene === preview) {
+                            progress.animateTo(0f, motion.fastSpatialSpec())
+                            if (scene === preview) scene = null
                         }
                     } else {
                         progress.animateTo(0f, motion.fastSpatialSpec())
@@ -148,14 +186,14 @@ fun <T : Any> MotionContent(
                 }
             } catch (cancelled: CancellationException) {
                 val cancelledScene = preview
-                if (cancelledScene != null && scene === cancelledScene) {
+                if (cancelledScene != null && scene === cancelledScene && pendingBack !== cancelledScene) {
                     withContext(NonCancellable) {
                         cancelledScene.progress.animateTo(0f, motion.fastSpatialSpec())
                     }
                 }
                 throw cancelled
             } finally {
-                if (preview != null && scene === preview) scene = null
+                if (preview != null && scene === preview && pendingBack !== preview) scene = null
             }
         }
     }

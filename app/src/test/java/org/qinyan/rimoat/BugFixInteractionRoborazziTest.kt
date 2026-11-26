@@ -358,4 +358,131 @@ class BugFixInteractionRoborazziTest {
         compose.waitForIdle()
         searchField.assertIsNotFocused()
     }
+
+    @Test fun predictiveBackRollsBackWhenOnBackDoesNotNavigate() {
+        var target by mutableStateOf("确认保存")
+        var allowBack by mutableStateOf(false)
+        var onBackCalls = 0
+        var clicks = 0
+        var interactive = false
+        lateinit var dispatcher: OnBackPressedDispatcher
+        val action = app.getString(R.string.screen_resend)
+        compose.setContent {
+            dispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                MotionContent(
+                    targetState = target,
+                    contentKey = { it },
+                    isBack = { _, to -> to == "向导步骤" },
+                    backTarget = "向导步骤",
+                    onBack = {
+                        onBackCalls++
+                        if (allowBack) target = "向导步骤"
+                    }
+                ) { page ->
+                    if (page == target) interactive = LocalMotionActive.current
+                    Column {
+                        Text(page)
+                        Button(onClick = { clicks++ }) { Text("$action-$page") }
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText("确认保存").assertIsDisplayed()
+        capture("predictive_back_rejected_before")
+
+        compose.runOnUiThread {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(120f, 0f, 0.6f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.waitForIdle()
+        compose.runOnUiThread {
+            dispatcher.onBackPressed()
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("确认保存").assertIsDisplayed()
+        compose.onNodeWithText("向导步骤").assertDoesNotExist()
+        compose.onNodeWithText("$action-确认保存").performClick()
+        compose.runOnIdle {
+            assertEquals(1, onBackCalls)
+            assertTrue(interactive)
+            assertEquals(1, clicks)
+        }
+        capture("predictive_back_rejected_after")
+
+        allowBack = true
+        compose.runOnUiThread {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(120f, 0f, 0.6f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.waitForIdle()
+        compose.runOnUiThread {
+            dispatcher.onBackPressed()
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("向导步骤").assertIsDisplayed()
+        compose.onNodeWithText("$action-向导步骤").performClick()
+        compose.runOnIdle {
+            assertEquals(2, onBackCalls)
+            assertTrue(interactive)
+            assertEquals(2, clicks)
+        }
+    }
+
+    @Test fun predictiveBackRollsBackWhenBackTargetBecomesNullDuringCompletion() {
+        var target by mutableStateOf("学习匹配")
+        var backTarget by mutableStateOf<String?>("选择品牌")
+        var onBackCalls = 0
+        var clicks = 0
+        var interactive = false
+        lateinit var dispatcher: OnBackPressedDispatcher
+        val action = app.getString(R.string.screen_resend)
+        compose.setContent {
+            dispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                MotionContent(
+                    targetState = target,
+                    contentKey = { it },
+                    isBack = { _, to -> to == "选择品牌" },
+                    backTarget = backTarget,
+                    onBack = {
+                        onBackCalls++
+                        target = "选择品牌"
+                    }
+                ) { page ->
+                    if (page == target) interactive = LocalMotionActive.current
+                    Column {
+                        Text(page)
+                        Button(onClick = { clicks++ }) { Text(action) }
+                    }
+                }
+            }
+        }
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(100f, 0f, 0.5f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.mainClock.advanceTimeBy(16)
+        compose.runOnUiThread {
+            dispatcher.onBackPressed()
+        }
+        compose.mainClock.advanceTimeBy(32)
+        compose.runOnUiThread {
+            backTarget = null
+        }
+        compose.mainClock.advanceTimeBy(800)
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+
+        compose.onNodeWithText("学习匹配").assertIsDisplayed()
+        compose.onNodeWithText(action).performClick()
+        compose.runOnIdle {
+            assertEquals(0, onBackCalls)
+            assertTrue(interactive)
+            assertEquals(1, clicks)
+        }
+    }
 }
