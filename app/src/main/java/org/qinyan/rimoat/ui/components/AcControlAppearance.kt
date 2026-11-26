@@ -3,6 +3,7 @@ package org.qinyan.rimoat.ui.components
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.localizedLabel
+import org.qinyan.rimoat.i18n.localizedTimerDurationLabel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -95,7 +96,7 @@ fun AcSettings.controlAppearance(action: AcAction): AcControlAppearance {
             AcWindDirection.MIDDLE -> AppStrings.get(R.string.control_air_horizontal, "水平送风")
             AcWindDirection.DOWN -> AppStrings.get(R.string.control_air_down, "向下送风")
         }
-        AcAction.TIMER -> if (timerMinutes > 0) AppStrings.get(R.string.control_minutes, "%1\$d 分钟", timerMinutes) else localizedLabel(action.label)
+        AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes) else localizedLabel(action.label)
         AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay.labelCn)
         else -> localizedLabel(action.label)
     }
@@ -104,7 +105,7 @@ fun AcSettings.controlAppearance(action: AcAction): AcControlAppearance {
         AcAction.FAN -> localizedLabel(fanSpeed.labelCn)
         AcAction.WIND_DIRECTION -> localizedLabel(windDirection.labelCn)
         AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay.labelCn)
-        AcAction.TIMER -> if (timerMinutes > 0) AppStrings.get(R.string.control_minutes, "%1\$d 分钟", timerMinutes) else AppStrings.get(R.string.control_disabled, "关闭")
+        AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes) else AppStrings.get(R.string.control_disabled, "关闭")
         else -> active?.let { if (it) AppStrings.get(R.string.control_enabled, "开启") else AppStrings.get(R.string.control_disabled, "关闭") }
     }
     return AcControlAppearance(label, icon, state, active)

@@ -1000,7 +1000,7 @@ fun AcRemoteLayout(
 
     val modeAppearance = acState.controlAppearance(AcAction.MODE)
     val fanAppearance = acState.controlAppearance(AcAction.FAN)
-    val timerBadge = if (acState.timerMinutes > 0) AppStrings.get(R.string.control_minutes, "%1\$d 分钟", acState.timerMinutes) else null
+    val timerBadge = if (acState.timerMinutes > 0) org.qinyan.rimoat.i18n.localizedTimerDurationLabel(acState.timerMinutes) else null
     val temperatureCard: @Composable () -> Unit = {
     org.qinyan.rimoat.ui.components.AcTemperatureCard(
         temperature = acState.temperature,

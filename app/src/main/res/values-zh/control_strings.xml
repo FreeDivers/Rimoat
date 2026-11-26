@@ -222,9 +222,13 @@
     <string name="control_unavailable">不可用</string>
     <string name="control_no_devices">无可用设备</string>
     <string name="control_serial_module">串口红外模块</string>
-    <string name="control_minutes">%1$d 分钟</string>
-    <string name="control_hours">%1$d 小时</string>
-    <string name="control_hours_minutes">%1$d 小时 %2$d 分钟</string>
+    <plurals name="control_minutes">
+        <item quantity="other">%1$d 分钟</item>
+    </plurals>
+    <plurals name="control_hours">
+        <item quantity="other">%1$d 小时</item>
+    </plurals>
+    <string name="control_hours_minutes">%1$s %2$s</string>
     <string name="control_learn">学习%1$s</string>
     <string name="control_select">选择%1$s</string>
     <string name="control_fan_label">%1$s风</string>

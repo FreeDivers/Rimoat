@@ -6,9 +6,18 @@ import org.qinyan.rimoat.data.RemoteButton
 
 fun localizedTimerDurationLabel(minutes: Int): String = when {
     minutes == 0 -> AppStrings.get(R.string.control_disable_timer, "关闭定时")
-    minutes < 60 -> AppStrings.get(R.string.control_minutes, "%1\$d 分钟", minutes)
-    minutes % 60 == 0 -> AppStrings.get(R.string.control_hours, "%1\$d 小时", minutes / 60)
-    else -> AppStrings.get(R.string.control_hours_minutes, "%1\$d 小时 %2\$d 分钟", minutes / 60, minutes % 60)
+    minutes < 60 -> AppStrings.quantity(R.plurals.control_minutes, minutes, "%1\$d 分钟", minutes)
+    minutes % 60 == 0 -> {
+        val hours = minutes / 60
+        AppStrings.quantity(R.plurals.control_hours, hours, "%1\$d 小时", hours)
+    }
+    else -> {
+        val hours = minutes / 60
+        val remainingMinutes = minutes % 60
+        val hoursText = AppStrings.quantity(R.plurals.control_hours, hours, "%1\$d 小时", hours)
+        val minutesText = AppStrings.quantity(R.plurals.control_minutes, remainingMinutes, "%1\$d 分钟", remainingMinutes)
+        AppStrings.get(R.string.control_hours_minutes, "%1\$s %2\$s", hoursText, minutesText)
+    }
 }
 
 /** Translate known built-in labels at the display boundary. Never write translations into profiles. */

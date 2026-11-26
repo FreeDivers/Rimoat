@@ -95,8 +95,8 @@ class SkyworthTimer670RoborazziTest {
                 assertEquals(powerOn, vm.acState.value.powerOn)
                 assertNull(vm.operationError.value)
             }
-            compose.onNodeWithText(app.getString(R.string.control_minutes, 1440), useUnmergedTree = true)
-                .performScrollTo().assertIsDisplayed()
+            compose.onAllNodesWithText(localizedTimerDurationLabel(1440), useUnmergedTree = true)
+                .onFirst().performScrollTo().assertIsDisplayed()
             capture("${prefix}_sent")
         } finally {
             compose.runOnIdle { store.clear() }

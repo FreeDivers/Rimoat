@@ -222,9 +222,13 @@
     <string name="control_unavailable">使用不可</string>
     <string name="control_no_devices">使用可能なデバイスなし</string>
     <string name="control_serial_module">シリアル赤外線モジュール</string>
-    <string name="control_minutes">%1$d分</string>
-    <string name="control_hours">%1$d時間</string>
-    <string name="control_hours_minutes">%1$d時間%2$d分</string>
+    <plurals name="control_minutes">
+        <item quantity="other">%1$d分</item>
+    </plurals>
+    <plurals name="control_hours">
+        <item quantity="other">%1$d時間</item>
+    </plurals>
+    <string name="control_hours_minutes">%1$s%2$s</string>
     <string name="control_learn">%1$sを学習</string>
     <string name="control_select">%1$sを選択</string>
     <string name="control_fan_label">風速：%1$s</string>

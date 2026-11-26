@@ -222,9 +222,15 @@
     <string name="control_unavailable">Unavailable</string>
     <string name="control_no_devices">No available devices</string>
     <string name="control_serial_module">Serial IR module</string>
-    <string name="control_minutes">%1$d min</string>
-    <string name="control_hours">%1$d hr</string>
-    <string name="control_hours_minutes">%1$d hr %2$d min</string>
+    <plurals name="control_minutes">
+        <item quantity="one">%1$d min</item>
+        <item quantity="other">%1$d mins</item>
+    </plurals>
+    <plurals name="control_hours">
+        <item quantity="one">%1$d hr</item>
+        <item quantity="other">%1$d hrs</item>
+    </plurals>
+    <string name="control_hours_minutes">%1$s %2$s</string>
     <string name="control_learn">Learn %1$s</string>
     <string name="control_select">Select %1$s</string>
     <string name="control_fan_label">Fan: %1$s</string>
