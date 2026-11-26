@@ -4,6 +4,9 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
+import android.os.Build
+import androidx.core.content.pm.PackageInfoCompat
 import org.qinyan.rimoat.hardware.IrSignal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -14,6 +17,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.BitSet
 import java.util.zip.InflaterInputStream
 import kotlinx.serialization.json.*
@@ -109,19 +114,125 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
     }
 
     private suspend fun db(): SQLiteDatabase = mutex.withLock {
-        database?.let { return@withLock it }
-        val target = context.getDatabasePath("ac_states_v2.db")
-        if (!target.exists()) {
-            target.parentFile?.mkdirs()
-            val temp = File(target.path + ".tmp")
+        database?.let { if (it.isOpen) return@withLock it }
+        val target = context.getDatabasePath(DB_FILE_NAME)
+        val prefs = context.getSharedPreferences(META_PREFS_NAME, Context.MODE_PRIVATE)
+        val currentCatalogVersion = CatalogUpgrade.VERSION
+        val currentAppVersionCode = currentAppVersionCode()
+        val installedCatalogVersion = prefs.getInt(KEY_INSTALLED_AC_DB_VERSION, 0)
+        val installedAppVersionCode = prefs.getLong(KEY_INSTALLED_AC_APP_VERSION_CODE, -1L)
+
+        val needsInstall = !target.exists() ||
+            target.length() == 0L ||
+            installedCatalogVersion != currentCatalogVersion ||
+            installedAppVersionCode != currentAppVersionCode
+
+        if (!needsInstall) {
             try {
-                context.assets.open("ac_states.db").use { input ->
-                    FileOutputStream(temp).use { output -> input.copyTo(output); output.fd.sync() }
-                }
-                check(temp.renameTo(target)) { AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试") }
-            } finally { temp.delete() }
+                return@withLock openAndVerifyDatabase(target).also { database = it }
+            } catch (_: SQLiteException) {
+                // Fall through to reinstall from assets when the installed database cannot be opened or verified.
+            } catch (_: IllegalStateException) {
+                // Fall through to reinstall from assets when schema or integrity validation fails.
+            }
         }
-        SQLiteDatabase.openDatabase(target.path, null, SQLiteDatabase.OPEN_READONLY).also { database = it }
+
+        installDatabaseFromAssets(target)
+        val reopened = openAndVerifyDatabase(target)
+        prefs.edit()
+            .putInt(KEY_INSTALLED_AC_DB_VERSION, currentCatalogVersion)
+            .putLong(KEY_INSTALLED_AC_APP_VERSION_CODE, currentAppVersionCode)
+            .apply()
+        database = reopened
+        reopened
+    }
+
+    private fun currentAppVersionCode(): Long = try {
+        PackageInfoCompat.getLongVersionCode(context.packageManager.getPackageInfo(context.packageName, 0))
+    } catch (_: Exception) {
+        -1L
+    }
+
+    private fun installDatabaseFromAssets(target: File) {
+        val parent = target.parentFile
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs()
+        }
+        val temp = File(target.path + ".tmp")
+        try {
+            context.assets.open(ASSET_DB_NAME).use { input ->
+                FileOutputStream(temp).use { output -> input.copyTo(output); output.fd.sync() }
+            }
+            openAndVerifyDatabase(temp).close()
+            replaceAtomically(temp, target)
+            deleteDatabaseSidecars(target)
+        } finally {
+            temp.delete()
+        }
+    }
+
+    private fun openAndVerifyDatabase(file: File): SQLiteDatabase {
+        val opened = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
+        try {
+            opened.rawQuery("PRAGMA quick_check", null).use { cursor ->
+                check(cursor.moveToFirst() && cursor.getString(0) == "ok") {
+                    AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试")
+                }
+            }
+            opened.rawQuery(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('metadata','frames','states')",
+                null
+            ).use { cursor ->
+                check(cursor.moveToFirst() && cursor.getInt(0) == 3) {
+                    AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试")
+                }
+            }
+            opened.rawQuery("SELECT value FROM metadata WHERE key='version'", null).use { cursor ->
+                check(cursor.moveToFirst() && !cursor.getString(0).isNullOrBlank()) {
+                    AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试")
+                }
+            }
+            return opened
+        } catch (t: Throwable) {
+            opened.close()
+            throw t
+        }
+    }
+
+    private fun replaceAtomically(temporary: File, target: File) {
+        if (Build.VERSION.SDK_INT in 1..25) {
+            check(temporary.renameTo(target)) {
+                AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试")
+            }
+        } else {
+            // File.renameTo does not overwrite existing files on Windows JVM tests.
+            try {
+                Files.move(
+                    temporary.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (e: Exception) {
+                throw IllegalStateException(
+                    AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试"),
+                    e
+                )
+            }
+        }
+    }
+
+    private fun deleteDatabaseSidecars(target: File) {
+        File(target.path + "-journal").delete()
+        File(target.path + "-wal").delete()
+        File(target.path + "-shm").delete()
+    }
+
+    internal suspend fun closeDatabaseForTest() {
+        mutex.withLock {
+            database?.close()
+            database = null
+        }
     }
 
     private suspend fun stateBitsFor(protocol: Int): BitSet {
@@ -157,7 +268,15 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
     /** ARM encodes directly; fallback frames stay packaged and are extracted only when needed. */
     suspend fun compactExistingCache() = withContext(Dispatchers.IO) {
         if (NativeAcEncoder.available && parsedIndex.modes.isNotEmpty()) {
-            mutex.withLock { if (database == null) context.deleteDatabase("ac_states_v2.db") }
+            mutex.withLock {
+                if (database == null) {
+                    context.deleteDatabase(DB_FILE_NAME)
+                    context.getSharedPreferences(META_PREFS_NAME, Context.MODE_PRIVATE).edit()
+                        .remove(KEY_INSTALLED_AC_DB_VERSION)
+                        .remove(KEY_INSTALLED_AC_APP_VERSION_CODE)
+                        .apply()
+                }
+            }
         }
     }
 
@@ -231,5 +350,13 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
         val restore = if (settings.mode == AcMode.COOL || settings.mode == AcMode.HEAT) AcAction.TEMP_UP else AcAction.MODE
         val second = NativeAcEncoder.encode(protocol, settings, restore, settings.counter + 1) ?: return emptyList()
         return listOf(first, second)
+    }
+
+    companion object {
+        internal const val DB_FILE_NAME = "ac_states_v2.db"
+        private const val ASSET_DB_NAME = "ac_states.db"
+        internal const val META_PREFS_NAME = "ir_db_meta"
+        internal const val KEY_INSTALLED_AC_DB_VERSION = "installed_ac_db_version"
+        internal const val KEY_INSTALLED_AC_APP_VERSION_CODE = "installed_ac_app_version_code"
     }
 }
