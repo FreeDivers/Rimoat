@@ -51,6 +51,7 @@ import org.qinyan.rimoat.hardware.TransmitterType
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.ui.components.ScreenRotationHost
+import org.qinyan.rimoat.ui.components.ScreenRotationIconButton
 import org.qinyan.rimoat.ui.learning.CustomRemoteWizardScreen
 import org.qinyan.rimoat.ui.learning.CustomRemoteWizardViewModel
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
@@ -205,12 +206,12 @@ class ScreenRotationRoborazziTest {
                 roborazziOptions = screenshotOptions
             )
 
-            // Click top-bar rotation icon to restore upright portrait
+            // Click top-bar rotation icon to restore original orientation (UNSPECIFIED)
             composeRule.onNodeWithContentDescription(app.getString(R.string.screen_restore_orientation))
                 .performClick()
             composeRule.waitForIdle()
             assertEquals(
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
                 composeRule.activity.requestedOrientation
             )
             composeRule.onNodeWithContentDescription(app.getString(R.string.screen_rotate_screen))
@@ -341,17 +342,158 @@ class ScreenRotationRoborazziTest {
                 composeRule.activity.requestedOrientation
             )
 
-            // Turn off Auto-rotate -> Activity restores to upright PORTRAIT
+            // Turn off Auto-rotate -> Activity restores original orientation (UNSPECIFIED)
             composeRule.onNodeWithText(app.getString(R.string.settings_auto_rotate_screen)).performClick()
             composeRule.waitForIdle()
             assertFalse(themePreferences.autoRotateScreen.value)
             assertEquals(
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
                 composeRule.activity.requestedOrientation
             )
         } finally {
             transmitterManager.release()
             runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
         }
+    }
+
+    @Test
+    fun restoringOrientationReturnsToPreRotationSettingAndResetsAppliedFlag() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val themePreferences = ThemePreferences(app).apply {
+            setAutoRotateScreen(true)
+            setSuppressRotationPrompt(true)
+            setRotationDirection(ScreenRotationDirection.REVERSE_PORTRAIT)
+            setRotationCondition(ScreenRotationCondition.ALWAYS)
+            setRotationScope(ScreenRotationScope.REMOTE_AND_MATCHING)
+        }
+        composeRule.runOnIdle {
+            composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        }
+
+        var isTargetScreen by mutableStateOf(false)
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                ScreenRotationHost(
+                    themePreferences = themePreferences,
+                    isTargetRotationScreen = isTargetScreen,
+                    targetScreenKey = if (isTargetScreen) "remote" else "home",
+                    isExternalIrConnected = false
+                ) {}
+            }
+        }
+        composeRule.waitForIdle()
+
+        // Before any rotation is triggered, host should not alter the Activity's orientation.
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR,
+            composeRule.activity.requestedOrientation
+        )
+
+        // Entering a target screen applies auto-rotation.
+        isTargetScreen = true
+        composeRule.waitForIdle()
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
+            composeRule.activity.requestedOrientation
+        )
+
+        // Leaving the target screen restores the pre-rotation orientation rather than locking portrait.
+        isTargetScreen = false
+        composeRule.waitForIdle()
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR,
+            composeRule.activity.requestedOrientation
+        )
+
+        // After restoration, orientationApplied is reset so external orientation changes are not overwritten.
+        composeRule.runOnIdle {
+            composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        }
+        themePreferences.setRotationDirection(ScreenRotationDirection.LANDSCAPE)
+        composeRule.waitForIdle()
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_USER,
+            composeRule.activity.requestedOrientation
+        )
+
+        // Re-entering rotation records the new pre-rotation orientation and restores it when leaving.
+        isTargetScreen = true
+        composeRule.waitForIdle()
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
+            composeRule.activity.requestedOrientation
+        )
+
+        isTargetScreen = false
+        composeRule.waitForIdle()
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_USER,
+            composeRule.activity.requestedOrientation
+        )
+    }
+
+    @Test
+    fun manualToggleRotationRestoresOriginalOrientationWithoutLockingPortrait() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val themePreferences = ThemePreferences(app).apply {
+            setAutoRotateScreen(false)
+            setSuppressRotationPrompt(true)
+            setRotationDirection(ScreenRotationDirection.REVERSE_PORTRAIT)
+            setRotationCondition(ScreenRotationCondition.EXTERNAL_ONLY)
+            setRotationScope(ScreenRotationScope.REMOTE_AND_MATCHING)
+        }
+        composeRule.runOnIdle {
+            composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        }
+
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                ScreenRotationHost(
+                    themePreferences = themePreferences,
+                    isTargetRotationScreen = true,
+                    targetScreenKey = "remote",
+                    isExternalIrConnected = false
+                ) {
+                    ScreenRotationIconButton()
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR,
+            composeRule.activity.requestedOrientation
+        )
+
+        // Manually rotate
+        composeRule.onNodeWithContentDescription(app.getString(R.string.screen_rotate_screen))
+            .performClick()
+        composeRule.waitForIdle()
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
+            composeRule.activity.requestedOrientation
+        )
+
+        // Manually restore -> returns to pre-rotation SCREEN_ORIENTATION_SENSOR
+        composeRule.onNodeWithContentDescription(app.getString(R.string.screen_restore_orientation))
+            .performClick()
+        composeRule.waitForIdle()
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR,
+            composeRule.activity.requestedOrientation
+        )
+
+        // After restoration, orientationApplied is reset so external changes persist
+        composeRule.runOnIdle {
+            composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        themePreferences.setRotationDirection(ScreenRotationDirection.LANDSCAPE)
+        composeRule.waitForIdle()
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
+            composeRule.activity.requestedOrientation
+        )
     }
 }

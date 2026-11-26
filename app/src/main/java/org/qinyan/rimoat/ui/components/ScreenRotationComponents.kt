@@ -84,6 +84,7 @@ fun ScreenRotationHost(
     var manualRotationOverride by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var promptedSessionKey by rememberSaveable { mutableStateOf("") }
     var orientationApplied by rememberSaveable { mutableStateOf(false) }
+    var previousOrientation by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(isTargetRotationScreen) {
         if (!isTargetRotationScreen) {
@@ -112,25 +113,33 @@ fun ScreenRotationHost(
 
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
-    val targetOrientation = if (isScreenRotated) {
-        rotationDirection.activityOrientation
-    } else {
-        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
+    fun applyRotation(act: Activity?, targetOrientation: Int) {
+        if (act == null) return
+        if (!orientationApplied) {
+            previousOrientation = act.requestedOrientation
+            orientationApplied = true
+        }
+        if (act.requestedOrientation != targetOrientation) {
+            act.requestedOrientation = targetOrientation
+        }
+    }
+
+    fun restoreOrientation(act: Activity?) {
+        if (act == null || !orientationApplied) return
+        val restoreTarget = previousOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        orientationApplied = false
+        previousOrientation = null
+        if (act.requestedOrientation != restoreTarget) {
+            act.requestedOrientation = restoreTarget
+        }
     }
 
     LaunchedEffect(activity, isScreenRotated, rotationDirection) {
-        val act = activity ?: return@LaunchedEffect
         if (isScreenRotated) {
-            orientationApplied = true
-            if (act.requestedOrientation != targetOrientation) {
-                act.requestedOrientation = targetOrientation
-            }
-        } else if (
-            orientationApplied ||
-            (act.requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED &&
-                act.requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-        ) {
-            act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            applyRotation(activity, rotationDirection.activityOrientation)
+        } else {
+            restoreOrientation(activity)
         }
     }
 
@@ -143,7 +152,7 @@ fun ScreenRotationHost(
         currentPromptKey.isNotEmpty() &&
         promptedSessionKey != currentPromptKey
 
-    val rotationState = remember(isScreenRotated, rotationDirection, currentPromptKey) {
+    val rotationState = remember(activity, isScreenRotated, rotationDirection, currentPromptKey) {
         ScreenRotationState(
             isRotated = isScreenRotated,
             rotationDirection = rotationDirection,
@@ -153,10 +162,10 @@ fun ScreenRotationHost(
                 }
                 val nextRotated = !isScreenRotated
                 manualRotationOverride = nextRotated
-                activity?.requestedOrientation = if (nextRotated) {
-                    rotationDirection.activityOrientation
+                if (nextRotated) {
+                    applyRotation(activity, rotationDirection.activityOrientation)
                 } else {
-                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    restoreOrientation(activity)
                 }
             }
         )
@@ -172,8 +181,7 @@ fun ScreenRotationHost(
                     }
                     promptedSessionKey = currentPromptKey
                     manualRotationOverride = true
-                    orientationApplied = true
-                    activity?.requestedOrientation = rotationDirection.activityOrientation
+                    applyRotation(activity, rotationDirection.activityOrientation)
                 },
                 onDismissPrompt = { dontAskAgain ->
                     if (dontAskAgain) {
