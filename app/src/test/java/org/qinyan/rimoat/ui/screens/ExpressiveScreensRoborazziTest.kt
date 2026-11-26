@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -31,6 +32,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
@@ -100,6 +102,93 @@ class ExpressiveScreensRoborazziTest {
         assertEquals(DeviceCategory.TV, category)
         assertEquals(1, selections)
         capture("categories_selected")
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w411dp-h891dp-mdpi")
+    fun categorySwitchingKeepsChineseLabelsSingleLineWithoutVisualOverflow() {
+        AppStrings.initialize(app)
+        var category by mutableStateOf<DeviceCategory?>(null)
+        compose.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                Surface(Modifier.fillMaxSize()) {
+                    Column {
+                        CategoryFilterBar(category) { category = it }
+                    }
+                }
+            }
+        }
+        val labels = listOf(
+            R.string.screen_category_all,
+            R.string.screen_category_tv,
+            R.string.screen_category_ac,
+            R.string.screen_category_fan,
+            R.string.screen_category_projector,
+            R.string.screen_category_audio,
+            R.string.screen_category_custom
+        ).map { app.getString(it) }
+
+        fun assertAllLabelsStable(stage: String) {
+            labels.forEach { label ->
+                val node = compose.onNodeWithText(label).fetchSemanticsNode()
+                val layoutResults = mutableListOf<TextLayoutResult>()
+                val gotLayout = node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layoutResults) == true
+                assertTrue("$stage: expected TextLayoutResult for $label", gotLayout && layoutResults.isNotEmpty())
+                val layout = layoutResults.first()
+                assertEquals("$stage: $label must stay single-line", 1, layout.lineCount)
+                assertTrue("$stage: $label must not overflow height", !layout.didOverflowHeight)
+                assertTrue(
+                    "$stage: $label text width (${layout.multiParagraph.maxIntrinsicWidth}) exceeds available (${layout.layoutInput.constraints.maxWidth})",
+                    layout.multiParagraph.maxIntrinsicWidth <= layout.layoutInput.constraints.maxWidth
+                )
+                assertTrue(
+                    "$stage: $label glyph right (${layout.getLineRight(0)}) exceeds drawn width (${layout.size.width})",
+                    layout.getLineRight(0) <= layout.size.width + 0.5f
+                )
+            }
+        }
+
+        assertAllLabelsStable("initial")
+        capture("categories_zh_before")
+
+        // Press projector so adjacent fan button experiences maximum neighbor compression.
+        compose.mainClock.autoAdvance = false
+        val projector = compose.onNodeWithText(app.getString(R.string.screen_category_projector))
+        projector.performTouchInput { down(center) }
+        repeat(8) { step ->
+            compose.mainClock.advanceTimeBy(32)
+            assertAllLabelsStable("projector_press_$step")
+        }
+        capture("categories_zh_projector_pressed")
+        projector.performTouchInput { up() }
+        repeat(10) { step ->
+            compose.mainClock.advanceTimeBy(32)
+            assertAllLabelsStable("projector_release_$step")
+        }
+        compose.mainClock.autoAdvance = true
+        projector.assertIsSelected()
+        assertEquals(DeviceCategory.PROJECTOR, category)
+
+        // Tap AC and verify every press and release-overshoot frame stays single-line.
+        compose.mainClock.autoAdvance = false
+        val ac = compose.onNodeWithText(app.getString(R.string.screen_category_ac))
+        ac.performTouchInput { down(center) }
+        repeat(6) { step ->
+            compose.mainClock.advanceTimeBy(32)
+            assertAllLabelsStable("ac_press_$step")
+        }
+        ac.performTouchInput { up() }
+        compose.mainClock.advanceTimeBy(48)
+        assertAllLabelsStable("ac_release_overshoot")
+        capture("categories_zh_ac_release")
+        repeat(10) { step ->
+            compose.mainClock.advanceTimeBy(32)
+            assertAllLabelsStable("ac_settle_$step")
+        }
+        compose.mainClock.autoAdvance = true
+        ac.assertIsSelected()
+        assertEquals(DeviceCategory.AC, category)
+        capture("categories_zh_ac_selected")
     }
 
     @Test

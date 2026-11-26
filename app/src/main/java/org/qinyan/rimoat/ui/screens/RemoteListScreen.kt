@@ -12,6 +12,7 @@ import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.ui.semantics.Role
 import org.qinyan.rimoat.ui.components.getCategoryIcon
 import androidx.compose.material3.LinearWavyProgressIndicator
@@ -124,6 +125,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -135,9 +143,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.window.DialogProperties
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.R
@@ -541,6 +552,75 @@ private fun CategoryFilterChips(
     }
 }
 
+private val CategoryButtonRigidHorizontalPadding = 6.dp
+private val CategoryButtonCompressibleHorizontalPadding = 10.dp
+private val CategoryButtonCompressionLimit = 6.dp
+
+/**
+ * Reserves resting horizontal padding for [ButtonGroup] intrinsic measurement while allowing
+ * inner slack to absorb neighbor compression and spring overshoot without squeezing [content].
+ */
+@Composable
+private fun CompressibleHorizontalSlot(
+    horizontalSlack: Dp,
+    content: @Composable () -> Unit
+) {
+    val measurePolicy = remember(horizontalSlack) {
+        object : MeasurePolicy {
+            override fun MeasureScope.measure(
+                measurables: List<Measurable>,
+                constraints: Constraints
+            ): MeasureResult {
+                val slackPx = horizontalSlack.roundToPx()
+                val placeable = measurables.single().measure(constraints.copy(minWidth = 0))
+                val width = constraints.constrainWidth(placeable.width + slackPx * 2)
+                val height = constraints.constrainHeight(placeable.height)
+                return layout(width, height) {
+                    placeable.placeRelative(
+                        x = (width - placeable.width) / 2,
+                        y = (height - placeable.height) / 2
+                    )
+                }
+            }
+
+            override fun IntrinsicMeasureScope.minIntrinsicWidth(
+                measurables: List<IntrinsicMeasurable>,
+                height: Int
+            ): Int = measurables.single().minIntrinsicWidth(height)
+
+            override fun IntrinsicMeasureScope.maxIntrinsicWidth(
+                measurables: List<IntrinsicMeasurable>,
+                height: Int
+            ): Int = measurables.single().maxIntrinsicWidth(height) + horizontalSlack.roundToPx() * 2
+
+            override fun IntrinsicMeasureScope.minIntrinsicHeight(
+                measurables: List<IntrinsicMeasurable>,
+                width: Int
+            ): Int {
+                val innerWidth = if (width == Constraints.Infinity) {
+                    width
+                } else {
+                    (width - horizontalSlack.roundToPx() * 2).coerceAtLeast(0)
+                }
+                return measurables.single().minIntrinsicHeight(innerWidth)
+            }
+
+            override fun IntrinsicMeasureScope.maxIntrinsicHeight(
+                measurables: List<IntrinsicMeasurable>,
+                width: Int
+            ): Int {
+                val innerWidth = if (width == Constraints.Infinity) {
+                    width
+                } else {
+                    (width - horizontalSlack.roundToPx() * 2).coerceAtLeast(0)
+                }
+                return measurables.single().maxIntrinsicHeight(innerWidth)
+            }
+        }
+    }
+    Layout(content = content, measurePolicy = measurePolicy)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryFilterBar(
@@ -548,6 +628,10 @@ fun CategoryFilterBar(
     onSelectCategory: (DeviceCategory?) -> Unit
 ) {
     val categories = categoryOptions()
+    val buttonPadding = PaddingValues(
+        horizontal = CategoryButtonRigidHorizontalPadding,
+        vertical = 8.dp
+    )
 
     ButtonGroup(
         overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
@@ -572,12 +656,18 @@ fun CategoryFilterBar(
                         checked = checked,
                         onCheckedChange = { onSelectCategory(category) },
                         interactionSource = interactionSource,
-                        modifier = Modifier.heightIn(min = 48.dp).animateWidth(interactionSource)
+                        contentPadding = buttonPadding,
+                        modifier = Modifier.heightIn(min = 48.dp)
+                            .animateWidth(interactionSource, compressionLimit = CategoryButtonCompressionLimit)
                             .bringIntoViewRequester(bringIntoView).semantics {
                                 selected = checked
                                 role = Role.RadioButton
                             }
-                    ) { Text(label) }
+                    ) {
+                        CompressibleHorizontalSlot(CategoryButtonCompressibleHorizontalPadding) {
+                            Text(label, maxLines = 1, softWrap = false)
+                        }
+                    }
                 },
                 menuContent = { menu ->
                     SoundEffectOnInteraction(enabled = false) {
