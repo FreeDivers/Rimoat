@@ -15,7 +15,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,7 +43,10 @@ import org.qinyan.rimoat.ui.components.ActionIconButton
 import org.qinyan.rimoat.ui.components.ExpressivePageTopBar
 import org.qinyan.rimoat.ui.components.ExpressiveSegmentedSurface
 import org.qinyan.rimoat.ui.components.ExpressiveShapeTokens
+import org.qinyan.rimoat.ui.components.RemoteSearchBar
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
+import org.qinyan.rimoat.ui.components.clearSearchFocusOnTapOutside
+import org.qinyan.rimoat.ui.components.rememberSearchFocusController
 import org.qinyan.rimoat.ui.components.rememberWideLayout
 import org.qinyan.rimoat.ui.motion.MotionContent
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
@@ -127,7 +129,12 @@ private fun OpenSourceLicensesContent(
             )
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding(), contentAlignment = Alignment.TopCenter) {
+        val searchFocus = rememberSearchFocusController()
+        Box(
+            Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
+                .clearSearchFocusOnTapOutside(searchFocus),
+            contentAlignment = Alignment.TopCenter
+        ) {
             when {
                 result == null -> LoadingIndicator(Modifier.padding(24.dp))
                 catalog == null || (!wide && libraryId != null && library == null) ->
@@ -141,19 +148,12 @@ private fun OpenSourceLicensesContent(
                         verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)
                     ) {
                         item(key = "search") {
-                            OutlinedTextField(
-                                value = query,
-                                onValueChange = { query = it },
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = ExpressiveSurface.card,
-                                    unfocusedContainerColor = ExpressiveSurface.card,
-                                    unfocusedBorderColor = Color.Transparent
-                                ),
-                                label = { Text(stringResource(R.string.licenses_search)) },
-                                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                                singleLine = true
+                            RemoteSearchBar(
+                                query = query,
+                                onQueryChange = { query = it },
+                                placeholder = stringResource(R.string.licenses_search),
+                                modifier = Modifier.padding(bottom = 10.dp),
+                                focusController = searchFocus
                             )
                         }
                         if (filtered.isEmpty()) item {

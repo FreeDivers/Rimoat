@@ -68,6 +68,7 @@
 | 场景 | 首选组件与使用规则 |
 |---|---|
 | 短筛选、定时预设 | `ToggleButton`（首页分类、定时预设使用统一胶囊形状与 `selected` 语义）；选中状态由页面状态驱动，重复点选不产生第二份状态。 |
+| 搜索框、表单与弹窗输入框 | 列表搜索统一使用胶囊 `RemoteSearchBar`（`SearchBar`）；表单与弹窗输入统一使用 `ExpressiveTextField`（`TextFieldDefaults.roundedShape` 与 `tonalColors()`，无底边线并按卡片/弹窗层级自适应填充色）。 |
 | 全宽单选列表（通道、串口模块等） | `ExpressiveSingleChoiceRow`（分段卡片、圆形图标底徽与右侧选中标志）；保留 `Role.RadioButton` 与 `selected` 合并语义，避免全宽条目按胶囊翻方导致比例失调。 |
 | 同一任务的并列确认动作 | 在容器内依据实测译文宽度切换横向并排 `Row` 或纵向堆叠 `Column`（如对码确认“无响应 / 有响应”通过 `BoxWithConstraints` 自适应），不使用溢出菜单折叠隐藏。 |
 | 页面底部单一或简单动作栏 | 在锚定底部表面、卡片或弹窗底部内直接放置 `Button`、`FilledTonalButton` 或 `OutlinedButton`，不为单个主按钮或窄屏操作额外嵌套外层 `HorizontalFloatingToolbar`。 |

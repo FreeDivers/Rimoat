@@ -272,9 +272,10 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
             onDismissRequest = { addKey = false },
             title = { Text(stringResource(R.string.screen_add_button), modifier = Modifier.semantics { heading() }) },
             text = {
-                OutlinedTextField(
+                ExpressiveTextField(
                     value = keyName,
                     onValueChange = { keyName = it.take(100) },
+                    modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.screen_button_name)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -431,7 +432,7 @@ internal fun LearningSetupContent(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
+                ExpressiveTextField(
                     value = page.remoteName,
                     onValueChange = onNameChange,
                     modifier = Modifier.fillMaxWidth().semantics { nameError?.let { error(it) } },
@@ -441,7 +442,7 @@ internal fun LearningSetupContent(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { brandFocusRequester.requestFocus() })
                 )
-                OutlinedTextField(
+                ExpressiveTextField(
                     value = page.brand,
                     onValueChange = onBrandChange,
                     modifier = Modifier.fillMaxWidth().focusRequester(brandFocusRequester),

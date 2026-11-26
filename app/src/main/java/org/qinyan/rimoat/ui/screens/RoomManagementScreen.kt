@@ -306,7 +306,7 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
     }
     }
     if (active && edit) MotionAlertDialog(onDismissRequest = { edit = false }, title = { Text(if (oldName == null) AppStrings.get(R.string.screen_add_room, "添加房间") else AppStrings.get(R.string.screen_rename_room, "重命名房间")) },
-        text = { Column { OutlinedTextField(name, { name = it.take(60) }, label = { Text(AppStrings.get(R.string.screen_room_name, "房间名称")) }, singleLine = true); displayedError?.let { Text(it, color = MaterialTheme.colorScheme.error) } } },
+        text = { Column { ExpressiveTextField(name, { name = it.take(60) }, label = { Text(AppStrings.get(R.string.screen_room_name, "房间名称")) }, modifier = Modifier.fillMaxWidth(), singleLine = true); displayedError?.let { Text(it, color = MaterialTheme.colorScheme.error) } } },
         confirmButton = { TextButton(onClick = { viewModel.editRoom(oldName, name) { if (selected == oldName && oldName != null) selected = name.trim(); edit = false } }, enabled = name.isNotBlank(), shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_save, "保存")) } },
         dismissButton = { TextButton(onClick = { edit = false }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } })
     if (active) removing?.let { room -> MotionAlertDialog(onDismissRequest = { removing = null }, title = { Text(AppStrings.get(R.string.screen_remove_room_question, "移除%1\$s？", room)) },

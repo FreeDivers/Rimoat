@@ -155,17 +155,17 @@ internal fun SerialIrSettingsForm(
                                 Text(AppStrings.get(R.string.control_authorize_usb, "授权所选 USB 设备"))
                             }
                         }
-                        OutlinedTextField(value = port, onValueChange = { port = it; error = null }, label = { Text(AppStrings.get(R.string.control_port_index, "串口序号")) },
+                        ExpressiveTextField(value = port, onValueChange = { port = it; error = null }, label = { Text(AppStrings.get(R.string.control_port_index, "串口序号")) },
                             supportingText = { Text(AppStrings.get(R.string.control_zero_based, "从 0 开始")) },
                             modifier = Modifier.fillMaxWidth().padding(top = 12.dp), singleLine = true, enabled = !saving,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     }
                 }
                 SerialFormSection(visible = module == SerialIrModule.YS_IRTM) {
-                    OutlinedTextField(value = baud, onValueChange = { baud = it; error = null }, label = { Text(AppStrings.get(R.string.control_baud_rate, "波特率")) },
+                    ExpressiveTextField(value = baud, onValueChange = { baud = it; error = null }, label = { Text(AppStrings.get(R.string.control_baud_rate, "波特率")) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(value = address, onValueChange = { address = it; error = null }, label = { Text(AppStrings.get(R.string.control_module_address, "模块地址")) },
+                    ExpressiveTextField(value = address, onValueChange = { address = it; error = null }, label = { Text(AppStrings.get(R.string.control_module_address, "模块地址")) },
                         supportingText = { Text(AppStrings.get(R.string.control_hexadecimal, "十六进制")) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true, enabled = !saving)

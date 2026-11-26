@@ -4,6 +4,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -11,6 +12,7 @@ import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.ui.components.LocalExpressiveDialogSurface
 
 /** Let Android animate the modal window so closing it can release Compose content immediately. */
 @Composable
@@ -47,7 +49,11 @@ internal fun MotionAlertDialog(
             { SoundEffectOnInteraction(enabled = false, content = content) }
         },
         text = text?.let { content ->
-            { SoundEffectOnInteraction(enabled = false, content = content) }
+            {
+                CompositionLocalProvider(LocalExpressiveDialogSurface provides true) {
+                    SoundEffectOnInteraction(enabled = false, content = content)
+                }
+            }
         },
         properties = properties
     )
@@ -63,6 +69,8 @@ internal fun MotionBasicAlertDialog(
 ) {
     BasicAlertDialog(onDismissRequest, modifier, properties) {
         DialogWindowMotion()
-        SoundEffectOnInteraction(enabled = false, content = content)
+        CompositionLocalProvider(LocalExpressiveDialogSurface provides true) {
+            SoundEffectOnInteraction(enabled = false, content = content)
+        }
     }
 }

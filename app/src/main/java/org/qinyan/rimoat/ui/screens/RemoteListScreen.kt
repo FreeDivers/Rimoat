@@ -102,13 +102,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import org.qinyan.rimoat.ui.components.ActionIconButton
+import org.qinyan.rimoat.ui.components.ExpressiveTextField
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -516,8 +515,8 @@ fun RemoteListScreen(
                 modifier = Modifier.safeDrawingPadding(),
                 properties = DialogProperties(decorFitsSystemWindows = false),
                 text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(value = name, onValueChange = { if (it.length <= 100) name = it }, label = { Text(AppStrings.get(R.string.screen_remote_name, "遥控器名称")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = room, onValueChange = { if (it.length <= 60) room = it }, label = { Text(AppStrings.get(R.string.screen_room_optional, "房间（可选）")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    ExpressiveTextField(value = name, onValueChange = { if (it.length <= 100) name = it }, label = { Text(AppStrings.get(R.string.screen_remote_name, "遥控器名称")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    ExpressiveTextField(value = room, onValueChange = { if (it.length <= 60) room = it }, label = { Text(AppStrings.get(R.string.screen_room_optional, "房间（可选）")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     displayedError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 } },
                 confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { viewModel.updateDetails(profile.id, name, room) { editingId = null } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_save, "保存")) } },

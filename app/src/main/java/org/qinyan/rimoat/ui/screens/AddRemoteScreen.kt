@@ -56,8 +56,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import org.qinyan.rimoat.ui.components.ActionIconButton
+import org.qinyan.rimoat.ui.components.ExpressiveTextField
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -592,7 +592,7 @@ fun ConfirmRemoteView(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
+                ExpressiveTextField(
                     value = state.customRemoteName,
                     onValueChange = { if (it.length <= 100) onNameChange(it) },
                     enabled = !state.isSaving,
