@@ -26,6 +26,19 @@ class RemoteBackupRegressionTest {
         assertTrue(RemoteBackupCodec.plan(listOf(profile), setOf(profile.id), ImportMode.MERGE).isEmpty())
     }
 
+    @Test fun backupWithUtf8BomDecodesCorrectly() {
+        val encoded = RemoteBackupCodec.encode(
+            RemoteBackup(remotes = listOf(profile), rooms = listOf("客厅"))
+        )
+        val withBom = "\uFEFF$encoded"
+        val decoded = RemoteBackupCodec.decodeBackup(withBom)
+        assertEquals(listOf(profile), decoded.remotes)
+        assertEquals(listOf("客厅", profile.room), decoded.rooms)
+
+        val singleProfileJson = kotlinx.serialization.json.Json.encodeToString(RemoteProfile.serializer(), profile)
+        assertEquals(listOf(profile), RemoteBackupCodec.decode("\uFEFF$singleProfileJson"))
+    }
+
     @Test fun rejectsTraversalDuplicateIdsInvalidSignalsAndUnsupportedVersions() {
         val invalid = listOf(profile.copy(id = "../outside"), profile.copy(name = ""),
             profile.copy(buttons = listOf(RemoteButton("bad", "错误", rawPattern = listOf(Int.MIN_VALUE)))))

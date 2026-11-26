@@ -51,7 +51,7 @@ object RemoteBackupCodec {
     fun decode(text: String): List<RemoteProfile> = decodeBackup(text).remotes
     fun decodeBackup(text: String): RemoteBackup {
         require(text.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { AppStrings.get(R.string.msg_backup_too_large, "备份超过 8 MB") }
-        val root = json.parseToJsonElement(text).jsonObject
+        val root = json.parseToJsonElement(text.removePrefix("\uFEFF")).jsonObject
         val backup = if ("remotes" in root) {
             json.decodeFromJsonElement(RemoteBackup.serializer(), root).also {
                 require(it.format == "rimoat.backup" && it.version in 1..2) { AppStrings.get(R.string.msg_backup_format_unsupported, "不支持此备份格式或版本") }
