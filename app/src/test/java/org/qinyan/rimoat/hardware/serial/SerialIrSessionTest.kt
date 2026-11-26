@@ -69,6 +69,48 @@ class SerialIrSessionTest {
             assertTrue(bad.writes.size <= 1)
         }
     }
+
+    @Test fun ysToleratesAsyncReceivedReportBeforeAck() = runBlocking {
+        for (fragmented in listOf(true, false)) {
+            val port = object : SerialPortIo {
+                val writes = mutableListOf<ByteArray>()
+                val replies = ArrayDeque<Byte>()
+                override fun write(data: ByteArray, timeoutMs: Int) {
+                    writes += data.copyOf()
+                    // Module reports a 3-byte received NEC frame (addr0, addr1, cmd) before the 0xF1 transmit ACK.
+                    replies.addAll(listOf(0x00, 0xFF, 0x45, 0xF1).map { it.toByte() })
+                }
+                override fun read(buffer: ByteArray, timeoutMs: Int): Int {
+                    if (replies.isEmpty()) return 0
+                    val count = if (fragmented) 1 else minOf(buffer.size, replies.size)
+                    repeat(count) { buffer[it] = replies.removeFirst() }
+                    return count
+                }
+            }
+            SerialIrSession(port).transmit(ys, nec)
+            assertEquals(1, port.writes.size)
+        }
+    }
+
+    @Test fun ysRejectsExcessiveUnexpectedBytesEvenIfAckByteAppearsLater() = runBlocking {
+        val port = object : SerialPortIo {
+            val replies = ArrayDeque<Byte>()
+            override fun write(data: ByteArray, timeoutMs: Int) {
+                repeat(13) { replies.addLast(0x55) }
+                replies.addLast(0xF1.toByte())
+            }
+            override fun read(buffer: ByteArray, timeoutMs: Int): Int {
+                if (replies.isEmpty()) return 0
+                val count = minOf(buffer.size, replies.size)
+                repeat(count) { buffer[it] = replies.removeFirst() }
+                return count
+            }
+        }
+        try {
+            SerialIrSession(port).transmit(ys, nec)
+            fail("Expected failure on excessive unexpected bytes")
+        } catch (_: IOException) {}
+    }
     @Test fun invalidSignalNeverWritesAndCancellationPropagates() = runBlocking {
         val port = Port()
         try { SerialIrSession(port).transmit(ys, IrSignal.Raw(patternMicros = intArrayOf(9000, 4500))); fail() } catch (_: IllegalArgumentException) {}

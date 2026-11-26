@@ -54,6 +54,36 @@ internal class SerialIrSession(private val port: SerialPortIo) {
         throw IOException(AppStrings.get(R.string.msg_serial_unknown_data, "串口持续收到未知数据，请检查模块配置"))
     }
 
+    private suspend fun readYsIrtmAck(timeoutMs: Int = 1500, maxUnexpectedBytes: Int = 12) {
+        var unexpected = 0
+        val deadline = System.nanoTime() + timeoutMs * 1_000_000L
+        while (pendingInput.isNotEmpty() || System.nanoTime() < deadline) {
+            currentCoroutineContext().ensureActive()
+            while (pendingInput.isNotEmpty()) {
+                if (pendingInput.removeFirst() == 0xF1.toByte()) return
+                unexpected++
+                if (unexpected > maxUnexpectedBytes) {
+                    throw IOException(AppStrings.get(R.string.msg_ysirtm_no_ack, "YS-IRTM 未确认发送，模块应答无效"))
+                }
+            }
+            if (System.nanoTime() >= deadline) break
+            val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1).toInt()
+            val count = port.read(readBuffer, minOf(remainingMs, 100))
+            if (count < 0 || count > readBuffer.size) {
+                throw IOException(AppStrings.get(R.string.msg_serial_read_failed, "串口读取失败，设备可能已拔出"))
+            }
+            if (count == 0) {
+                delay(1)
+                continue
+            }
+            for (i in 0 until count) pendingInput.addLast(readBuffer[i])
+        }
+        throw IOException(
+            if (unexpected > 0) AppStrings.get(R.string.msg_ysirtm_no_ack, "YS-IRTM 未确认发送，模块应答无效")
+            else AppStrings.get(R.string.msg_serial_response_timeout, "红外模块应答超时，请检查模块、波特率和连接")
+        )
+    }
+
     suspend fun transmit(settings: SerialIrSettings, signal: IrSignal) {
         settings.validate()
         when (settings.module) {
@@ -61,7 +91,7 @@ internal class SerialIrSession(private val port: SerialPortIo) {
                 val frame = UsbUartProtocol.buildYsIrtmPacket(signal, settings.moduleAddress)
                 drain()
                 write(frame)
-                if (readExact(1)[0] != 0xF1.toByte()) throw IOException(AppStrings.get(R.string.msg_ysirtm_no_ack, "YS-IRTM 未确认发送，模块应答无效"))
+                readYsIrtmAck()
                 // ACK confirms command acceptance, allow the NEC waveform to finish before closing.
                 delay(120)
             }
