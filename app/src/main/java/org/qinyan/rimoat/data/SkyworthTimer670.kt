@@ -23,7 +23,8 @@ internal object SkyworthTimer670 {
         check((bytes[3] and 0x60) in listOf(0x20, 0x40))
         check(bytes[7] in listOf(0x65, 0x6a, 0x69, 0x61, 0x62))
         check((bytes[8] and 63) == minutes % 60)
-        bytes[7] = minutes / 60 % 24
+        // Timer hours are a duration; a full day must remain 24 hours.
+        bytes[7] = minutes / 60
         bytes[13] = bytes.take(13).sum() and 255
         return original.copyOf().apply {
             for (byte in listOf(7, 13)) for (bit in 0..7) {
