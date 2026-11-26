@@ -96,6 +96,8 @@ fun SingleButtonLearningDialog(
     var learningState by remember(button.id) {
         mutableStateOf<LearningState>(initialCapturedSignal?.let { LearningState.Captured(it) } ?: LearningState.Idle)
     }
+    var capturedBeforeLearning by remember(button.id) { mutableStateOf<IrSignal.Raw?>(null) }
+    var learningErrorMessage by remember(button.id) { mutableStateOf<UiText?>(null) }
     var learningJob by remember(button.id) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var learningEpoch by remember(button.id) { mutableStateOf(0) }
     val learnerType by learnerManager.learnerType.collectAsStateWithLifecycle()
@@ -116,19 +118,60 @@ fun SingleButtonLearningDialog(
         testFeedbackError = false
     }
 
+    fun restoreCapturedOr(fallbackState: LearningState, previous: IrSignal.Raw?, errorMessage: UiText?) {
+        learningErrorMessage = errorMessage
+        if (previous != null) {
+            onCaptureChanged(previous)
+            learningState = LearningState.Captured(previous)
+        } else {
+            learningState = fallbackState
+        }
+    }
+
+    fun handleLearningFailure(error: Throwable, previous: IrSignal.Raw?) {
+        val observed = arrayOf(learnerManager.state.value, learnerManager.activeLearner.value.state.value)
+        when {
+            isLearningTimeout(error, *observed) -> restoreCapturedOr(
+                fallbackState = LearningState.Timeout,
+                previous = previous,
+                errorMessage = if (previous != null) UiText.Resource(R.string.screen_learn_timeout) else null
+            )
+            error is kotlinx.coroutines.CancellationException -> restoreCapturedOr(
+                fallbackState = LearningState.Idle,
+                previous = previous,
+                errorMessage = null
+            )
+            else -> restoreCapturedOr(
+                fallbackState = LearningState.Error(message = "", cause = error),
+                previous = previous,
+                errorMessage = formatSingleButtonLearningError(error)
+            )
+        }
+    }
+
     fun cancelLearning() {
         learningEpoch++
         learningJob?.cancel()
         learningJob = null
         learnerManager.cancel()
-        learningState = LearningState.Idle
+        val previous = capturedBeforeLearning
+        capturedBeforeLearning = null
+        learningErrorMessage = null
+        if (previous != null) {
+            onCaptureChanged(previous)
+            learningState = LearningState.Captured(previous)
+        } else if (learningState is LearningState.Listening) {
+            learningState = LearningState.Idle
+        }
     }
 
     fun startLearning() {
         if (isSaving || isTestingEmit || learningJob?.isActive == true) return
+        val previous = (learningState as? LearningState.Captured)?.signal ?: capturedBeforeLearning
         cancelLearning()
-        onCaptureChanged(null)
+        capturedBeforeLearning = previous
         val epoch = ++learningEpoch
+        learningErrorMessage = null
         testFeedbackMessage = null
         testFeedbackError = false
         learningState = LearningState.Listening(30, 30)
@@ -137,17 +180,31 @@ fun SingleButtonLearningDialog(
             try {
                 val result = learnerManager.startLearning(timeoutSeconds = 30)
                 if (epoch == learningEpoch) {
-                    learningState = result.fold(
-                        onSuccess = { signal -> onCaptureChanged(signal); LearningState.Captured(signal) },
-                        onFailure = { error -> when {
-                            error is kotlinx.coroutines.CancellationException -> LearningState.Idle
-                            error.message?.contains("timed out", ignoreCase = true) == true -> LearningState.Timeout
-                            else -> LearningState.Error(error.localizedMessage.orEmpty())
-                        } })
+                    val savedPrevious = capturedBeforeLearning
+                    capturedBeforeLearning = null
+                    result.fold(
+                        onSuccess = { signal ->
+                            learningErrorMessage = null
+                            onCaptureChanged(signal)
+                            learningState = LearningState.Captured(signal)
+                        },
+                        onFailure = { error -> handleLearningFailure(error, savedPrevious) }
+                    )
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) {
-                if (epoch == learningEpoch) learningState = LearningState.Error(e.localizedMessage.orEmpty())
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                if (epoch == learningEpoch) {
+                    val savedPrevious = capturedBeforeLearning
+                    capturedBeforeLearning = null
+                    handleLearningFailure(e, savedPrevious)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (epoch == learningEpoch) {
+                    val savedPrevious = capturedBeforeLearning
+                    capturedBeforeLearning = null
+                    handleLearningFailure(e, savedPrevious)
+                }
             }
         }
     }
@@ -158,16 +215,19 @@ fun SingleButtonLearningDialog(
 
     DisposableEffect(button.id) {
         if (autoStart) startLearning()
-            onDispose { cancelTest(); cancelLearning() }
+        onDispose { cancelTest(); cancelLearning() }
     }
     org.qinyan.rimoat.ui.CancelOperationsOnStop {
         if (learningJob?.isActive == true) cancelLearning()
         cancelTest()
     }
 
-    // Trigger haptics when reaching Captured state
+    // Trigger haptics only when a fresh signal is captured in this dialog session.
+    var lastHapticSignal by remember(button.id) { mutableStateOf(initialCapturedSignal) }
     LaunchedEffect(learningState) {
-        if (learningState is LearningState.Captured) {
+        val captured = (learningState as? LearningState.Captured)?.signal
+        if (captured != null && captured !== lastHapticSignal) {
+            lastHapticSignal = captured
             HapticHelper.performCaptured(haptic, context)
         }
     }
@@ -178,6 +238,7 @@ fun SingleButtonLearningDialog(
         isTesting = isTestingEmit,
         testFeedbackMessage = testFeedbackMessage,
         testFeedbackError = testFeedbackError,
+        learningErrorMessage = learningErrorMessage,
         isSaving = isSaving,
         saveError = saveError,
         learnerType = learnerType,
@@ -196,6 +257,7 @@ fun SingleButtonLearningDialog(
         onTestEmit = { signal ->
             testJob = scope.launch {
                 isTestingEmit = true
+                learningErrorMessage = null
                 testFeedbackError = false
                 HapticHelper.performTestEmit(haptic, context)
                 try {
@@ -239,7 +301,8 @@ fun SingleButtonLearningDialogContent(
     isSaving: Boolean = false,
     saveError: String? = null,
     receiveConfirmed: Boolean = false,
-    testFeedbackError: Boolean = false
+    testFeedbackError: Boolean = false,
+    learningErrorMessage: UiText? = null
 ) {
     val configuration = LocalConfiguration.current
     val splitDialog = rememberWideLayout() && configuration.screenWidthDp >= 600
@@ -335,17 +398,32 @@ fun SingleButtonLearningDialogContent(
                                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                                     )
                                 }
+                                learningErrorMessage?.asString()?.takeIf { it.isNotBlank() }?.let { errorText ->
+                                    Text(
+                                        errorText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                                    )
+                                }
                             }
                             is LearningState.Timeout -> Text(
                                 stringResource(R.string.screen_no_valid_ir),
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                             )
-                            is LearningState.Error -> Text(
-                                visibleState.message.ifBlank { stringResource(R.string.screen_learn_failed) },
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                            )
+                            is LearningState.Error -> {
+                                val errorText = learningErrorMessage?.asString()?.takeIf { it.isNotBlank() }
+                                    ?: visibleState.message.takeIf { it.isNotBlank() }?.let {
+                                        stringResource(R.string.screen_learning_error_e, it)
+                                    }
+                                    ?: stringResource(R.string.screen_learn_failed)
+                                Text(
+                                    errorText,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                                )
+                            }
                         }
                     }
                 }
@@ -399,3 +477,21 @@ fun SingleButtonLearningDialogContent(
         }
     )
 }
+
+internal fun isLearningTimeout(
+    error: Throwable,
+    vararg observedStates: LearningState
+): Boolean =
+    error is java.util.concurrent.TimeoutException ||
+        error is kotlinx.coroutines.TimeoutCancellationException ||
+        observedStates.any { it is LearningState.Timeout }
+
+internal fun formatSingleButtonLearningError(error: Throwable): UiText =
+    if (error.localizedMessage.isNullOrBlank()) {
+        UiText.Resource(R.string.screen_learn_failed)
+    } else {
+        UiText.resource(
+            R.string.screen_learning_error_e,
+            error.uiTextDetail(R.string.screen_learn_failed)
+        )
+    }
