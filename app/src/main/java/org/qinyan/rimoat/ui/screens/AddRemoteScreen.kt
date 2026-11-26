@@ -76,9 +76,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -136,9 +138,10 @@ fun AddRemoteScreen(
 
     val errorSnackbar = remember { androidx.compose.material3.SnackbarHostState() }
     val displayedError = uiState.error?.asString()
+    val showErrorInSnackbar = uiState.step != AddRemoteStep.CONFIRM
     org.qinyan.rimoat.ui.CancelOperationsOnStop(viewModel::onScreenStopped)
-    androidx.compose.runtime.LaunchedEffect(screenActive, uiState.error, displayedError) {
-        if (screenActive) uiState.error?.let {
+    androidx.compose.runtime.LaunchedEffect(screenActive, showErrorInSnackbar, uiState.error, displayedError) {
+        if (screenActive && showErrorInSnackbar) uiState.error?.let {
             errorSnackbar.showSnackbar(checkNotNull(displayedError), duration = androidx.compose.material3.SnackbarDuration.Long)
             viewModel.dismissError(it)
         }
@@ -594,7 +597,7 @@ fun ConfirmRemoteView(
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ExpressiveTextField(
                     value = state.customRemoteName,
-                    onValueChange = { if (it.length <= 100) onNameChange(it) },
+                    onValueChange = onNameChange,
                     enabled = !state.isSaving,
                     label = { Text(stringResource(R.string.screen_remote_name)) },
                     singleLine = true,
@@ -607,7 +610,11 @@ fun ConfirmRemoteView(
                 )
 
                 state.error?.let {
-                    Text(it.asString(), color = MaterialTheme.colorScheme.error)
+                    Text(
+                        it.asString(),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    )
                 }
             }
         }

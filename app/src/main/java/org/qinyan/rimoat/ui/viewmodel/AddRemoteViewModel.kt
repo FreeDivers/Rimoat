@@ -449,11 +449,11 @@ class AddRemoteViewModel(
 
     fun proceedToConfirm() {
         if (_uiState.value.isSendingTest || _uiState.value.isLoading) return
-        _uiState.update { it.copy(step = AddRemoteStep.CONFIRM) }
+        _uiState.update { it.copy(step = AddRemoteStep.CONFIRM, error = null) }
     }
 
     fun updateCustomName(name: String) {
-        _uiState.update { it.copy(customRemoteName = name.take(100)) }
+        _uiState.update { it.copy(customRemoteName = name.take(100), error = null) }
     }
 
     fun saveRemote(onSaved: (RemoteProfile) -> Unit) {

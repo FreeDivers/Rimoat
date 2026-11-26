@@ -26,6 +26,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.data.*
+import org.qinyan.rimoat.data.db.*
 import org.qinyan.rimoat.hardware.*
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.i18n.AppStrings
@@ -33,9 +34,12 @@ import org.qinyan.rimoat.ui.components.RemoteSearchBar
 import org.qinyan.rimoat.ui.learning.*
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.MotionContent
+import org.qinyan.rimoat.ui.screens.AddRemoteScreen
 import org.qinyan.rimoat.ui.screens.RemoteControlScreen
 import org.qinyan.rimoat.ui.screens.RemoteListScreen
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
+import org.qinyan.rimoat.ui.viewmodel.AddRemoteStep
+import org.qinyan.rimoat.ui.viewmodel.AddRemoteViewModel
 import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import org.robolectric.RobolectricTestRunner
@@ -483,6 +487,92 @@ class BugFixInteractionRoborazziTest {
             assertEquals(0, onBackCalls)
             assertTrue(interactive)
             assertEquals(1, clicks)
+        }
+    }
+
+    @Test fun confirmRemoteNameTruncatesOverlongInputAndSaveFailureStaysInlineWithoutSnackbar() {
+        AppStrings.initialize(app)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val repository = RemoteRepository(app, scope)
+        val transmitter = IrTransmitterManager(app, scope)
+        val category = IrCategory(1, "电视", "TV", "tv")
+        val brand = IrBrand(1, "索尼", "Sony", "suoni", 1)
+        val model = IrRemoteModel("R_tv_1", 1, "电视", 1, "索尼", "Sony", 1, "方案1", 1)
+        val power = RemoteButton("power", "电源", rawPattern = listOf(9000, 4500, 560))
+        var failSave = false
+        val catalog = object : IrCatalog {
+            override suspend fun getCategories() = listOf(category)
+            override suspend fun getBrandsForCategory(categoryId: Int, searchQuery: String) = listOf(brand)
+            override suspend fun getRemotesForBrand(categoryId: Int, brandIdx: Int) = listOf(model)
+            override suspend fun getTestKeysForRemote(remoteId: String) = power to null
+            override suspend fun buildRemoteProfile(model: IrRemoteModel, customName: String?): RemoteProfile {
+                if (failSave) throw java.io.IOException("storage full")
+                return RemoteProfile(model.remoteId, customName ?: "索尼 电视", category = DeviceCategory.TV, buttons = listOf(power))
+            }
+        }
+        val store = ViewModelStore()
+        val vm = AddRemoteViewModel(catalog, repository, transmitter).also { store.put("add", it) }
+        try {
+            compose.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    AddRemoteScreen(viewModel = vm, onBack = {}, onRemoteCreated = {})
+                }
+            }
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                vm.uiState.value.categories.isNotEmpty()
+            }
+            compose.runOnIdle { vm.selectCategory(category) }
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                vm.uiState.value.brands.isNotEmpty()
+            }
+            compose.runOnIdle { vm.selectBrand(brand) }
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                vm.uiState.value.step == AddRemoteStep.WIZARD
+            }
+            compose.runOnIdle { vm.proceedToConfirm() }
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                vm.uiState.value.step == AddRemoteStep.CONFIRM
+            }
+            compose.waitForIdle()
+            capture("confirm_remote_before")
+
+            val nameField = compose.onNode(hasSetTextAction())
+            val overlong = "A".repeat(90) + "B".repeat(30)
+            nameField.performTextReplacement(overlong)
+            compose.waitForIdle()
+            assertEquals(100, vm.uiState.value.customRemoteName.length)
+            assertEquals("A".repeat(90) + "B".repeat(10), vm.uiState.value.customRemoteName)
+
+            failSave = true
+            compose.onNodeWithText(app.getString(R.string.screen_save)).performScrollTo().performClick()
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                !vm.uiState.value.isSaving && vm.uiState.value.error != null
+            }
+            compose.waitForIdle()
+            val expectedError = app.getString(R.string.msg_remote_save_failed, "storage full")
+            compose.onAllNodesWithText(expectedError).assertCountEquals(1)
+            capture("confirm_remote_save_error")
+
+            // Advancing well past SnackbarDuration.Long must keep the inline error visible.
+            compose.mainClock.advanceTimeBy(15_000)
+            compose.waitForIdle()
+            compose.onAllNodesWithText(expectedError).assertCountEquals(1)
+            assertNotNull(vm.uiState.value.error)
+
+            // Editing the name clears the stale save error.
+            nameField.performTextReplacement("客厅电视")
+            compose.waitForIdle()
+            compose.onAllNodesWithText(expectedError).assertCountEquals(0)
+            assertNull(vm.uiState.value.error)
+        } finally {
+            compose.runOnIdle { store.clear() }
+            transmitter.release()
+            scope.cancel()
         }
     }
 }
