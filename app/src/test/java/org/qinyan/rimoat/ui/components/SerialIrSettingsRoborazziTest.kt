@@ -33,6 +33,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.hardware.IrTransmitterManager
+import org.qinyan.rimoat.hardware.serial.SerialDeviceOption
 import org.qinyan.rimoat.hardware.serial.SerialIrModule
 import org.qinyan.rimoat.hardware.serial.SerialIrSettings
 import org.qinyan.rimoat.i18n.AppStrings
@@ -169,5 +170,44 @@ class SerialIrSettingsRoborazziTest {
             assertTrue(!showing.value)
         }
         composeRule.onNode(isDialog()).assertDoesNotExist()
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w320dp-h640dp-mdpi")
+    fun deviceSelectorPicksUsbSerialAndRequestsPermissionWhenUngranted() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val device = SerialDeviceOption(
+            deviceName = "/dev/bus/usb/001/002",
+            label = "CH340 USB Serial",
+            vendorId = 0x1A86,
+            productId = 0x7523,
+            portCount = 2,
+            granted = false,
+            serialNumber = "SN001",
+            connectionId = "conn-1"
+        )
+        var requestedDevice: String? = null
+        var savedConnection: String? = null
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                SerialIrSettingsForm(
+                    saved = SerialIrSettings(module = SerialIrModule.YS_IRTM),
+                    devices = listOf(device),
+                    onRequestPermission = { requestedDevice = it },
+                    onSave = { _, connectionId -> savedConnection = connectionId; Result.success(Unit) },
+                    onDismiss = {}
+                )
+            }
+        }
+        composeRule.onNodeWithText(app.getString(R.string.control_select_serial)).performScrollTo().performClick()
+        composeRule.onNodeWithText("CH340 USB Serial").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText(app.getString(R.string.control_authorize_usb)).performScrollTo().assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertEquals("/dev/bus/usb/001/002", requestedDevice) }
+        composeRule.onNode(isDialog()).captureRoboImage(
+            "src/test/screenshots/serial_dialog_configured_portrait.webp", roborazziOptions = options
+        )
+        composeRule.onNodeWithText(app.getString(R.string.control_save)).performClick()
+        composeRule.runOnIdle { assertEquals("conn-1", savedConnection) }
     }
 }

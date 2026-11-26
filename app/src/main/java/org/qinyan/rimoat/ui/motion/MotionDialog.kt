@@ -1,12 +1,14 @@
 package org.qinyan.rimoat.ui.motion
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.window.DialogProperties
@@ -33,6 +35,7 @@ internal fun MotionAlertDialog(
     dismissButton: (@Composable () -> Unit)? = null,
     title: (@Composable () -> Unit)? = null,
     text: (@Composable () -> Unit)? = null,
+    containerColor: Color = AlertDialogDefaults.containerColor,
     properties: DialogProperties = DialogProperties()
 ) {
     AlertDialog(
@@ -55,6 +58,7 @@ internal fun MotionAlertDialog(
                 }
             }
         },
+        containerColor = containerColor,
         properties = properties
     )
 }

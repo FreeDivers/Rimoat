@@ -5,6 +5,7 @@ import android.view.WindowManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
@@ -74,15 +75,19 @@ fun TwoPaneLayout(
     modifier: Modifier = Modifier,
     primaryFraction: Float = .5f,
     primaryMaxWidth: Dp = Dp.Infinity,
+    contentPadding: PaddingValues? = null,
     primary: @Composable () -> Unit,
     secondary: @Composable () -> Unit,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val spacing = if (maxWidth < 600.dp) 8.dp else 16.dp
-        val available = (maxWidth - spacing * 3).coerceAtLeast(0.dp)
+        val padding = contentPadding ?: PaddingValues(horizontal = spacing, vertical = 8.dp)
+        val direction = LocalLayoutDirection.current
+        val horizontalPadding = padding.calculateLeftPadding(direction) + padding.calculateRightPadding(direction)
+        val available = (maxWidth - horizontalPadding - spacing).coerceAtLeast(0.dp)
         val primaryWidth = (available * primaryFraction.coerceIn(.3f, .7f)).coerceAtMost(primaryMaxWidth)
         Row(
-            Modifier.fillMaxSize().padding(horizontal = spacing, vertical = 8.dp),
+            Modifier.fillMaxSize().padding(padding),
             horizontalArrangement = Arrangement.spacedBy(spacing)
         ) {
             Box(Modifier.width(primaryWidth).fillMaxHeight().testTag("two_pane_primary")

@@ -2,10 +2,11 @@ package org.qinyan.rimoat.ui.components
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
-import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.ui.motion.AppMotion
 import org.qinyan.rimoat.ui.motion.ExpandSection
 import org.qinyan.rimoat.ui.motion.StateFade
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
@@ -14,16 +15,19 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.DialogProperties
@@ -35,6 +39,7 @@ import org.qinyan.rimoat.hardware.serial.SerialDeviceOption
 import kotlinx.coroutines.launch
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SerialIrSettingsDialog(manager: IrTransmitterManager, onDismiss: () -> Unit) {
     val saved by manager.serialSettings.collectAsStateWithLifecycle()
@@ -44,6 +49,7 @@ fun SerialIrSettingsDialog(manager: IrTransmitterManager, onDismiss: () -> Unit)
     if (!loaded) {
         MotionAlertDialog(
             onDismissRequest = onDismiss,
+            containerColor = ExpressiveSurface.canvas,
             title = { Text(AppStrings.get(R.string.control_serial_config, "串口模块配置")) },
             text = { LinearWavyProgressIndicator(Modifier.fillMaxWidth()) },
             confirmButton = {},
@@ -54,6 +60,7 @@ fun SerialIrSettingsDialog(manager: IrTransmitterManager, onDismiss: () -> Unit)
     SerialIrSettingsForm(saved, devices, manager::requestUsbPermission, manager::saveSerialSettings, onDismiss)
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SerialIrSettingsForm(
     saved: SerialIrSettings,
@@ -83,36 +90,94 @@ internal fun SerialIrSettingsForm(
     MotionAlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
         modifier = if (wide) modifier.fillMaxWidth(.96f).widthIn(max = 960.dp) else modifier,
+        containerColor = ExpressiveSurface.canvas,
         properties = DialogProperties(usePlatformDefaultWidth = !wide),
         title = { Text(AppStrings.get(R.string.control_serial_config, "串口模块配置")) },
         text = {
-            val modules: @Composable () -> Unit = {
-                Column(Modifier.selectableGroup()) {
-                    SerialIrModule.entries.forEach { option ->
-                        SingleChoiceListItem(
-                            title = option.label, selected = module == option, enabled = !saving,
-                            onClick = {
-                                // Reselecting the current module must not overwrite typed values.
-                                module = option
-                                error = null
-                            }
-                        )
+            ProvideExpressiveCanvas {
+                val moduleEntries = SerialIrModule.entries
+                val modules: @Composable () -> Unit = {
+                    Column(
+                        modifier = Modifier.selectableGroup(),
+                        verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)
+                    ) {
+                        moduleEntries.forEachIndexed { index, option ->
+                            SingleChoiceListItem(
+                                title = option.label,
+                                selected = module == option,
+                                enabled = !saving,
+                                index = index,
+                                count = moduleEntries.size,
+                                onClick = {
+                                    // Reselecting the current module must not overwrite typed values.
+                                    module = option
+                                    error = null
+                                }
+                            )
+                        }
                     }
                 }
-            }
-            val parameters: @Composable () -> Unit = {
-                SerialFormSection(visible = module != SerialIrModule.UNCONFIGURED) {
-                    HorizontalDivider()
-                    Column {
-                        ExpandSection(visible = devices.isEmpty()) {
-                            Text(AppStrings.get(R.string.control_no_serial_usb, "未连接 USB 串口"),
-                                modifier = Modifier.padding(bottom = 12.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val parameters: @Composable (Dp) -> Unit = { topPadding ->
+                    SerialFormSection(visible = module != SerialIrModule.UNCONFIGURED, topPadding = topPadding) {
+                        val hasDevices = devices.isNotEmpty()
+                        val selectorInteractive = hasDevices && !saving
+                        val deviceLabel = selectedDevice?.label ?: if (selectionMissing) selectedLabel
+                            else if (saved.vendorId == null) AppStrings.get(R.string.control_select_serial, "选择 USB 串口")
+                            else AppStrings.get(R.string.control_keep_serial, "保留已绑定的 USB 串口")
+                        val deviceSupport = when {
+                            selectionMissing -> AppStrings.get(R.string.control_select_again, "连接已断开，请重新选择")
+                            !hasDevices -> AppStrings.get(R.string.control_no_serial_usb, "未连接 USB 串口")
+                            selectedDevice != null -> AppStrings.get(R.string.control_port_count, "%1\$d 个串口", selectedDevice.portCount)
+                            else -> null
                         }
-                        Box {
-                            OutlinedButton(onClick = { deviceMenu = true }, enabled = devices.isNotEmpty() && !saving, shapes = ButtonDefaults.shapes()) {
-                                Text(selectedDevice?.label ?: if (selectionMissing) selectedLabel
-                                    else if (saved.vendorId == null) AppStrings.get(R.string.control_select_serial, "选择 USB 串口") else AppStrings.get(R.string.control_keep_serial, "保留已绑定的 USB 串口"))
+                        Box(Modifier.fillMaxWidth()) {
+                            Surface(
+                                onClick = { deviceMenu = true },
+                                enabled = selectorInteractive,
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (hasDevices) ExpressiveSurface.card else ExpressiveSurface.card.copy(alpha = 0.65f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 56.dp)
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Usb,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = if (hasDevices) MaterialTheme.colorScheme.onSurfaceVariant
+                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                    )
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            text = deviceLabel,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = if (hasDevices || selectionMissing) MaterialTheme.colorScheme.onSurface
+                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (deviceSupport != null) {
+                                            Text(
+                                                text = deviceSupport,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = if (selectionMissing) MaterialTheme.colorScheme.error
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    if (hasDevices) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.ExpandMore,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                             ExpressiveDropdownMenu(
                                 expanded = deviceMenu,
@@ -145,55 +210,97 @@ internal fun SerialIrSettingsForm(
                                 }
                             }
                         }
-                        SerialFormSection(visible = selectionMissing) {
-                            Text(AppStrings.get(R.string.control_select_again, "连接已断开，请重新选择"), color = MaterialTheme.colorScheme.error)
-                        }
-                        SerialFormSection(visible = selectedDevice?.granted == false) {
-                            TextButton(onClick = {
-                                selectedDevice?.takeUnless { it.granted }?.let { onRequestPermission(it.deviceName) }
-                            }, enabled = !saving && selectedDevice?.granted == false, shapes = ButtonDefaults.shapes()) {
+                        SerialFormSection(visible = selectedDevice?.granted == false, topPadding = 0.dp) {
+                            FilledTonalButton(
+                                onClick = {
+                                    selectedDevice?.takeUnless { it.granted }?.let { onRequestPermission(it.deviceName) }
+                                },
+                                enabled = !saving && selectedDevice?.granted == false,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                shapes = ButtonDefaults.shapes()
+                            ) {
                                 Text(AppStrings.get(R.string.control_authorize_usb, "授权所选 USB 设备"))
                             }
                         }
-                        ExpressiveTextField(value = port, onValueChange = { port = it; error = null }, label = { Text(AppStrings.get(R.string.control_port_index, "串口序号")) },
+                        ExpressiveTextField(
+                            value = port,
+                            onValueChange = { port = it; error = null },
+                            label = { Text(AppStrings.get(R.string.control_port_index, "串口序号")) },
                             supportingText = { Text(AppStrings.get(R.string.control_zero_based, "从 0 开始")) },
-                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp), singleLine = true, enabled = !saving,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !saving,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
+                    SerialFormSection(visible = module == SerialIrModule.YS_IRTM, topPadding = 12.dp) {
+                        ExpressiveTextField(
+                            value = baud,
+                            onValueChange = { baud = it; error = null },
+                            label = { Text(AppStrings.get(R.string.control_baud_rate, "波特率")) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !saving,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        ExpressiveTextField(
+                            value = address,
+                            onValueChange = { address = it; error = null },
+                            label = { Text(AppStrings.get(R.string.control_module_address, "模块地址")) },
+                            supportingText = { Text(AppStrings.get(R.string.control_hexadecimal, "十六进制")) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !saving
+                        )
+                    }
+                    SerialFormSection(visible = module == SerialIrModule.IR_TOY, topPadding = 12.dp) {
+                        Text(
+                            AppStrings.get(R.string.control_firmware, "固件 ≥ 22\n115200 / 8N1"),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+                    // Keep the outgoing message until its exit completes, including its spacing.
+                    AnimatedContent(error, transitionSpec = {
+                        (fadeIn(motion.defaultEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()))
+                            .using(SizeTransform { _, _ -> motion.defaultSpatialSpec() })
+                    }, label = "SerialFormError") { message ->
+                        if (message != null) Text(message, modifier = Modifier.padding(top = 12.dp),
+                            color = MaterialTheme.colorScheme.error)
                     }
                 }
-                SerialFormSection(visible = module == SerialIrModule.YS_IRTM) {
-                    ExpressiveTextField(value = baud, onValueChange = { baud = it; error = null }, label = { Text(AppStrings.get(R.string.control_baud_rate, "波特率")) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    ExpressiveTextField(value = address, onValueChange = { address = it; error = null }, label = { Text(AppStrings.get(R.string.control_module_address, "模块地址")) },
-                        supportingText = { Text(AppStrings.get(R.string.control_hexadecimal, "十六进制")) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true, enabled = !saving)
-                }
-                SerialFormSection(visible = module == SerialIrModule.IR_TOY) {
-                    Text(AppStrings.get(R.string.control_firmware, "固件 ≥ 22\n115200 / 8N1"), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                // Keep the outgoing message until its exit completes, including its spacing.
-                AnimatedContent(error, transitionSpec = {
-                    (fadeIn(motion.defaultEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()))
-                        .using(SizeTransform { _, _ -> motion.defaultSpatialSpec() })
-                }, label = "SerialFormError") { message ->
-                    if (message != null) Text(message, modifier = Modifier.padding(top = 12.dp),
-                        color = MaterialTheme.colorScheme.error)
-                }
-            }
-            BoxWithConstraints(Modifier.fillMaxWidth().heightIn(
-                max = (configuration.screenHeightDp.dp - 160.dp).coerceAtLeast(80.dp))) {
-                if (maxWidth >= 480.dp) {
-                    TwoPaneLayout(primaryFraction = .4f, primary = {
-                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { modules() }
-                    }, secondary = {
-                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { parameters() }
-                    })
+                val maxBodyHeight = (configuration.screenHeightDp.dp - 160.dp)
+                    .coerceAtMost(520.dp)
+                    .coerceAtLeast(80.dp)
+                if (wide) {
+                    BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = maxBodyHeight)) {
+                        if (maxWidth >= 480.dp) {
+                            TwoPaneLayout(
+                                primaryFraction = .4f,
+                                contentPadding = PaddingValues(0.dp),
+                                primary = {
+                                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { modules() }
+                                },
+                                secondary = {
+                                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { parameters(0.dp) }
+                                }
+                            )
+                        } else {
+                            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                                modules()
+                                parameters(16.dp)
+                            }
+                        }
+                    }
                 } else {
-                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .heightIn(max = maxBodyHeight)
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         modules()
-                        parameters()
+                        parameters(16.dp)
                     }
                 }
             }
@@ -226,9 +333,13 @@ internal fun SerialIrSettingsForm(
 
 /** Include spacing in the transition so hidden sections leave no blank rows. */
 @Composable
-private fun SerialFormSection(visible: Boolean, content: @Composable ColumnScope.() -> Unit) {
+private fun SerialFormSection(
+    visible: Boolean,
+    topPadding: Dp = 12.dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
     ExpandSection(visible) {
-        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        Column(Modifier.padding(top = topPadding), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
