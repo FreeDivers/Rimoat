@@ -323,16 +323,20 @@ private fun WidgetConfigurationContent(
     }
     if (choosing && currentDraft != null) {
         val draft = currentDraft
-        val selectedProfile = snapshot.profiles.firstOrNull { it.id == chooseRemoteId } ?: if (wide) snapshot.profiles.firstOrNull() else null
+        val boundProfile = snapshot.profiles.firstOrNull { it.id == draft.remoteId }
+        val lockedToRemote = kind == WidgetKind.STATUS && boundProfile != null
+        val showTwoPane = wide && !lockedToRemote
+        val selectedProfile = if (lockedToRemote) boundProfile
+            else snapshot.profiles.firstOrNull { it.id == chooseRemoteId } ?: if (showTwoPane) snapshot.profiles.firstOrNull() else null
         MotionAlertDialog(onDismissRequest = { choosing = false }, title = { Text(if (selectedProfile == null) stringResource(R.string.widget_select_remote) else selectedProfile.name) },
-            modifier = if (wide) Modifier.safeDrawingPadding().fillMaxWidth().widthIn(max = 840.dp) else Modifier,
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = !wide),
+            modifier = if (showTwoPane) Modifier.safeDrawingPadding().fillMaxWidth().widthIn(max = 840.dp) else Modifier,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = !showTwoPane),
             text = {
                 val remotes: @Composable () -> Unit = {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                     items(snapshot.profiles, key = { it.id }) { profile ->
                         ListItem(headlineContent = { Text(profile.name) }, supportingContent = if (profile.room.isNotBlank()) ({ Text(profile.room) }) else null,
-                            colors = ListItemDefaults.colors(containerColor = if (wide && selectedProfile?.id == profile.id) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent),
+                            colors = ListItemDefaults.colors(containerColor = if (showTwoPane && selectedProfile?.id == profile.id) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent),
                             modifier = Modifier.clickable { chooseRemoteId = profile.id })
                     }
                 }
@@ -347,7 +351,11 @@ private fun WidgetConfigurationContent(
                             ListItem(headlineContent = { Text(command.displayLabel(selectedProfile, context)) }, trailingContent = if (shortcut in draft.shortcuts) ({ Icon(Icons.Rounded.Check, stringResource(R.string.widget_selected)) }) else null,
                                 colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                                 modifier = Modifier.clickable {
-                                    val next = if (kind == WidgetKind.SINGLE) listOf(shortcut) else (draft.shortcuts + shortcut).distinct()
+                                    val next = when (kind) {
+                                        WidgetKind.SINGLE -> listOf(shortcut)
+                                        WidgetKind.PANEL -> (draft.shortcuts + shortcut).distinct()
+                                        WidgetKind.STATUS -> (draft.shortcuts.filter { it.remoteId == selectedProfile.id } + shortcut).distinct()
+                                    }
                                     change(draft.copy(remoteId = if (kind == WidgetKind.PANEL) draft.remoteId else selectedProfile.id, shortcuts = next))
                                     choosing = false
                                 })
@@ -355,11 +363,11 @@ private fun WidgetConfigurationContent(
                     }
                 }
                 }
-                if (wide) BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                if (showTwoPane) BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                     TwoPaneLayout(Modifier.fillMaxSize(), primaryFraction = .4f, primary = remotes, secondary = buttons)
                 } else if (selectedProfile == null) remotes() else buttons()
             }, confirmButton = { TextButton(shapes = ButtonDefaults.shapes(), onClick = { choosing = false }) { Text(stringResource(R.string.widget_cancel)) } },
-            dismissButton = if (!wide && kind == WidgetKind.PANEL && selectedProfile != null) ({ TextButton(shapes = ButtonDefaults.shapes(), onClick = { chooseRemoteId = "" }) { Text(stringResource(R.string.widget_change_remote)) } }) else null)
+            dismissButton = if (!showTwoPane && kind == WidgetKind.PANEL && selectedProfile != null) ({ TextButton(shapes = ButtonDefaults.shapes(), onClick = { chooseRemoteId = "" }) { Text(stringResource(R.string.widget_change_remote)) } }) else null)
     }
 }
 

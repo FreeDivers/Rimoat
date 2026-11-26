@@ -203,4 +203,61 @@ class WidgetConfigurationLandscapeRoborazziTest {
             runBlocking { app.applicationScope.coroutineContext[Job]!!.cancelAndJoin() }
         }
     }
+
+    @Test fun wideStatusShortcutChooserKeepsBoundRemoteValidAndSaves() {
+        val app = RuntimeEnvironment.getApplication() as IrRemoteApplication
+        val tv = RemoteProfile("tv_remote", "Living room television", category = DeviceCategory.TV,
+            buttons = listOf(
+                RemoteButton("power", "Power", iconName = "power", rawPattern = listOf(9000, 4500, 560)),
+                RemoteButton("mute", "Mute", iconName = "volume_off", rawPattern = listOf(9000, 4500, 560))))
+        val fan = RemoteProfile("fan_remote", "Bedroom fan", category = DeviceCategory.FAN,
+            buttons = listOf(
+                RemoteButton("speed", "Speed", rawPattern = listOf(9000, 4500, 560))))
+        val widgetId = 45
+        val initial = WidgetConfiguration(WidgetKind.STATUS, tv.id, listOf(WidgetShortcut(tv.id, "power")))
+        runBlocking {
+            app.repository.awaitLoaded()
+            app.repository.saveRemote(tv)
+            app.repository.saveRemote(fan)
+            app.widgets.awaitReady()
+            app.widgets.save(widgetId, initial)
+        }
+        var saved = 0
+        try {
+            composeRule.waitUntil(10_000) {
+                shadowOf(Looper.getMainLooper()).idle()
+                app.widgets.state.value.commands[tv.id]?.size == 2 &&
+                    app.widgets.state.value.commands[fan.id]?.size == 1
+            }
+            composeRule.setContent { IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                WidgetConfigurationScreen(app, widgetId, WidgetKind.STATUS, onCancel = {}, onSaved = { saved++ })
+            } }
+            shadowOf(Looper.getMainLooper()).idle()
+            composeRule.waitForIdle()
+            val configurationPane = composeRule.onNode(hasScrollAction() and hasAnyAncestor(hasTestTag("two_pane_secondary")))
+            configurationPane.performScrollToNode(hasText(app.getString(R.string.widget_add_shortcut)))
+            composeRule.onNodeWithText(app.getString(R.string.widget_add_shortcut)).performClick()
+            val dialog = hasAnyAncestor(isDialog())
+            // Status widgets are bound to one remote: switching to another remote inside
+            // "Add shortcut" must not be allowed to mix foreign shortcuts into the draft.
+            composeRule.onNode(hasText(fan.name) and dialog).assertDoesNotExist()
+            composeRule.onNode(hasText("Mute") and dialog).assertIsDisplayed()
+            composeRule.onNode(isDialog()).captureRoboImage(
+                "src/test/screenshots/widget_configuration_landscape_status_chooser.webp",
+                roborazziOptions = options
+            )
+            composeRule.onNode(hasText("Mute") and dialog).performClick()
+            composeRule.onNode(isDialog()).assertDoesNotExist()
+            configurationPane.performScrollToNode(hasText(app.getString(R.string.widget_done)))
+            composeRule.onNodeWithText(app.getString(R.string.widget_done)).performClick()
+            composeRule.waitUntil(10_000) { saved == 1 }
+            val stored = app.widgets.store.configurations.value.getValue(widgetId)
+            assertEquals(tv.id, stored.remoteId)
+            assertEquals(listOf(WidgetShortcut(tv.id, "power"), WidgetShortcut(tv.id, "mute")), stored.shortcuts)
+        } finally {
+            app.transmitterManager.release()
+            app.learnerManager.unregisterReceiver()
+            runBlocking { app.applicationScope.coroutineContext[Job]!!.cancelAndJoin() }
+        }
+    }
 }
