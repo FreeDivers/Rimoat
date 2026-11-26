@@ -1,10 +1,9 @@
 package org.qinyan.rimoat.ui.viewmodel
 
 import org.qinyan.rimoat.i18n.UiText
+import org.qinyan.rimoat.i18n.UiTextException
 import org.qinyan.rimoat.i18n.uiTextDetail
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
-import org.qinyan.rimoat.i18n.localizedLabel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.qinyan.rimoat.data.DeviceCategory
@@ -149,9 +148,11 @@ class RemoteControlViewModel(
         _learningDialogButton.value = null
     }
 
-    private val _operationError = MutableStateFlow<String?>(null)
-    val operationError = _operationError.asStateFlow()
-    fun clearOperationError() { _operationError.value = null }
+    private val _operationError = MutableStateFlow<UiText?>(null)
+    val operationError: StateFlow<UiText?> = _operationError.asStateFlow()
+    fun clearOperationError(expected: UiText? = null) {
+        if (expected == null || _operationError.value == expected) _operationError.value = null
+    }
     private val _isSavingButton = MutableStateFlow(false)
     val isSavingButton = _isSavingButton.asStateFlow()
 
@@ -213,13 +214,14 @@ class RemoteControlViewModel(
     private val _feedback = MutableStateFlow<TransmitLog?>(null)
     val lastTransmitLog = _feedback.asStateFlow()
     fun dismissFeedback(log: TransmitLog) { _feedback.compareAndSet(log, null) }
-    fun clearFeedback() { _feedback.value = null; _operationError.value = null }
+    fun clearFeedback() { _feedback.value = null }
     fun onVisible() {
         clearFeedback()
+        _operationError.value = null
         viewModelScope.launch {
             try { repository?.markUsed(remoteId) }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _operationError.value = AppStrings.get(R.string.msg_recent_history_save_failed, "最近使用记录保存失败") }
+            catch (e: Exception) { _operationError.value = UiText.Resource(R.string.msg_recent_history_save_failed) }
         }
     }
 
@@ -346,7 +348,10 @@ class RemoteControlViewModel(
                     catch (e: Exception) {
                         _availableAcActions.value = emptySet()
                         _acUnavailableReasons.value = AcAction.entries.associateWith { org.qinyan.rimoat.data.AcUnavailableReason.CAPABILITY_UNAVAILABLE }
-                        _operationError.value = AppStrings.get(R.string.msg_ac_functions_load_failed, "读取空调功能失败：%1\$s", (e.localizedMessage ?: e.javaClass.simpleName))
+                        _operationError.value = UiText.resource(
+                            R.string.msg_ac_functions_load_failed,
+                            e.operationErrorDetail()
+                        )
                     }
                 } else {
                     _availableAcActions.value = emptySet()
@@ -365,7 +370,7 @@ class RemoteControlViewModel(
         if (button.acAction != null && !button.isLearned && remoteProfile.value?.useStaticAcButtons == false) {
             performAcAction(button.acAction); return
         }
-        if (!button.hasSignal) { _operationError.value = AppStrings.get(R.string.msg_button_learn_first, "此按键尚未录入信号，请先学习"); return }
+        if (!button.hasSignal) { _operationError.value = UiText.Resource(R.string.msg_button_learn_first); return }
         launchSend { beginTransmission ->
             sendMutex.withLock {
                 _lastSentButton.value = button
@@ -386,14 +391,16 @@ class RemoteControlViewModel(
                     } else { beginTransmission(); onTransmitSignal?.invoke(signal) }
                     pressCounts[countKey] = (index + 1) and 1
                 } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { _operationError.value = AppStrings.get(R.string.msg_send_failed, "发送失败：%1\$s", (e.localizedMessage ?: e.javaClass.simpleName)) }
+                catch (e: Exception) {
+                    _operationError.value = UiText.resource(R.string.msg_send_failed, e.operationErrorDetail())
+                }
                 finally { _isTransmitting.value = false }
             }
         }
     }
 
     private fun changeAc(transform: suspend (AcControlState, Int) -> Pair<AcControlState, AcAction>?) {
-        if (_isLearningMode.value) { _operationError.value = AppStrings.get(R.string.msg_tap_button_to_learn, "请点击要学习的功能按键"); return }
+        if (_isLearningMode.value) { _operationError.value = UiText.Resource(R.string.msg_tap_button_to_learn); return }
         launchSend { beginTransmission ->
             sendMutex.withLock {
                 _isTransmitting.value = true
@@ -406,21 +413,25 @@ class RemoteControlViewModel(
                         result?.warning?.let { _operationError.value = it }
                         return@withLock
                     }
-                    val profile = remoteProfile.value ?: error(AppStrings.get(R.string.msg_remote_not_loaded, "遥控器未加载"))
-                    val encoder = acSignalEncoder ?: error(AppStrings.get(R.string.msg_ac_state_library_unavailable, "空调状态码库不可用"))
-                    check(!profile.useStaticAcButtons) { AppStrings.get(R.string.msg_learned_ac_use_panel, "学习的空调按键请在按键面板发送") }
-                    val protocol = profile.acProtocolId ?: error(AppStrings.get(R.string.msg_independent_codes_no_state, "该遥控器使用独立按键码，不支持完整状态调节"))
+                    val profile = remoteProfile.value ?: throw UiTextException(UiText.Resource(R.string.msg_remote_not_loaded))
+                    val encoder = acSignalEncoder ?: throw UiTextException(UiText.Resource(R.string.msg_ac_state_library_unavailable))
+                    if (profile.useStaticAcButtons) throw UiTextException(UiText.Resource(R.string.msg_learned_ac_use_panel))
+                    val protocol = profile.acProtocolId ?: throw UiTextException(UiText.Resource(R.string.msg_independent_codes_no_state))
                     val route = transmitterManager?.currentTransmitterType()
                     val base = if (route == TransmitterType.MOCK) _demoState.value ?: _acState.value else _acState.value
                     val (transformed, action) = transform(base, protocol) ?: return@withLock
                     val next = if (action == AcAction.TIMER) transformed else transformed.copy(timerMinutes = 0)
-                    check(encoder.supportsAction(protocol, next, action)) {
-                        if (action == AcAction.TEMP_UP || action == AcAction.TEMP_DOWN)
-                            AppStrings.get(R.string.msg_mode_no_temperature, "该方案在%1\$s模式下不支持调温，请切换模式", localizedLabel(next.mode.labelCn))
-                        else AppStrings.get(R.string.msg_action_unsupported, "该方案不支持当前模式下的此操作")
+                    if (!encoder.supportsAction(protocol, next, action)) {
+                        throw UiTextException(
+                            if (action == AcAction.TEMP_UP || action == AcAction.TEMP_DOWN) {
+                                UiText.resource(R.string.msg_mode_no_temperature, UiText.Resource(next.mode.labelResource()))
+                            } else {
+                                UiText.Resource(R.string.msg_action_unsupported)
+                            }
+                        )
                     }
                     val signals = encoder.encode(protocol, next, action)
-                    check(signals.isNotEmpty()) { AppStrings.get(R.string.msg_ac_no_signals, "没有可发送的空调信号") }
+                    if (signals.isEmpty()) throw UiTextException(UiText.Resource(R.string.msg_ac_no_signals))
                     val simulated = if (transmitterManager != null) {
                         transmitterManager.transmitWithReceipt(signals, feedbackOwner, route,
                             beforeTransmission = { beginTransmission() }).getOrThrow().simulated
@@ -435,10 +446,17 @@ class RemoteControlViewModel(
                         _acState.value = committed
                         try { repository?.updateAcSettings(remoteId, committed) }
                         catch (e: CancellationException) { throw e }
-                        catch (e: Exception) { _operationError.value = AppStrings.get(R.string.msg_sent_settings_save_failed, "信号已发送，但设置保存失败：%1\$s", (e.localizedMessage ?: e.javaClass.simpleName)) }
+                        catch (e: Exception) {
+                            _operationError.value = UiText.resource(
+                                R.string.msg_sent_settings_save_failed,
+                                e.operationErrorDetail(R.string.msg_storage_unavailable)
+                            )
+                        }
                     }
                 } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { _operationError.value = AppStrings.get(R.string.msg_send_incomplete, "未完成发送：%1\$s", (e.localizedMessage ?: e.javaClass.simpleName)) }
+                catch (e: Exception) {
+                    _operationError.value = UiText.resource(R.string.msg_send_incomplete, e.operationErrorDetail())
+                }
                 finally { _isTransmitting.value = false }
             }
         }
@@ -449,7 +467,9 @@ class RemoteControlViewModel(
     }
 
     fun applyAcPreset(settings: AcSettings) = changeAc { state, protocol ->
-        if (settings.powerOn) check(settings.mode in acSignalEncoder!!.supportedModes(protocol)) { AppStrings.get(R.string.msg_mode_unsupported, "该方案不支持此模式") }
+        if (settings.powerOn && settings.mode !in acSignalEncoder!!.supportedModes(protocol)) {
+            throw UiTextException(UiText.Resource(R.string.msg_mode_unsupported))
+        }
         settings.copy(counter = state.counter) to if (settings.powerOn) AcAction.POWER_ON else AcAction.POWER_OFF
     }
 
@@ -470,7 +490,7 @@ class RemoteControlViewModel(
 
     fun cycleAcMode() = changeAc { state, protocol ->
         val modes = acSignalEncoder!!.supportedModes(protocol)
-        check(modes.isNotEmpty()) { AppStrings.get(R.string.msg_model_no_modes, "该机型没有可用模式") }
+        if (modes.isEmpty()) throw UiTextException(UiText.Resource(R.string.msg_model_no_modes))
         state.copy(mode = modes[(modes.indexOf(state.mode) + 1) % modes.size], powerOn = true) to AcAction.MODE
     }
 
@@ -496,25 +516,42 @@ class RemoteControlViewModel(
             (action != AcAction.MODE || target.mode in modes) && encoder.supportsAction(protocol, target, action)
         }
         } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { _operationError.value = AppStrings.get(R.string.msg_states_load_failed, "读取可选状态失败：%1\$s", (e.localizedMessage ?: e.javaClass.simpleName)); return emptyList() }
+        catch (e: Exception) {
+            _operationError.value = UiText.resource(R.string.msg_states_load_failed, e.operationErrorDetail())
+            return emptyList()
+        }
     }
 
     fun selectAcState(choice: AcStateChoice) = changeAc { state, protocol ->
         val target = choice.applyTo(state)
-        if (choice.action == AcAction.MODE) check(target.mode in acSignalEncoder!!.supportedModes(protocol)) {
-            AppStrings.get(R.string.msg_model_mode_unsupported, "该机型不支持此模式")
+        if (choice.action == AcAction.MODE && target.mode !in acSignalEncoder!!.supportedModes(protocol)) {
+            throw UiTextException(UiText.Resource(R.string.msg_model_mode_unsupported))
         }
         target to choice.action
     }
 
     fun performAcAction(action: AcAction, timerMinutes: Int = 0) = changeAc { state, protocol ->
         val next = state.apply(action, timerMinutes)
-        check(action != AcAction.TIMER || org.qinyan.rimoat.data.AcTimerOptions.supports(protocol, next)) {
-            AppStrings.get(R.string.msg_timer_unsupported, "该方案不支持此定时时长")
+        if (action == AcAction.TIMER && !org.qinyan.rimoat.data.AcTimerOptions.supports(protocol, next)) {
+            throw UiTextException(UiText.Resource(R.string.msg_timer_unsupported))
         }
-        if (action == AcAction.QUICK_COOL || action == AcAction.QUICK_HEAT)
-            check(next.mode in acSignalEncoder!!.supportedModes(protocol)) { AppStrings.get(R.string.msg_model_mode_unsupported, "该机型不支持此模式") }
+        if ((action == AcAction.QUICK_COOL || action == AcAction.QUICK_HEAT) &&
+            next.mode !in acSignalEncoder!!.supportedModes(protocol)) {
+            throw UiTextException(UiText.Resource(R.string.msg_model_mode_unsupported))
+        }
         next to action
+    }
+
+    private fun Throwable.operationErrorDetail(
+        @androidx.annotation.StringRes fallback: Int = R.string.control_unknown_error
+    ): UiText = uiTextDetail(fallback)
+
+    private fun AcMode.labelResource(): Int = when (this) {
+        AcMode.COOL -> R.string.control_cool
+        AcMode.HEAT -> R.string.control_heat
+        AcMode.DRY -> R.string.control_dry
+        AcMode.FAN -> R.string.control_fan
+        AcMode.AUTO -> R.string.control_auto
     }
 
     fun toggleForceMock() {

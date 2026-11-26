@@ -4,6 +4,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.AppLanguage
 import org.qinyan.rimoat.i18n.UiText
+import org.qinyan.rimoat.i18n.UiTextException
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
@@ -210,7 +211,7 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
             } else app.commands.executeButton(profile.id, shortcut.buttonId, "widget:$widgetId", rejectIfBusy = true,
                 beforeTransmission = validateBinding)
             _feedback.update {
-                if (result?.warning != null) it + (widgetId to WidgetFeedback(result.warning, error = true, shortcut = shortcut))
+                if (result?.warning != null) it + (widgetId to WidgetFeedback(result.warning.resolve(AppLanguage.wrap(app)), error = true, shortcut = shortcut))
                 else it - widgetId
             }
         } catch (e: CancellationException) {
@@ -218,7 +219,10 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
             throw e
         }
         catch (e: Exception) {
-            _feedback.update { it + (widgetId to WidgetFeedback(e.message ?: AppStrings.get(R.string.widget_send_failed, "发送失败，请重试"), error = true, shortcut = shortcut)) }
+            val detail = (e as? UiTextException)?.uiText?.resolve(AppLanguage.wrap(app))
+                ?: e.message
+                ?: AppStrings.get(R.string.widget_send_failed, "发送失败，请重试")
+            _feedback.update { it + (widgetId to WidgetFeedback(detail, error = true, shortcut = shortcut)) }
         } finally {
             actionMutex.unlock()
             updateAll()

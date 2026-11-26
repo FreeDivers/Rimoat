@@ -11,6 +11,7 @@ import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.ui.components.withPanelPresentation
 import org.qinyan.rimoat.ui.components.panelAction
 import org.qinyan.rimoat.ui.components.acButtonForAction
@@ -317,10 +318,11 @@ private fun RemoteControlContent(
                 }
             })
     }
-    androidx.compose.runtime.LaunchedEffect(screenActive, operationError, learningDialogButton) {
-        if (screenActive && learningDialogButton == null) operationError?.let {
-            snackbarHostState.showSnackbar(it, duration = androidx.compose.material3.SnackbarDuration.Long)
-            viewModel.clearOperationError()
+    val displayedOperationError = operationError?.asString()
+    androidx.compose.runtime.LaunchedEffect(screenActive, operationError, displayedOperationError, learningDialogButton) {
+        if (screenActive && learningDialogButton == null) operationError?.let { error ->
+            snackbarHostState.showSnackbar(checkNotNull(displayedOperationError), duration = androidx.compose.material3.SnackbarDuration.Long)
+            viewModel.clearOperationError(error)
         }
     }
     androidx.compose.runtime.LaunchedEffect(screenActive, panelSaveError, learningDialogButton) {

@@ -38,8 +38,13 @@ sealed interface UiText {
 private fun List<Any>.resolveArguments(context: Context): Array<Any> =
     map { if (it is UiText) it.resolve(context) else it }.toTypedArray()
 
-fun Throwable.uiTextDetail(@StringRes fallback: Int): UiText =
-    localizedMessage?.let { UiText.Dynamic(it) } ?: UiText.Resource(fallback)
+/** Exception carrying a [UiText] so layers below ViewModel avoid pre-translating messages. */
+class UiTextException(val uiText: UiText, cause: Throwable? = null) : IllegalStateException(cause)
+
+fun Throwable.uiTextDetail(@StringRes fallback: Int): UiText = when (this) {
+    is UiTextException -> uiText
+    else -> localizedMessage?.takeIf { it.isNotBlank() }?.let { UiText.Dynamic(it) } ?: UiText.Resource(fallback)
+}
 
 @Composable
 fun UiText.asString(): String {

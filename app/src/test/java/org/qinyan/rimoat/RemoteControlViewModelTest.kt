@@ -2,6 +2,7 @@ package org.qinyan.rimoat
 
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.IrSignal
+import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -114,7 +115,10 @@ class RemoteControlViewModelTest {
         vm.increaseTemp()
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(26, vm.acState.value.temperature)
-        assertTrue(vm.operationError.value!!.contains("USB detached"))
+        assertEquals(
+            UiText.resource(R.string.msg_send_incomplete, UiText.Dynamic("USB detached")),
+            vm.operationError.value
+        )
         assertFalse(vm.isTransmitting.value)
     }
 
@@ -196,7 +200,13 @@ class RemoteControlViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertTrue(encoder.requests.isEmpty())
         assertEquals(26, vm.acState.value.temperature)
-        assertTrue(vm.operationError.value!!.contains("送风模式下不支持调温"))
+        assertEquals(
+            UiText.resource(
+                R.string.msg_send_incomplete,
+                UiText.resource(R.string.msg_mode_no_temperature, UiText.Resource(R.string.control_fan))
+            ),
+            vm.operationError.value
+        )
         vm.cycleAcMode()
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(AcMode.AUTO, vm.acState.value.mode)
@@ -255,6 +265,42 @@ class RemoteControlViewModelTest {
         vm.setLearningMode(true)
         assertTrue(vm.availableAcChoices(AcAction.MODE).isEmpty())
         assertTrue(encoder.requests.isEmpty())
+    }
+
+    @Test fun operationErrorsKeepUiTextResourceIdentity() {
+        val vm = tracked(RemoteControlViewModel("tv"))
+        vm.sendButton(RemoteButton("num_1", "1"))
+        assertEquals(
+            org.qinyan.rimoat.i18n.UiText.Resource(R.string.msg_button_learn_first),
+            vm.operationError.value
+        )
+
+        val acVm = tracked(RemoteControlViewModel("ac", initialProfile = profile(AcSettings(mode = AcMode.FAN)),
+            acSignalEncoder = RecordingEncoder().apply { unsupported = setOf(AcAction.TEMP_UP) }))
+        acVm.increaseTemp()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            org.qinyan.rimoat.i18n.UiText.resource(
+                R.string.msg_send_incomplete,
+                org.qinyan.rimoat.i18n.UiText.resource(
+                    R.string.msg_mode_no_temperature,
+                    org.qinyan.rimoat.i18n.UiText.Resource(R.string.control_fan)
+                )
+            ),
+            acVm.operationError.value
+        )
+
+        val failingVm = tracked(RemoteControlViewModel("ac", initialProfile = profile(),
+            acSignalEncoder = RecordingEncoder(), onTransmitSignal = { throw IllegalStateException() }))
+        failingVm.increaseTemp()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            org.qinyan.rimoat.i18n.UiText.resource(
+                R.string.msg_send_incomplete,
+                org.qinyan.rimoat.i18n.UiText.Resource(R.string.control_unknown_error)
+            ),
+            failingVm.operationError.value
+        )
     }
 
 }

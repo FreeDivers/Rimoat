@@ -148,4 +148,94 @@ class LanguageSwitchRoborazziTest {
             runBlocking { app.applicationScope.coroutineContext[Job]!!.cancelAndJoin() }
         }
     }
+
+    @Test
+    fun remoteControlOperationErrorResolvesInNewLanguageAfterLocaleChange() {
+        val app = (RuntimeEnvironment.getApplication() as IrRemoteApplication)
+        Shadows.shadowOf(app).grantPermissions("${app.packageName}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
+        app.themePreferences.setColorMode(AppColorMode.LIGHT)
+        val missingSignalButton = RemoteButton("power", "电源", iconName = "power")
+        val profile = RemoteProfile(
+            id = "language_error_remote",
+            name = "Study TV",
+            category = DeviceCategory.TV,
+            buttons = listOf(missingSignalButton)
+        )
+        runBlocking {
+            app.repository.awaitLoaded()
+            app.repository.saveRemote(profile)
+            app.widgets.awaitReady()
+        }
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup().visible()
+        fun currentString(id: Int) = controller.get().getString(id)
+        try {
+            composeRule.waitUntil(10_000) { app.repository.remotes.value.any { it.id == profile.id } }
+
+            // Switch to Simplified Chinese first, then enter the remote control page.
+            composeRule.onNodeWithContentDescription(currentString(R.string.screen_settings)).performClick()
+            composeRule.onNodeWithText(currentString(R.string.settings_language)).performScrollTo().performClick()
+            val initialActivity = controller.get()
+            composeRule.onNodeWithText(currentString(R.string.language_chinese)).performClick()
+            composeRule.waitForIdle()
+            if (Build.VERSION.SDK_INT >= 33) {
+                composeRule.runOnUiThread {
+                    controller.configurationChange(
+                        Configuration(AppLanguage.wrap(app).resources.configuration),
+                        initialActivity.resources.displayMetrics,
+                        ActivityInfo.CONFIG_LOCALE or ActivityInfo.CONFIG_LAYOUT_DIRECTION
+                    )
+                    controller.visible()
+                }
+            }
+            composeRule.waitForIdle()
+            composeRule.onNodeWithContentDescription(currentString(R.string.settings_back)).performClick()
+            composeRule.onNodeWithText("Study TV").performClick()
+            composeRule.waitForIdle()
+
+            // Trigger an operationError on the retained RemoteControlViewModel, then switch language to English
+            // and recreate the Activity so the same ViewModel displays its pending error in the new language.
+            val zhActivity = controller.get()
+            val controlOwner = androidx.lifecycle.ViewModelProvider(zhActivity)[PageViewModelStores::class.java]
+                .ownerFor(AppScreen.RemoteControl(profile.id))
+            val controlViewModel = androidx.lifecycle.ViewModelProvider(controlOwner)[org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel::class.java]
+
+            val zhMessage = zhActivity.getString(R.string.msg_button_learn_first)
+            composeRule.runOnUiThread { controlViewModel.sendButton(missingSignalButton) }
+            composeRule.waitUntil(5_000) {
+                composeRule.onAllNodes(androidx.compose.ui.test.hasText(zhMessage)).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeRule.onNodeWithText(zhMessage).assertIsDisplayed()
+            if (Build.VERSION.SDK_INT == 35) composeRule.onRoot().captureRoboImage(
+                "src/test/screenshots/language_remote_error_zh.webp", roborazziOptions = options
+            )
+
+            // Switch language to English while the operationError is still pending on the retained ViewModel.
+            composeRule.runOnUiThread {
+                AppLanguage.set(zhActivity, "en")
+                if (Build.VERSION.SDK_INT >= 33) {
+                    controller.configurationChange(
+                        Configuration(AppLanguage.wrap(app).resources.configuration),
+                        zhActivity.resources.displayMetrics,
+                        ActivityInfo.CONFIG_LOCALE or ActivityInfo.CONFIG_LAYOUT_DIRECTION
+                    )
+                    controller.visible()
+                }
+            }
+            composeRule.waitForIdle()
+            assertNotSame("Language switch must recreate MainActivity", zhActivity, controller.get())
+            val enMessage = controller.get().getString(R.string.msg_button_learn_first)
+            composeRule.waitUntil(5_000) {
+                composeRule.onAllNodes(androidx.compose.ui.test.hasText(enMessage)).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeRule.onNodeWithText(enMessage).assertIsDisplayed()
+            if (Build.VERSION.SDK_INT == 35) composeRule.onRoot().captureRoboImage(
+                "src/test/screenshots/language_remote_error_en.webp", roborazziOptions = options
+            )
+        } finally {
+            controller.pause().stop().destroy()
+            app.transmitterManager.release()
+            app.learnerManager.unregisterReceiver()
+            runBlocking { app.applicationScope.coroutineContext[Job]!!.cancelAndJoin() }
+        }
+    }
 }

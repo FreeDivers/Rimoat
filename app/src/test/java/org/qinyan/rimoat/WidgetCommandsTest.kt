@@ -272,7 +272,7 @@ class WidgetCommandsTest {
     }
     @Test fun persistenceFailureAfterSendIsAWarningWithoutRetry() = runBlocking {
         val rig = Rig(); rig.persistenceFailure = true
-        assertNotNull(rig.up()!!.warning)
+        assertEquals(org.qinyan.rimoat.i18n.UiText.Resource(R.string.msg_sent_settings_failed), rig.up()!!.warning)
         assertEquals(1, rig.sent.size)
     }
     @Test fun journalConcurrentInitializationDoesNotEraseReceipt() = runBlocking {
