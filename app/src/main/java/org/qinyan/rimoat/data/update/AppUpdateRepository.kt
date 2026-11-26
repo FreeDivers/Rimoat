@@ -180,7 +180,8 @@ internal class AppUpdateRepository(
                 throw cancelled
             } catch (error: Exception) {
                 if (error !is SocketTimeoutException) allTimedOut = false
-                if ((error as? UpdateException)?.failure == UpdateFailure.STORAGE) throw error
+                val retryable = error is SocketTimeoutException || (error is UpdateException && error.failure in RETRYABLE_FAILURES)
+                if (!retryable) throw error
                 if (primaryError == null) primaryError = error
             }
         }
@@ -221,7 +222,8 @@ internal class AppUpdateRepository(
                         error is SocketTimeoutException -> error
                         error is IOException && generateSequence<Throwable>(error) { it.cause }
                             .any { it is ErrnoException && it.errno == OsConstants.ENOSPC } -> UpdateException(UpdateFailure.STORAGE)
-                        else -> UpdateException(UpdateFailure.NETWORK)
+                        error is IOException -> UpdateException(UpdateFailure.NETWORK)
+                        else -> error
                     })
                 } finally {
                     connection.get()?.disconnect()
@@ -236,6 +238,13 @@ internal class AppUpdateRepository(
     companion object {
         private const val LATEST_RELEASE = "https://api.github.com/repos/FreeDivers/Rimoat/releases/latest"
         private val MIRROR_PREFIXES = listOf("https://gh-proxy.com/", "https://gh-proxy.org/")
+        private val RETRYABLE_FAILURES = setOf(
+            UpdateFailure.NETWORK,
+            UpdateFailure.RATE_LIMIT,
+            UpdateFailure.NO_RELEASE,
+            UpdateFailure.NO_APK,
+            UpdateFailure.DOWNLOAD,
+        )
         private val requests = Executors.newCachedThreadPool { runnable ->
             Thread(runnable, "AppUpdate").apply { isDaemon = true }
         }

@@ -61,6 +61,119 @@ class AppUpdateRepositoryTest {
         }
     }
 
+    @Test fun digestMismatchStopsAfterOneDownloadWithoutResettingProgress() = runBlocking {
+        val requested = mutableListOf<String>()
+        val progress = mutableListOf<Long>()
+        val repo = AppUpdateRepository(app) { url ->
+            requested += url
+            Connection { ByteArrayInputStream(byteArrayOf(1, 2, 3, 4)) }
+        }
+        try {
+            repo.download(release.copy(asset = release.asset!!.copy(digest = "sha256:invalid"))) { bytes, _ -> progress += bytes }
+            fail("Expected digest rejection")
+        } catch (error: UpdateException) { assertEquals(UpdateFailure.INVALID_APK, error.failure) }
+        assertEquals(listOf(release.asset!!.browser_download_url), requested)
+        assertEquals(listOf(4L), progress)
+        assertTrue(directory.listFiles().orEmpty().isEmpty())
+    }
+
+    @Test fun unreadableArchiveDoesNotTryAnotherMirror() = runBlocking { assertArchiveRejectedWithoutRetry("unreadable") }
+    @Test fun packageMismatchDoesNotTryAnotherMirror() = runBlocking { assertArchiveRejectedWithoutRetry("package") }
+    @Test fun versionMismatchDoesNotTryAnotherMirror() = runBlocking { assertArchiveRejectedWithoutRetry("version") }
+    @Test fun signatureMismatchDoesNotTryAnotherMirror() = runBlocking { assertArchiveRejectedWithoutRetry("signature") }
+
+    @Suppress("DEPRECATION")
+    private suspend fun assertArchiveRejectedWithoutRetry(invalid: String) {
+        val pm = Shadows.shadowOf(app.packageManager)
+        pm.getInternalMutablePackageInfo(app.packageName).apply {
+            versionName = "1.1.0"
+            versionCode = 2
+            signatures = arrayOf(Signature("0102"))
+        }
+            val requested = mutableListOf<String>()
+            val progress = mutableListOf<Long>()
+            val repo = AppUpdateRepository(app) { url ->
+                requested += url
+                Connection {
+                    if (invalid != "unreadable") {
+                        pm.setPackageArchiveInfo(directory.listFiles()!!.single().absolutePath, PackageInfo().apply {
+                            packageName = if (invalid == "package") "org.example.other" else app.packageName
+                            versionName = if (invalid == "version") "1.3.0" else "1.2.0"
+                            versionCode = 3
+                            signatures = arrayOf(Signature(if (invalid == "signature") "0304" else "0102"))
+                        })
+                    }
+                    ByteArrayInputStream(byteArrayOf(1, 2, 3, 4))
+                }
+            }
+            try { repo.download(release) { bytes, _ -> progress += bytes }; fail("Expected $invalid rejection") }
+            catch (error: UpdateException) {
+                assertEquals(if (invalid == "signature") UpdateFailure.SIGNATURE else UpdateFailure.INVALID_APK, error.failure)
+            }
+            assertEquals(invalid, listOf(release.asset!!.browser_download_url), requested)
+            assertEquals(invalid, listOf(4L), progress)
+            assertTrue(directory.listFiles().orEmpty().isEmpty())
+    }
+
+    @Test fun invalidApkFromFirstMirrorStopsFallbackAndReportsValidationError() = runBlocking {
+        val official = release.asset!!.browser_download_url
+        val requested = mutableListOf<String>()
+        val repo = AppUpdateRepository(app) { url ->
+            requested += url
+            if (url == official) throw SocketTimeoutException("unreachable")
+            Connection { ByteArrayInputStream(byteArrayOf(1, 2, 3, 4)) }
+        }
+        try {
+            repo.download(release.copy(asset = release.asset.copy(digest = "sha256:invalid"))) { _, _ -> }
+            fail("Expected digest rejection")
+        } catch (error: UpdateException) { assertEquals(UpdateFailure.INVALID_APK, error.failure) }
+        assertEquals(listOf(official, "https://gh-proxy.com/$official"), requested)
+        assertTrue(directory.listFiles().orEmpty().isEmpty())
+    }
+
+    @Test fun invalidReleaseDoesNotRetryOtherSources() = runBlocking {
+        var requests = 0
+        val repo = AppUpdateRepository(app) {
+            requests++
+            Connection { ByteArrayInputStream("""{"tag_name":"v1.2.0-beta","prerelease":true}""".toByteArray()) }
+        }
+        try { repo.latestRelease(); fail("Expected invalid release") }
+        catch (error: UpdateException) { assertEquals(UpdateFailure.INVALID_RELEASE, error.failure) }
+        assertEquals(1, requests)
+    }
+
+    @Test fun unexpectedFailureIsNotRetriedAsNetworkError() = runBlocking {
+        var requests = 0
+        val failure = IllegalStateException("Invalid local configuration")
+        val repo = AppUpdateRepository(app) { requests++; throw failure }
+        try { repo.download(release) { _, _ -> }; fail("Expected local failure") }
+        catch (error: Exception) {
+            assertTrue(error is IllegalStateException)
+            assertEquals(failure.message, error.message)
+        }
+        assertEquals(1, requests)
+    }
+
+    @Test fun httpFailuresStillTryAllDownloadSources() = runBlocking {
+        val official = release.asset!!.browser_download_url
+        for (status in listOf(403, 404, 429, 500)) {
+            val requested = mutableListOf<String>()
+            val repo = AppUpdateRepository(app) { url ->
+                requested += url
+                Connection(status) { error("Must not read an HTTP error as an APK") }
+            }
+            try { repo.download(release) { _, _ -> }; fail("Expected HTTP failure") }
+            catch (error: UpdateException) {
+                assertEquals(when (status) {
+                    403, 429 -> UpdateFailure.RATE_LIMIT
+                    404 -> UpdateFailure.NO_APK
+                    else -> UpdateFailure.DOWNLOAD
+                }, error.failure)
+            }
+            assertEquals(listOf(official, "https://gh-proxy.com/$official", "https://gh-proxy.org/$official"), requested)
+        }
+    }
+
     @Test fun cancellationClosesConnectionAndDeletesPartialDownload() = runBlocking {
         val started = CountDownLatch(1)
         val connection = Connection {

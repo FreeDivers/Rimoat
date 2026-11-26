@@ -2,6 +2,7 @@ package org.qinyan.rimoat.ui.screens
 
 import android.app.Application
 import android.content.Intent
+import android.os.Looper
 import android.provider.Settings
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResult
@@ -19,6 +20,12 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.SavedStateHandle
 import com.github.takahirom.roborazzi.*
 import java.io.File
+import java.io.ByteArrayInputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.*
 import org.junit.After
 import org.junit.Assert.*
@@ -144,6 +151,70 @@ class AppUpdateRoborazziTest {
         capture("permission")
         compose.onNodeWithText(text(R.string.update_open_settings)).performClick(); settle()
         assertEquals(UpdatePhase.WAITING_PERMISSION, state.value.phase)
+    }
+
+    @Test fun digestFailureShowsErrorAfterOneDownloadAndAllowsManualRetry() {
+        Shadows.shadowOf(app.packageManager).getInternalMutablePackageInfo(app.packageName).versionName = "1.1.0"
+        val assetUrl = "https://github.com/FreeDivers/Rimoat/releases/download/v1.2.0/app.apk"
+        val downloads = AtomicInteger()
+        val finishDownload = CountDownLatch(1)
+        val repo = AppUpdateRepository(app) { url ->
+            val isDownload = url.endsWith("app.apk")
+            if (isDownload) downloads.incrementAndGet()
+            object : HttpURLConnection(URL(url)) {
+                override fun connect() = Unit
+                override fun disconnect() = Unit
+                override fun usingProxy() = false
+                override fun getResponseCode() = 200
+                override fun getInputStream() = if (isDownload) {
+                    object : ByteArrayInputStream(byteArrayOf(1, 2, 3, 4)) {
+                        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                            if (available() == 2) check(finishDownload.await(30, TimeUnit.SECONDS))
+                            return super.read(buffer, offset, minOf(length, 2))
+                        }
+                    }
+                } else ByteArrayInputStream("""{"tag_name":"v1.2.0","assets":[{"name":"app.apk","browser_download_url":"$assetUrl","size":4,"digest":"sha256:invalid"}]}""".toByteArray())
+            }
+        }
+        val vm = AppUpdateViewModel(repo).also { stores.put("update", it) }
+        compose.mainClock.autoAdvance = false
+        fun waitFor(condition: () -> Boolean) {
+            compose.waitUntil(5_000) {
+                Shadows.shadowOf(Looper.getMainLooper()).idle()
+                condition()
+            }
+            settle()
+        }
+        try {
+            compose.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) { AppUpdateHost(vm) }
+            }
+            settle()
+            compose.runOnIdle { vm.check() }
+            waitFor { vm.state.value.phase == UpdatePhase.AVAILABLE }
+            compose.onNodeWithText(text(R.string.update_now)).performClick()
+            waitFor { vm.state.value.downloadedBytes == 2L }
+            compose.onNodeWithTag("update_progress").assertIsDisplayed()
+            compose.onNodeWithText(text(R.string.update_retry)).assertDoesNotExist()
+            capture("validation_downloading")
+            finishDownload.countDown()
+            waitFor { vm.state.value.phase == UpdatePhase.ERROR }
+            compose.onNodeWithText(text(R.string.update_error_apk)).assertIsDisplayed()
+            compose.onNodeWithText(text(R.string.update_retry)).assertIsEnabled()
+            capture("validation_error")
+            assertEquals(UpdateFailure.INVALID_APK, vm.state.value.failure)
+            assertEquals(1, downloads.get())
+            assertTrue(File(app.cacheDir, "updates").listFiles().orEmpty().isEmpty())
+            compose.onNodeWithText(text(R.string.update_retry)).performClick()
+            waitFor { vm.state.value.phase == UpdatePhase.ERROR }
+            assertEquals(2, downloads.get())
+            compose.onNodeWithText(text(R.string.cancel)).performClick()
+            settle()
+            compose.onNode(isDialog()).assertDoesNotExist()
+        } finally {
+            finishDownload.countDown()
+            compose.runOnIdle { vm.cancel() }
+        }
     }
 
     @Test @Config(qualifiers = "en-w411dp-h891dp-night-mdpi")
