@@ -250,7 +250,7 @@ class ElkSmartUsbLearner private constructor(
         if (expected <= 0) return null
 
         val payload = ArrayList<Byte>(expected)
-        for (i in 6 until firstPacket.size) {
+        for (i in 6 until minOf(firstPacket.size, 6 + expected)) {
             payload.add(firstPacket[i])
         }
 
