@@ -168,8 +168,9 @@ class IrLearnerManager(
 
             val oldLearner = _usbLearner.value
             if (oldLearner != matchedLearner) {
-                if (oldLearner is AutoCloseable) {
-                    try {
+                when (oldLearner) {
+                    is LazyUsbLearner -> oldLearner.markDisconnected()
+                    is AutoCloseable -> try {
                         oldLearner.close()
                     } catch (_: Throwable) {
                     }

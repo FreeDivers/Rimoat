@@ -4,15 +4,21 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.hardware.UsbSessionAccess
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -29,6 +35,13 @@ internal class LazyUsbLearner(
     private val disconnected = AtomicBoolean(false)
     @Volatile private var session: UsbSessionAccess.LearningSession? = null
     @Volatile private var current: IrLearner? = null
+    @Volatile private var learningJob: Job? = null
+
+    private fun disconnectedFailure(): Result<IrSignal.Raw> {
+        val err = AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
+        _state.value = LearningState.Error(err)
+        return Result.failure(IOException(err))
+    }
 
     override suspend fun startLearning(timeoutSeconds: Int): Result<IrSignal.Raw> = withContext(Dispatchers.IO) {
         if (!UsbSessionAccess.mutex.tryLock()) {
@@ -40,44 +53,70 @@ internal class LazyUsbLearner(
         try {
             currentCoroutineContext().ensureActive()
             if (disconnected.get() || !_available.value) {
-                val err = AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
-                _state.value = LearningState.Error(err)
-                return@withContext Result.failure(IOException(err))
+                return@withContext disconnectedFailure()
             }
-            val delegate = open() ?: error(AppStrings.get(R.string.msg_usb_receiver_open_failed, "无法打开 USB 接收器，请检查授权或重新插入"))
-            current = delegate
-            if (disconnected.get() || !_available.value) {
-                (delegate as? AutoCloseable)?.close()
-                current = null
-                val err = AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
-                _state.value = LearningState.Error(err)
-                return@withContext Result.failure(IOException(err))
-            }
-            val observer = launch {
-                delegate.state.collect { nextState ->
-                    if (!disconnected.get()) _state.value = nextState
+            supervisorScope {
+                val work = async(start = CoroutineStart.LAZY) {
+                    var delegate: IrLearner? = null
+                    var observer: Job? = null
+                    try {
+                        currentCoroutineContext().ensureActive()
+                        if (disconnected.get() || !_available.value) {
+                            return@async disconnectedFailure()
+                        }
+                        val opened = open() ?: error(AppStrings.get(R.string.msg_usb_receiver_open_failed, "无法打开 USB 接收器，请检查授权或重新插入"))
+                        delegate = opened
+                        current = opened
+                        if (disconnected.get() || !_available.value) {
+                            return@async disconnectedFailure()
+                        }
+                        observer = launch {
+                            opened.state.collect { nextState ->
+                                if (!disconnected.get()) _state.value = nextState
+                            }
+                        }
+                        val result = opened.startLearning(timeoutSeconds)
+                        observer.cancel()
+                        if (disconnected.get() || !_available.value) {
+                            disconnectedFailure()
+                        } else {
+                            _state.value = opened.state.value
+                            result
+                        }
+                    } finally {
+                        observer?.cancel()
+                        current = null
+                        if (delegate is AutoCloseable) {
+                            try { delegate.close() } catch (_: Throwable) {}
+                        }
+                    }
                 }
-            }
-            try {
-                val result = delegate.startLearning(timeoutSeconds)
-                observer.cancel()
+                learningJob = work
                 if (disconnected.get() || !_available.value) {
-                    val err = AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
-                    _state.value = LearningState.Error(err)
-                    Result.failure(IOException(err))
-                } else {
-                    _state.value = delegate.state.value
-                    result
+                    work.cancel()
+                    return@supervisorScope disconnectedFailure()
                 }
-            } finally {
-                observer.cancel()
-                (delegate as? AutoCloseable)?.close()
-                current = null
+                work.start()
+                try {
+                    work.await()
+                } finally {
+                    learningJob = null
+                    withContext(NonCancellable) { work.cancelAndJoin() }
+                }
             }
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) {
-            _state.value = LearningState.Error(e.localizedMessage ?: AppStrings.get(R.string.msg_usb_learning_failed, "USB 学习失败"))
-            Result.failure(e)
+        } catch (e: CancellationException) {
+            if (disconnected.get() && currentCoroutineContext().isActive) {
+                disconnectedFailure()
+            } else {
+                throw e
+            }
+        } catch (e: Exception) {
+            if (disconnected.get()) {
+                disconnectedFailure()
+            } else {
+                _state.value = LearningState.Error(e.localizedMessage ?: AppStrings.get(R.string.msg_usb_learning_failed, "USB 学习失败"))
+                Result.failure(e)
+            }
         } finally {
             session = null
             UsbSessionAccess.mutex.unlock()
@@ -92,16 +131,18 @@ internal class LazyUsbLearner(
         _state.value = LearningState.Idle
     }
 
-    override fun close() {
+    /** Marks the device detached and cancels active learning; the learning thread owns connection release/close. */
+    fun markDisconnected() {
         if (disconnected.compareAndSet(false, true)) {
             _available.value = false
-            val active = current
-            if (active is AutoCloseable) {
-                try { active.close() } catch (_: Throwable) {}
-            } else {
-                active?.cancel()
-            }
+            session?.let(UsbSessionAccess::cancelLearning)
+            current?.cancel()
+            learningJob?.cancel()
             _state.value = LearningState.Error(AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开"))
         }
+    }
+
+    override fun close() {
+        markDisconnected()
     }
 }
