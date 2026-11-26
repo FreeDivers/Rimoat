@@ -119,9 +119,11 @@ fun AcTemperatureCard(
                     modifier = Modifier.then(powerHaptic.modifier).size(72.dp).clearAndSetSemantics {
                         contentDescription = powerLabel
                         if (canTogglePower) onClick { powerHaptic(); onTogglePower(); true } else disabled()
-                        if (!isLearningMode) toggleableState = ToggleableState(powerOn)
+                        if (!isLearningMode) {
+                            toggleableState = ToggleableState(powerOn)
+                            stateDescription = if (powerOn) AppStrings.get(R.string.control_set_on, "设定开启") else AppStrings.get(R.string.control_set_off, "设定关闭")
+                        }
                         role = if (isLearningMode) Role.Button else Role.Switch
-                        stateDescription = if (powerOn) AppStrings.get(R.string.control_set_on, "设定开启") else AppStrings.get(R.string.control_set_off, "设定关闭")
                     },
                     enabled = canTogglePower,
                     colors = IconButtonDefaults.filledIconToggleButtonColors(
