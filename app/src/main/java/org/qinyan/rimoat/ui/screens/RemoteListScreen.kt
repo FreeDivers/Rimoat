@@ -234,7 +234,7 @@ fun RemoteListScreen(
         }
     }
 
-    var remoteToDelete by remember { mutableStateOf<RemoteProfile?>(null) }
+    var deleteId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val rooms by viewModel.rooms.collectAsStateWithLifecycle()
     val selectedRoom by viewModel.selectedRoom.collectAsStateWithLifecycle()
@@ -369,7 +369,7 @@ fun RemoteListScreen(
                         remote = remote,
                         onClick = { onRemoteClick(remote.id) },
                         onToggleFavorite = { viewModel.toggleFavorite(remote.id) },
-                        onDelete = { remoteToDelete = remote },
+                        onDelete = { deleteId = remote.id },
                         onEdit = { editingId = remote.id },
                         onExport = { exportId = remote.id; exportLauncher.launch("Rimoat-remote.json") },
                         index = index,
@@ -484,16 +484,16 @@ fun RemoteListScreen(
 
     if (screenActive) {
         // Delete Confirmation Dialog
-        if (remoteToDelete != null) {
+        allRemotes.firstOrNull { it.id == deleteId }?.let { profile ->
             MotionAlertDialog(
-                onDismissRequest = { remoteToDelete = null },
+                onDismissRequest = { deleteId = null },
                 title = { Text(AppStrings.get(R.string.screen_delete_remote, "删除遥控器")) },
-                text = { Text(AppStrings.get(R.string.screen_trash_question, "将「%1\$s」移入回收站？", remoteToDelete?.name.orEmpty())) },
+                text = { Text(AppStrings.get(R.string.screen_trash_question, "将「%1\$s」移入回收站？", profile.name)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            remoteToDelete?.let { viewModel.deleteRemote(it.id) }
-                            remoteToDelete = null
+                            viewModel.deleteRemote(profile.id)
+                            deleteId = null
                         },
                         shapes = ButtonDefaults.shapes()
                     ) {
@@ -501,7 +501,7 @@ fun RemoteListScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { remoteToDelete = null }, shapes = ButtonDefaults.shapes()) {
+                    TextButton(onClick = { deleteId = null }, shapes = ButtonDefaults.shapes()) {
                         Text(AppStrings.get(R.string.screen_cancel, "取消"))
                     }
                 }

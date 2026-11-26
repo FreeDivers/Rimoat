@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelStore
@@ -573,6 +574,58 @@ class BugFixInteractionRoborazziTest {
             compose.runOnIdle { store.clear() }
             transmitter.release()
             scope.cancel()
+        }
+    }
+
+    @Test fun deleteConfirmationDialogSurvivesStateRestoration() {
+        AppStrings.initialize(app)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val repository = RemoteRepository(app, scope)
+        val tv = RemoteProfile("delete_restore_tv", "客厅电视", category = DeviceCategory.TV, room = "客厅")
+        runBlocking {
+            repository.awaitLoaded()
+            repository.saveRemote(tv)
+        }
+        val transmitter = IrTransmitterManager(app, scope)
+        val store = ViewModelStore()
+        val vm = RemoteListViewModel(repository, transmitter, ThemePreferences(app), BackupFileStore(app))
+            .also { store.put("home_delete_restore", it) }
+        val restoration = StateRestorationTester(compose)
+        try {
+            restoration.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    RemoteListScreen(vm, {}, {})
+                }
+            }
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                vm.filteredRemotes.value.any { it.id == tv.id }
+            }
+            compose.onNodeWithContentDescription(app.getString(R.string.screen_manage_name, tv.name)).performClick()
+            compose.waitForIdle()
+            compose.onNodeWithText(app.getString(R.string.screen_trash_remote)).performClick()
+            compose.waitForIdle()
+
+            val question = app.getString(R.string.screen_trash_question, tv.name)
+            compose.onNodeWithText(question).assertIsDisplayed()
+            capture("delete_dialog_before_restore", dialog = true)
+
+            restoration.emulateSavedInstanceStateRestore()
+            compose.waitForIdle()
+
+            compose.onNodeWithText(question).assertIsDisplayed()
+            capture("delete_dialog_after_restore", dialog = true)
+
+            compose.onNodeWithText(app.getString(R.string.screen_delete)).performClick()
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                repository.remotes.value.none { it.id == tv.id }
+            }
+            assertEquals(tv.id, runBlocking { repository.deletedEntries() }.single().profile.id)
+        } finally {
+            compose.runOnIdle { store.clear() }
+            transmitter.release()
+            runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
         }
     }
 }
