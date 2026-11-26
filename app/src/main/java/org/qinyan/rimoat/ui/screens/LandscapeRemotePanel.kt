@@ -49,10 +49,6 @@ internal data class RemotePaneButtons(
     val extensions: List<RemoteButton>
 )
 
-private fun remoteButtonNumber(button: RemoteButton): Int? =
-    Regex("(?:tv_)?num_(\\d)").matchEntire(button.id)?.groupValues?.get(1)?.toIntOrNull()
-        ?: (button.builtinLabel ?: button.label).toIntOrNull()?.takeIf { it in 0..9 }
-
 /** Every configured key has one location; missing standard controls use the existing key order. */
 internal fun remotePaneButtons(profile: RemoteProfile): RemotePaneButtons {
     val buttons = profile.buttons.distinctBy { it.id }

@@ -107,4 +107,61 @@ class PanelPolicyTest {
         assertTrue(actions.indexOf(AcAction.LIGHT) < actions.indexOf(AcAction.ECO))
         assertEquals(profile.buttons, profile.copy(panelLayout = RemotePanelLayout()).buttons)
     }
+
+    @Test fun genericDirectionsMatchedByIdOrBuiltinLabelStayFixedInPanelPolicy() {
+        val up = button("up", "向上")
+        val down = button("nav_down", "Down")
+        val left = button("custom_left", "左移").copy(builtinLabel = "左")
+        val right = button("right", "Right")
+        val ok = button("remote_enter", "Confirm")
+        val extra = button("mute", "静音")
+        val profile = RemoteProfile(
+            id = "projector", name = "Projector", category = DeviceCategory.PROJECTOR,
+            buttons = listOf(up, down, left, right, ok, extra)
+        )
+
+        val fixed = fixedPanelKeys(profile)
+        assertTrue(fixed.containsAll(listOf(up.id, down.id, left.id, right.id, ok.id)))
+        assertFalse(extra.id in fixed)
+
+        val presented = profile.copy(
+            panelLayout = RemotePanelLayout(hidden = setOf(panelKey(up), panelKey(ok), panelKey(extra)))
+        ).withPanelPresentation()
+        assertTrue(presented.buttons.containsAll(listOf(up, down, left, right, ok)))
+        assertFalse(extra in presented.buttons)
+    }
+
+    @Test fun numericKeysMatchedByIdOrBuiltinLabelStayFixedInPanelPolicy() {
+        val tvDigits = listOf(
+            button("tv_num_1", "频道一"),
+            button("num_2", "Two"),
+            button("catalog_3", "自定义数字").copy(builtinLabel = "3"),
+            button("plain_4", "4"),
+            button("extra", "画中画")
+        )
+        val tvProfile = RemoteProfile("tv", "TV", category = DeviceCategory.TV, buttons = tvDigits)
+        val tvFixed = fixedPanelKeys(tvProfile)
+        assertTrue(tvFixed.containsAll(listOf("tv_num_1", "num_2", "catalog_3", "plain_4")))
+        assertFalse("extra" in tvFixed)
+
+        val customProfile = RemoteProfile("custom", "Custom", category = DeviceCategory.CUSTOM, buttons = tvDigits)
+        val customFixed = fixedPanelKeys(customProfile)
+        assertTrue(customFixed.containsAll(listOf("tv_num_1", "num_2", "catalog_3", "plain_4")))
+        assertFalse("extra" in customFixed)
+    }
+
+    @Test fun duplicateDirectionKeysOnlyFixActiveDpadAndExtraDuplicateRemainsEditable() {
+        val up1 = button("up", "上")
+        val up2 = button("extra_up", "上")
+        val down = button("down", "下")
+        val left = button("left", "左")
+        val right = button("right", "右")
+        val profile = RemoteProfile(
+            id = "custom_dup", name = "Custom", category = DeviceCategory.CUSTOM,
+            buttons = listOf(up1, down, left, right, up2)
+        )
+        val fixed = fixedPanelKeys(profile)
+        assertTrue(up1.id in fixed)
+        assertFalse(up2.id in fixed)
+    }
 }

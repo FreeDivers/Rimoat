@@ -61,12 +61,12 @@ internal fun tvStandardButtons(profile: RemoteProfile): List<RemoteButton?> {
 internal fun remoteExtraButtons(profile: RemoteProfile): List<RemoteButton> {
     if (profile.category == DeviceCategory.TV) {
         val used = tvStandardButtons(profile).filterNotNull().map { it.id }.toSet() +
-            (0..9).mapNotNull { number -> profile.buttons.firstOrNull { it.label == "$number" || it.id == "tv_num_$number" }?.id }
+            (0..9).mapNotNull { number -> profile.buttons.firstOrNull { remoteButtonNumber(it) == number }?.id }
         return profile.buttons.filter { it.id !in used }
     }
     val power = profile.buttons.firstOrNull { it.iconName == "power" || it.id.contains("power") || it.label.contains("电源") || it.label == "开关" }
     if (profile.category == DeviceCategory.FAN) return profile.buttons.filter { it != power }.drop(6)
     val directions = org.qinyan.rimoat.ui.screens.genericDirectionButtons(profile.buttons)
     val useDpad = directions.keys.containsAll(listOf("上", "下", "左", "右"))
-    return profile.buttons.filter { it != power && (!useDpad || it !in directions.values) && it.label.toIntOrNull() !in 0..9 }.drop(6)
+    return profile.buttons.filter { it != power && (!useDpad || it !in directions.values) && remoteButtonNumber(it) == null }.drop(6)
 }

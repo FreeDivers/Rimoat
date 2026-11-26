@@ -1,9 +1,16 @@
 package org.qinyan.rimoat.ui.components
 
 import org.qinyan.rimoat.data.*
+import org.qinyan.rimoat.ui.screens.genericDirectionButtons
 
 fun panelKey(button: RemoteButton) = "key:${button.id}"
 fun panelAction(action: AcAction) = "ac:${action.name}"
+
+private val NUMERIC_BUTTON_ID = Regex("(?:tv_)?num_(\\d)")
+
+internal fun remoteButtonNumber(button: RemoteButton): Int? =
+    NUMERIC_BUTTON_ID.matchEntire(button.id)?.groupValues?.get(1)?.toIntOrNull()
+        ?: (button.builtinLabel ?: button.label).toIntOrNull()?.takeIf { it in 0..9 }
 
 /** Spatial combinations retain their geometry and their complete signal set. */
 fun fixedPanelKeys(profile: RemoteProfile): Set<String> {
@@ -14,11 +21,11 @@ fun fixedPanelKeys(profile: RemoteProfile): Set<String> {
     if (profile.category == DeviceCategory.TV) {
         val standard = tvStandardButtons(profile)
         (3..7).plus(11..14).forEach { standard[it]?.let { b -> fixed += b.id } }
-        profile.buttons.filter { it.label.toIntOrNull() in 0..9 }.forEach { fixed += it.id }
+        profile.buttons.filter { remoteButtonNumber(it) != null }.forEach { fixed += it.id }
     } else {
-        val directions = profile.buttons.filter { it.label in setOf("上", "下", "左", "右", "OK") }
-        if (directions.map { it.label }.containsAll(listOf("上", "下", "左", "右"))) fixed += directions.map { it.id }
-        profile.buttons.filter { it.label.toIntOrNull() in 0..9 }.forEach { fixed += it.id }
+        val directions = genericDirectionButtons(profile.buttons)
+        if (directions.keys.containsAll(listOf("上", "下", "左", "右"))) fixed += directions.values.map { it.id }
+        profile.buttons.filter { remoteButtonNumber(it) != null }.forEach { fixed += it.id }
     }
     return fixed
 }

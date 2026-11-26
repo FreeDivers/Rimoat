@@ -228,4 +228,33 @@ class RemotePanelEditorRoborazziTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun renamedGenericDirectionKeysAndNumericKeysAreExcludedFromEditor() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val customProfile = RemoteProfile(
+            id = "panel_editor_custom_dpad", name = "投影仪", category = DeviceCategory.PROJECTOR,
+            buttons = listOf(
+                key("up", "向上"), key("nav_down", "Down"),
+                key("custom_left", "左移").copy(builtinLabel = "左"),
+                key("right", "Right"), key("remote_enter", "Confirm"),
+                key("tv_num_1", "频道一"), key("mute", "静音")
+            )
+        )
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                RemotePanelEditor(customProfile, emptySet(), onSave = {}, onBack = {})
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription(app.getString(R.string.panel_show_control, "静音")).assertIsDisplayed()
+        listOf("向上", "Down", "左移", "Right", "Confirm", "频道一").forEach { label ->
+            assertTrue(
+                "$label should stay fixed and not appear in editor",
+                composeRule.onAllNodes(hasContentDescription(app.getString(R.string.panel_show_control, label)))
+                    .fetchSemanticsNodes().isEmpty()
+            )
+        }
+    }
 }

@@ -17,6 +17,7 @@ import org.qinyan.rimoat.ui.components.acButtonForAction
 import org.qinyan.rimoat.ui.components.acRawExtensionButtons
 import org.qinyan.rimoat.i18n.localizedAcRawButtonLabel
 import org.qinyan.rimoat.ui.components.panelKey
+import org.qinyan.rimoat.ui.components.remoteButtonNumber
 import org.qinyan.rimoat.ui.components.RemoteControlPages
 import org.qinyan.rimoat.ui.components.remoteExtraButtons
 import org.qinyan.rimoat.ui.components.tvStandardButtons
@@ -850,7 +851,7 @@ internal fun LazyListScope.tvRemoteItems(
     }
 
     // Keep every configured key accessible, including brand-specific functions.
-    val numericIds = (0..9).mapNotNull { number -> profile.buttons.firstOrNull { it.label == "$number" || it.id == "tv_num_$number" }?.id }.toSet()
+    val numericIds = (0..9).mapNotNull { number -> profile.buttons.firstOrNull { remoteButtonNumber(it) == number }?.id }.toSet()
     val extraButtons = if (inlineExtensions) remoteExtraButtons(profile) else emptyList()
     remoteItem("tv_numpad") {
         val hasNumpad = numericIds.isNotEmpty() || isLearningMode
@@ -902,7 +903,7 @@ internal fun LazyListScope.tvRemoteItems(
                         ) {
                             for (num in row) {
                                 if (num.isNotEmpty()) {
-                                    val numBtn = profile.buttons.firstOrNull { it.label == num || it.id == "tv_num_$num" }
+                                    val numBtn = profile.buttons.firstOrNull { remoteButtonNumber(it) == num.toInt() }
                                         ?: RemoteButton(id = "num_$num", label = num)
                                     RemoteButtonView(
                                         label = num,
@@ -1299,7 +1300,7 @@ internal fun LazyListScope.genericRemoteItems(
     }
 
     remoteItem("generic_functions") {
-        val numbers = otherButtons.filter { it.label.toIntOrNull() in 0..9 }.sortedBy { if (it.label == "0") 10 else it.label.toIntOrNull() }
+        val numbers = otherButtons.filter { remoteButtonNumber(it) != null }.sortedBy { remoteButtonNumber(it)?.let { n -> if (n == 0) 10 else n } }
         val functions = otherButtons - numbers.toSet()
         if (numbers.isNotEmpty()) {
             Surface(
