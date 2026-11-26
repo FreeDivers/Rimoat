@@ -54,7 +54,12 @@ class ElkSmartUsbTransmitter(
                 check(usb.hasPermission(device)) { AppStrings.get(R.string.msg_usb_permission_missing, "未获得 USB 设备使用权限") }
                 val raw = when (signal) {
                     is IrSignal.Raw -> signal.copy(patternMicros = signal.patternMicros.map(::abs).toIntArray())
-                    is IrSignal.Nec -> IrProtocolEncoder.encodeNec(signal)
+                    is IrSignal.Nec -> {
+                        require(signal.address in 0..65535 && signal.command in 0..255) {
+                            AppStrings.get(R.string.msg_nec_parameters_range)
+                        }
+                        IrProtocolEncoder.encodeNec(signal)
+                    }
                 }
                 // Validate before opening the device, without assuming its firmware subtype.
                 ElkSmartProtocolFormatter.buildPayload(raw.frequencyHz, raw.patternMicros)

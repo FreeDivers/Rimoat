@@ -508,7 +508,12 @@ class ElkSmartOpeningAttempt(
 @Implements(UsbManager::class)
 class ElkSmartOpeningManagerShadow {
     val attempts = mutableListOf<ElkSmartOpeningAttempt>()
+    val devices = hashMapOf<String, UsbDevice>()
     var openCalls = 0
+
+    @Implementation fun getDeviceList(): HashMap<String, UsbDevice> = HashMap(devices)
+
+    @Implementation fun hasPermission(device: UsbDevice): Boolean = devices.containsKey(device.deviceName)
 
     @Implementation fun openDevice(device: UsbDevice): UsbDeviceConnection? {
         val attempt = attempts.getOrNull(openCalls++) ?: return null
