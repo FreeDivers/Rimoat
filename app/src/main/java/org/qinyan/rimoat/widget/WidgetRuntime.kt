@@ -16,6 +16,7 @@ import java.io.File
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class WidgetFeedback(val text: String, val error: Boolean = false, val busy: Boolean = false,
                           val shortcut: WidgetShortcut? = null)
@@ -62,68 +63,78 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
     val feedback = _feedback.asStateFlow()
     private val ready = CompletableDeferred<Unit>()
     private val actionMutex = Mutex()
+    private val observationLock = Any()
+    private val observationMutex = Mutex()
     private var observation: Job? = null
     private val actions = mutableMapOf<Int, Set<AcAction>>()
     private val cachedCommands = mutableMapOf<String, Pair<CommandCacheKey, List<WidgetCommand>>>()
 
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     fun start() {
-        observation?.cancel()
-        observation = app.applicationScope.launch {
-            try {
-                WidgetPickerPreviews.synchronize(app)
-                app.repository.awaitLoaded()
-                store.load()
-                app.commands.journal.load()
-                val relevantProfiles = app.repository.remotes.distinctUntilChanged(::widgetRelevantProfilesEqual)
-                val appearance = combine(app.themePreferences.useDynamicColor, app.themePreferences.colorMode) { dynamic, mode ->
-                    dynamic to mode
-                }
-                combine(relevantProfiles, store.configurations, app.commands.journal.records,
-                    appearance, app.transmitterManager.transmitterType) { profiles, configurations, records, colors, type ->
-                    WidgetSnapshot(true, profiles, configurations, records = records,
-                        simulated = type == TransmitterType.MOCK, dynamicColor = colors.first, colorMode = colors.second,
-                        error = if (profiles.isEmpty()) app.repository.errorMessage.value else null)
-                }.combine(app.repository.errorMessage) { snapshot, error -> snapshot.withRepositoryError(error) }
-                .mapLatest { snapshot ->
-                    val currentIds = snapshot.profiles.mapTo(HashSet()) { it.id }
-                    cachedCommands.keys.retainAll(currentIds)
-                    snapshot.copy(commands = snapshot.profiles.associate { profile ->
-                        val availableActions = if (profile.acProtocolId != null && !profile.useStaticAcButtons) {
-                            try { actions[profile.acProtocolId] ?: app.acSignals.availableActions(profile.acProtocolId).also { actions[profile.acProtocolId] = it } }
-                            catch (e: CancellationException) { throw e }
-                            catch (_: Exception) { emptySet() }
-                        } else emptySet()
-                        val key = CommandCacheKey(
-                            profile.id, profile.category, profile.buttons,
-                            profile.acProtocolId, profile.useStaticAcButtons, availableActions
-                        )
-                        val existing = cachedCommands[profile.id]
-                        val choices = if (existing != null && existing.first == key) {
-                            existing.second
-                        } else {
-                            WidgetCommands.choices(profile, availableActions).also {
-                                cachedCommands[profile.id] = key to it
-                            }
+        synchronized(observationLock) {
+            observation?.cancel()
+            val next = app.applicationScope.launch(start = CoroutineStart.LAZY) {
+                observationMutex.withLock {
+                    currentCoroutineContext().ensureActive()
+                    try {
+                        WidgetPickerPreviews.synchronize(app)
+                        app.repository.awaitLoaded()
+                        store.load()
+                        app.commands.journal.load()
+                        val relevantProfiles = app.repository.remotes.distinctUntilChanged(::widgetRelevantProfilesEqual)
+                        val appearance = combine(app.themePreferences.useDynamicColor, app.themePreferences.colorMode) { dynamic, mode ->
+                            dynamic to mode
                         }
-                        profile.id to choices
-                    })
-                }.combine(configuration) { snapshot, current ->
-                    snapshot.copy(fontScale = current.fontScale,
-                        isRtl = current.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL,
-                        localeTags = current.locales.toLanguageTags())
-                }.collect { snapshot ->
-                    _state.value = snapshot
-                    ready.complete(Unit)
-                    updateAll()
+                        combine(relevantProfiles, store.configurations, app.commands.journal.records,
+                            appearance, app.transmitterManager.transmitterType) { profiles, configurations, records, colors, type ->
+                            WidgetSnapshot(true, profiles, configurations, records = records,
+                                simulated = type == TransmitterType.MOCK, dynamicColor = colors.first, colorMode = colors.second,
+                                error = if (profiles.isEmpty()) app.repository.errorMessage.value else null)
+                        }.combine(app.repository.errorMessage) { snapshot, error -> snapshot.withRepositoryError(error) }
+                        .mapLatest { snapshot ->
+                            val currentIds = snapshot.profiles.mapTo(HashSet()) { it.id }
+                            cachedCommands.keys.retainAll(currentIds)
+                            snapshot.copy(commands = snapshot.profiles.associate { profile ->
+                                currentCoroutineContext().ensureActive()
+                                val availableActions = if (profile.acProtocolId != null && !profile.useStaticAcButtons) {
+                                    try { actions[profile.acProtocolId] ?: app.acSignals.availableActions(profile.acProtocolId).also { actions[profile.acProtocolId] = it } }
+                                    catch (e: CancellationException) { throw e }
+                                    catch (_: Exception) { emptySet() }
+                                } else emptySet()
+                                val key = CommandCacheKey(
+                                    profile.id, profile.category, profile.buttons,
+                                    profile.acProtocolId, profile.useStaticAcButtons, availableActions
+                                )
+                                val existing = cachedCommands[profile.id]
+                                val choices = if (existing != null && existing.first == key) {
+                                    existing.second
+                                } else {
+                                    WidgetCommands.choices(profile, availableActions).also {
+                                        cachedCommands[profile.id] = key to it
+                                    }
+                                }
+                                profile.id to choices
+                            })
+                        }.combine(configuration) { snapshot, current ->
+                            snapshot.copy(fontScale = current.fontScale,
+                                isRtl = current.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL,
+                                localeTags = current.locales.toLanguageTags())
+                        }.collect { snapshot ->
+                            _state.value = snapshot
+                            ready.complete(Unit)
+                            updateAll()
+                        }
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) {
+                        _state.value = WidgetSnapshot(loaded = true, error = UiText.Resource(R.string.widget_config_read_failed))
+                        ready.complete(Unit)
+                        android.util.Log.e("RimoatWidget", "Widget initialization failed", e)
+                        updateAll()
+                    }
                 }
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                _state.value = WidgetSnapshot(loaded = true, error = UiText.Resource(R.string.widget_config_read_failed))
-                ready.complete(Unit)
-                android.util.Log.e("RimoatWidget", "Widget initialization failed", e)
-                updateAll()
             }
+            observation = next
+            next.start()
         }
     }
 
