@@ -190,12 +190,13 @@ class IrLearnerManager(
         _forceMockMode.value = forced
     }
 
-    private fun resolveLearner(): IrLearner = when {
-        _forceMockMode.value -> mockLearner
-        _usbLearner.value?.isAvailable?.value == true -> _usbLearner.value!!
-        huaweiLearner?.isAvailable?.value == true -> huaweiLearner!!
-        isEmulatorOrTestEnvironment() -> mockLearner
-        else -> noHardwareLearner
+    private fun resolveLearner(): IrLearner {
+        if (_forceMockMode.value) return mockLearner
+        val usb = _usbLearner.value
+        if (usb?.isAvailable?.value == true) return usb
+        val huawei = huaweiLearner
+        if (huawei?.isAvailable?.value == true) return huawei
+        return if (isEmulatorOrTestEnvironment()) mockLearner else noHardwareLearner
     }
 
     private fun isEmulatorOrTestEnvironment(): Boolean {

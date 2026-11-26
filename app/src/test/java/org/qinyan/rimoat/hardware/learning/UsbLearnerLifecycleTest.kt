@@ -14,11 +14,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -241,6 +244,42 @@ class UsbLearnerLifecycleTest {
         } finally {
             tracker.unblockRead.countDown()
             learningJob.cancel()
+        }
+    }
+
+    @Test
+    fun resolveLearnerDoesNotThrowNpeWhenUsbLearnerIsClearedBetweenCheckAndReturn() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val manager = IrLearnerManager(context = null, scope = scope)
+        try {
+            @Suppress("UNCHECKED_CAST")
+            val usbLearnerField = IrLearnerManager::class.java.getDeclaredField("_usbLearner").apply {
+                isAccessible = true
+            }
+            val usbFlow = usbLearnerField.get(manager) as MutableStateFlow<IrLearner?>
+            val racingLearner = object : IrLearner {
+                override val type = LearnerType.USB_TIQIAA
+                override val isAvailable: StateFlow<Boolean>
+                    get() {
+                        // Simulate scanUsbDevices() clearing _usbLearner concurrently right after availability check.
+                        usbFlow.value = null
+                        return MutableStateFlow(true)
+                    }
+                override val state: StateFlow<LearningState> = MutableStateFlow(LearningState.Idle)
+                override suspend fun startLearning(timeoutSeconds: Int) = Result.failure<IrSignal.Raw>(IOException("unused"))
+                override fun cancel() {}
+            }
+            usbFlow.value = racingLearner
+
+            val resolveMethod = IrLearnerManager::class.java.getDeclaredMethod("resolveLearner").apply {
+                isAccessible = true
+            }
+            val resolved = resolveMethod.invoke(manager) as IrLearner
+            assertSame(racingLearner, resolved)
+        } finally {
+            manager.cancel()
+            manager.unregisterReceiver()
+            scope.cancel()
         }
     }
 }
