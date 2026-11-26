@@ -59,6 +59,12 @@ jobs:
             echo "Release APK not found at $APK_PATH" >&2
             exit 1
           fi
+          APK_VERSION=$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-name "$APK_PATH")
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$APK_VERSION" != "$TAG_VERSION" ]; then
+            echo "APK versionName '$APK_VERSION' does not match tag version '$TAG_VERSION'." >&2
+            exit 1
+          fi
           cp "$APK_PATH" "app/build/outputs/apk/release/Rimoat-${GITHUB_REF_NAME}.apk"
 
       - name: Clean up signing files
@@ -68,6 +74,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: app/build/outputs/apk/release/Rimoat-${{ github.ref_name }}.apk
           body_path: ${{ hashFiles('RELEASE_NOTES.md') != '' && 'RELEASE_NOTES.md' || '' }}
           generate_release_notes: ${{ hashFiles('RELEASE_NOTES.md') == '' }}
