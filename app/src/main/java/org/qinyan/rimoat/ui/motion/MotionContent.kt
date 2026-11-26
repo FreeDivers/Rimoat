@@ -38,6 +38,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.LocalExpressiveCanvas
 
 /** Previewed and outgoing pages must not register back handlers or perform visible-page effects. */
 val LocalMotionActive = compositionLocalOf { true }
@@ -231,7 +233,7 @@ private fun motionPageModifier(
             scene.progress.value, outgoing, scene.back, scene.direction
         ) * size.width
     }
-    .background(MaterialTheme.colorScheme.background)
+    .background(if (LocalExpressiveCanvas.current) ExpressiveSurface.canvas else MaterialTheme.colorScheme.background)
     .focusProperties { canFocus = visible && !outgoing }
     .onFocusChanged { onFocusChanged(it.hasFocus) }
     .then(if (interactive) Modifier else Modifier.clearAndSetSemantics { })

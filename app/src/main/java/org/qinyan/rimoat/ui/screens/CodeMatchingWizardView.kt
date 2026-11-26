@@ -32,6 +32,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.shape.RoundedCornerShape
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -80,23 +82,29 @@ fun CodeMatchingWizardView(
     val wide = rememberWideLayout()
     var selectedPage by rememberSaveable { mutableIntStateOf(0) }
     val navigation: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            ActionIconButton(prevCodeLabel, onPrevModel, enabled = !busy && state.currentRemoteIndex > 0) {
-                Icon(Icons.AutoMirrored.Rounded.NavigateBefore, contentDescription = null)
-            }
-            Text(
-                stringResource(R.string.screen_code_position, state.currentRemoteIndex + 1, state.remotes.size),
-                modifier = Modifier
-                    .weight(1f)
-                    .semantics {
-                        heading()
-                        liveRegion = LiveRegionMode.Polite
-                    },
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center
-            )
-            ActionIconButton(nextCodeLabel, onNextModel, enabled = !busy && state.currentRemoteIndex < state.remotes.lastIndex) {
-                Icon(Icons.AutoMirrored.Rounded.NavigateNext, contentDescription = null)
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = ExpressiveSurface.card,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                ActionIconButton(prevCodeLabel, onPrevModel, enabled = !busy && state.currentRemoteIndex > 0) {
+                    Icon(Icons.AutoMirrored.Rounded.NavigateBefore, contentDescription = null)
+                }
+                Text(
+                    stringResource(R.string.screen_code_position, state.currentRemoteIndex + 1, state.remotes.size),
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics {
+                            heading()
+                            liveRegion = LiveRegionMode.Polite
+                        },
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
+                ActionIconButton(nextCodeLabel, onNextModel, enabled = !busy && state.currentRemoteIndex < state.remotes.lastIndex) {
+                    Icon(Icons.AutoMirrored.Rounded.NavigateNext, contentDescription = null)
+                }
             }
         }
     }
@@ -116,67 +124,82 @@ fun CodeMatchingWizardView(
             RemoteControlPages(keys.size > recommended.size, labels = listOf(stringResource(R.string.screen_test_keys), stringResource(R.string.screen_all_keys)),
                 selectedPage = selectedPage, onPageSelected = { selectedPage = it }) { all ->
                 val groups = if (all) keys.groupBy { pairingKeyGroup(it, context) } else linkedMapOf("" to recommended)
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    groups.forEach { (name, buttons) ->
-                        if (name.isNotBlank()) item("heading_$name") {
-                            Text(
-                                name,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.semantics { heading() }
-                            )
-                        }
-                        items(buttons.chunked(columns), key = { "row_${it.first().id}" }) { row ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                row.forEach { button ->
-                                    val observation = page.observations[button.id]
-                                    val result = observation?.result
-                                    val statusLabel = stringResource(when (result) {
-                                        PairingResult.VALID -> R.string.pairing_result_valid
-                                        PairingResult.INVALID -> R.string.pairing_result_invalid
-                                        else -> R.string.pairing_result_untested
-                                    })
-                                    Column(
-                                        Modifier.weight(1f),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        RemoteButtonView(
-                                            localizedButtonLabel(button, context),
-                                            button.iconName,
-                                            { onTestKey(button) },
-                                            Modifier.fillMaxWidth(),
-                                            enabled = !busy && button.hasSignal,
-                                            currentState = statusLabel,
-                                            active = page.testedButton?.id == button.id,
-                                            isToggle = false,
-                                            variant = if (button.iconName == "power" || button.label == "电源") RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    groups.entries.forEach { (name, buttons) ->
+                        item(key = "group_$name") {
+                            Surface(
+                                shape = RoundedCornerShape(24.dp),
+                                color = ExpressiveSurface.card,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    if (name.isNotBlank()) {
+                                        Text(
+                                            name,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.semantics { heading() }
                                         )
-                                        if (result == PairingResult.VALID || result == PairingResult.INVALID) {
-                                            val isValid = result == PairingResult.VALID
-                                            val badgeColor = if (isValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                            Row(
-                                                modifier = Modifier.clearAndSetSemantics { },
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = if (isValid) Icons.Rounded.Check else Icons.Rounded.Close,
-                                                    contentDescription = null,
-                                                    tint = badgeColor,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                                Text(
-                                                    text = statusLabel,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = badgeColor,
-                                                    textAlign = TextAlign.Center
-                                                )
+                                    }
+                                    buttons.chunked(columns).forEach { row ->
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            row.forEach { button ->
+                                                val observation = page.observations[button.id]
+                                                val result = observation?.result
+                                                val statusLabel = stringResource(when (result) {
+                                                    PairingResult.VALID -> R.string.pairing_result_valid
+                                                    PairingResult.INVALID -> R.string.pairing_result_invalid
+                                                    else -> R.string.pairing_result_untested
+                                                })
+                                                Column(
+                                                    Modifier.weight(1f),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    RemoteButtonView(
+                                                        localizedButtonLabel(button, context),
+                                                        button.iconName,
+                                                        { onTestKey(button) },
+                                                        Modifier.fillMaxWidth(),
+                                                        enabled = !busy && button.hasSignal,
+                                                        currentState = statusLabel,
+                                                        active = page.testedButton?.id == button.id,
+                                                        isToggle = false,
+                                                        variant = if (button.iconName == "power" || button.label == "电源") RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD,
+                                                        buttonId = button.id,
+                                                        builtinLabel = button.builtinLabel
+                                                    )
+                                                    if (result == PairingResult.VALID || result == PairingResult.INVALID) {
+                                                        val isValid = result == PairingResult.VALID
+                                                        val badgeColor = if (isValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        Row(
+                                                            modifier = Modifier.clearAndSetSemantics { },
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = if (isValid) Icons.Rounded.Check else Icons.Rounded.Close,
+                                                                contentDescription = null,
+                                                                tint = badgeColor,
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                            Text(
+                                                                text = statusLabel,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = badgeColor,
+                                                                textAlign = TextAlign.Center
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
+                                            repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                                         }
                                     }
                                 }
-                                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                             }
                         }
                     }
@@ -211,6 +234,7 @@ private data class PairingFeedback(
 
 @Composable
 fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfirmTest: (Boolean) -> Unit) {
+    val wide = rememberWideLayout()
     val motion = AppMotion.current
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -234,56 +258,76 @@ fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfir
     val feedback = currentFeedback ?: lastFeedback
     val visible = currentFeedback != null ||
         (state.isSendingTest && lastFeedback != null && lastFeedback?.remoteId == remoteId)
-    Surface(color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Surface(
+        shape = if (wide) RoundedCornerShape(24.dp) else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        color = ExpressiveSurface.card
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             AnimatedVisibility(visible, Modifier.fillMaxWidth(),
                 enter = expandVertically(motion.defaultSpatialSpec(), expandFrom = Alignment.Bottom) + fadeIn(motion.defaultEffectsSpec()),
                 exit = shrinkVertically(motion.fastSpatialSpec(), shrinkTowards = Alignment.Bottom) + fadeOut(motion.fastEffectsSpec())) {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (feedback?.question != null) {
                         Text(
                             stringResource(R.string.screen_response_question, feedback.question),
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                         )
-                        ButtonGroup(
-                            overflowIndicator = {
-                                ButtonGroupDefaults.OverflowIndicator(it,
-                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                                        .testTag("pairing_answers_overflow"))
-                            },
-                            // Reserve the overflow control's height even when every answer is in its menu.
-                            modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.Start)
-                                .heightIn(min = 48.dp).testTag("pairing_answers_group"),
-                            expandedRatio = .08f
+                        val canAnswer = state.canConfirmTest && !busy && feedback.remoteId == remoteId
+                        val measurer = rememberTextMeasurer()
+                        val labelStyle = MaterialTheme.typography.labelLarge
+                        val density = LocalDensity.current
+                        BoxWithConstraints(
+                            Modifier.fillMaxWidth().testTag("pairing_answers_group")
                         ) {
-                            val canAnswer = state.canConfirmTest && !busy && feedback.remoteId == remoteId
-                            listOf(noResponse to false, responded to true).forEach { (label, answer) ->
-                                val onAnswer = {
-                                    HapticHelper.performSelection(haptic, context)
-                                    onConfirmTest(answer)
+                            val sideBySideWidth = with(density) {
+                                (measurer.measure(noResponse, labelStyle, softWrap = false).size.width +
+                                    measurer.measure(responded, labelStyle, softWrap = false).size.width).toDp()
+                            } + 84.dp
+                            val answerNo = {
+                                HapticHelper.performSelection(haptic, context)
+                                onConfirmTest(false)
+                            }
+                            val answerYes = {
+                                HapticHelper.performSelection(haptic, context)
+                                onConfirmTest(true)
+                            }
+                            if (maxWidth >= sideBySideWidth) {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    FilledTonalButton(
+                                        onClick = answerNo,
+                                        shapes = ButtonDefaults.shapes(),
+                                        enabled = canAnswer,
+                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                    ) { Text(noResponse, textAlign = TextAlign.Center) }
+                                    Button(
+                                        onClick = answerYes,
+                                        shapes = ButtonDefaults.shapes(),
+                                        enabled = canAnswer,
+                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                    ) { Text(responded, textAlign = TextAlign.Center) }
                                 }
-                                customItem(
-                                    buttonGroupContent = {
-                                        val interactionSource = remember { MutableInteractionSource() }
-                                        Button(
-                                            onClick = onAnswer,
-                                            shapes = ButtonDefaults.shapes(),
-                                            enabled = canAnswer,
-                                            interactionSource = interactionSource,
-                                            modifier = Modifier.heightIn(min = 48.dp).animateWidth(interactionSource)
-                                        ) { Text(label, maxLines = 1, softWrap = false) }
-                                    },
-                                    menuContent = { menu ->
-                                        SoundEffectOnInteraction(enabled = false) {
-                                            DropdownMenuItem(
-                                                text = { Text(label) },
-                                                enabled = canAnswer,
-                                                onClick = { onAnswer(); menu.dismiss() }
-                                            )
-                                        }
-                                    }
-                                )
+                            } else {
+                                Column(
+                                    Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    FilledTonalButton(
+                                        onClick = answerNo,
+                                        shapes = ButtonDefaults.shapes(),
+                                        enabled = canAnswer,
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                    ) { Text(noResponse, textAlign = TextAlign.Center) }
+                                    Button(
+                                        onClick = answerYes,
+                                        shapes = ButtonDefaults.shapes(),
+                                        enabled = canAnswer,
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                    ) { Text(responded, textAlign = TextAlign.Center) }
+                                }
                             }
                         }
                     } else feedback?.message?.let { message ->
@@ -303,11 +347,10 @@ fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfir
                     }
                 }
             }
-            HorizontalFloatingToolbar(expanded = true,
-                modifier = Modifier.fillMaxWidth().testTag("pairing_confirmation_toolbar")) {
+            Box(Modifier.fillMaxWidth().testTag("pairing_confirmation_toolbar")) {
                 Button(
                     onClick = onMatched,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     enabled = state.currentRemote != null && !busy,
                     shapes = ButtonDefaults.shapes()
                 ) { Text(stringResource(R.string.screen_use_code)) }

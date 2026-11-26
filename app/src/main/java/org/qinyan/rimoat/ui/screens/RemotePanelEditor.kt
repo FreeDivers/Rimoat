@@ -60,6 +60,8 @@ import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.motion.AppMotion
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 
 private data class PanelEntry(val id: String, val label: String, val icon: ImageVector?)
 
@@ -173,10 +175,20 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
         }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.panel_edit_title)) },
-        navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.size(48.dp), shapes = IconButtonDefaults.shapes()) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.screen_back))
-        } }) }) { padding ->
+    ProvideExpressiveCanvas {
+    Scaffold(
+        containerColor = ExpressiveSurface.canvas,
+        topBar = {
+            ExpressiveCompactTopBar(
+                title = stringResource(R.string.panel_edit_title),
+                navigationIcon = {
+                    ActionIconButton(stringResource(R.string.screen_back), onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.screen_back))
+                    }
+                }
+            )
+        }
+    ) { padding ->
         val editor: @Composable () -> Unit = {
         BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns = if (wide) extensionColumns(groups.flatMap { it.entries }.map { it.label }, maxWidth)
@@ -282,6 +294,7 @@ fun RemotePanelEditor(profile: RemoteProfile, available: Set<AcAction>, onSave: 
             }, secondary = editor)
         } else Box(Modifier.fillMaxSize().padding(padding)) { editor() }
     }
+    }
     if (LocalMotionActive.current && confirmReset) MotionAlertDialog(onDismissRequest = { confirmReset = false }, title = { Text(stringResource(R.string.panel_restore_default)) },
         text = { Text(stringResource(R.string.panel_restore_confirm)) },
         confirmButton = { TextButton(onClick = { update(RemotePanelLayout()); confirmReset = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.panel_restore_default)) } },
@@ -294,49 +307,56 @@ private fun PanelTile(entry: PanelEntry, visible: Boolean, dragged: Boolean, onT
     modifier: Modifier = Modifier, gestures: Modifier = Modifier) {
     val motion = AppMotion.current
     val interactionSource = remember { MutableInteractionSource() }
-    val tileShape = rememberExpressiveShape(interactionSource)
+    val tileShape = rememberExpressiveShape(interactionSource, RoundedCornerShape(18.dp), RoundedCornerShape(24.dp))
     val keyShape = rememberExpressiveShape(interactionSource, RoundedCornerShape(50))
     val colors = MaterialTheme.colorScheme
     val scale by animateFloatAsState(if (dragged) 1.04f else 1f, motion.fastSpatialSpec(), label = "PanelTileScale")
     val elevation by animateDpAsState(if (dragged) 6.dp else 0.dp, motion.fastSpatialSpec(), label = "PanelTileElevation")
+    val tileContainer by animateColorAsState(if (visible) ExpressiveSurface.card else ExpressiveSurface.card.copy(alpha = 0.45f), motion.defaultEffectsSpec(), label = "PanelTileBg")
     val container by animateColorAsState(if (visible) colors.secondaryContainer else Color.Transparent, motion.defaultEffectsSpec(), label = "PanelTileColor")
     val content = if (visible) colors.onSecondaryContainer else colors.onSurface.copy(alpha = .38f)
     val description = stringResource(R.string.panel_show_control, entry.label)
-    Column(
-        modifier
+    Surface(
+        shape = tileShape,
+        color = tileContainer,
+        modifier = modifier
             .clip(tileShape)
             .toggleable(value = visible, interactionSource = interactionSource, indication = ripple(), role = Role.Checkbox, onValueChange = onToggle)
             .semantics { contentDescription = description }
             .then(gestures)
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(Modifier.graphicsLayer { scaleX = scale; scaleY = scale }) {
-            Surface(
-                shape = keyShape, color = container, contentColor = content,
-                border = if (visible) null else BorderStroke(1.dp, colors.outline.copy(alpha = .6f)),
-                shadowElevation = elevation, modifier = Modifier.padding(6.dp).size(64.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    val textKey = entry.icon == null && (entry.label.length == 1 || entry.label == "OK")
-                    if (textKey) Text(entry.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                    else Icon(entry.icon ?: Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(28.dp))
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(Modifier.graphicsLayer { scaleX = scale; scaleY = scale }) {
+                Surface(
+                    shape = keyShape, color = container, contentColor = content,
+                    border = if (visible) null else BorderStroke(1.dp, colors.outline.copy(alpha = .6f)),
+                    shadowElevation = elevation, modifier = Modifier.padding(6.dp).size(64.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        val resolved = entry.icon ?: resolveButtonIcon(iconName = null, label = entry.label, id = entry.id)
+                        val textKey = resolved == null && (entry.label.length == 1 || entry.label == "OK")
+                        if (textKey) Text(entry.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                        else Icon(resolved ?: Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(28.dp))
+                    }
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = if (visible) colors.primary else colors.surfaceContainerHighest,
+                    contentColor = if (visible) colors.onPrimary else colors.onSurfaceVariant,
+                    border = BorderStroke(2.dp, ExpressiveSurface.card),
+                    modifier = Modifier.align(Alignment.TopEnd).size(24.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(if (visible) Icons.Rounded.Check else Icons.Rounded.VisibilityOff, contentDescription = null, modifier = Modifier.size(14.dp))
+                    }
                 }
             }
-            Surface(
-                shape = CircleShape,
-                color = if (visible) colors.primary else colors.surfaceContainerHighest,
-                contentColor = if (visible) colors.onPrimary else colors.onSurfaceVariant,
-                border = BorderStroke(2.dp, colors.surface),
-                modifier = Modifier.align(Alignment.TopEnd).size(24.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(if (visible) Icons.Rounded.Check else Icons.Rounded.VisibilityOff, contentDescription = null, modifier = Modifier.size(14.dp))
-                }
-            }
+            Text(entry.label, style = MaterialTheme.typography.labelLarge, color = if (visible) colors.onSurface else colors.onSurface.copy(alpha = .38f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp).clearAndSetSemantics {})
         }
-        Text(entry.label, style = MaterialTheme.typography.labelLarge, color = if (visible) colors.onSurface else colors.onSurface.copy(alpha = .38f),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp).clearAndSetSemantics {})
     }
 }

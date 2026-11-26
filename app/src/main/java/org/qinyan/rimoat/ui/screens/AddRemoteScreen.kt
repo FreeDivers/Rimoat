@@ -96,6 +96,13 @@ import org.qinyan.rimoat.ui.components.TransmitFeedbackBanner
 import org.qinyan.rimoat.ui.viewmodel.AddRemoteStep
 import org.qinyan.rimoat.ui.viewmodel.AddRemoteUiState
 import org.qinyan.rimoat.ui.viewmodel.AddRemoteViewModel
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import org.qinyan.rimoat.ui.components.ExpressiveCompactTopBar
+import org.qinyan.rimoat.ui.components.ExpressivePageTopBar
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -196,7 +203,13 @@ fun AddRemoteScreen(
             AddRemoteStep.CONFIRM -> stringResource(R.string.screen_save_remote)
         }
 
+        val scrollBehavior = if (!wide && stepState.step != AddRemoteStep.WIZARD) {
+            TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+        } else null
+        ProvideExpressiveCanvas {
         Scaffold(
+            modifier = Modifier.let { if (scrollBehavior != null) it.nestedScroll(scrollBehavior.nestedScrollConnection) else it },
+            containerColor = ExpressiveSurface.canvas,
             snackbarHost = {
                 Column {
                     if (stepState.step == AddRemoteStep.WIZARD) TransmitFeedbackBanner(
@@ -213,59 +226,55 @@ fun AddRemoteScreen(
                 }
             },
             topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.semantics {
-                                heading()
-                                contentDescription = title
-                            }
-                        )
-                    },
-                    navigationIcon = {
-                        ActionIconButton(stringResource(R.string.screen_back), onClick = {
-                            if (!viewModel.handleBack()) {
-                                onBack()
-                            }
-                        }) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                val navIcon: @Composable () -> Unit = {
+                    ActionIconButton(stringResource(R.string.screen_back), {
+                        if (!viewModel.handleBack()) {
+                            onBack()
                         }
-                    },
-                    actions = {
-                        if (stepState.step == AddRemoteStep.WIZARD) {
-                            org.qinyan.rimoat.ui.components.ScreenRotationIconButton()
-                            Spacer(Modifier.width(4.dp))
-                            ActionIconButton(
-                                stringResource(R.string.pairing_restart),
-                                onClick = {
-                                    HapticHelper.performSelection(haptic, context)
-                                    showRestart = true
-                                },
-                                enabled = !blocked && !stepState.isLoading
-                            ) {
-                                Icon(Icons.Rounded.Refresh, contentDescription = null)
-                            }
-                            Spacer(Modifier.width(4.dp))
+                    }) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                    }
+                }
+                val barActions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+                    if (stepState.step == AddRemoteStep.WIZARD) {
+                        org.qinyan.rimoat.ui.components.ScreenRotationIconButton()
+                        Spacer(Modifier.width(4.dp))
+                        ActionIconButton(
+                            stringResource(R.string.pairing_restart),
+                            onClick = {
+                                HapticHelper.performSelection(haptic, context)
+                                showRestart = true
+                            },
+                            enabled = !blocked && !stepState.isLoading
+                        ) {
+                            Icon(Icons.Rounded.Refresh, contentDescription = null)
                         }
-                        HardwareStatusButton(
-                            transmitterType = transmitterType,
-                            isReady = isHardwareReady,
-                            forceMock = isForceMock,
-                            onClick = { showTransmitterSheet = true },
-                            transmitFeedback = lastTransmitLog,
-                            onFeedbackFinished = viewModel::dismissFeedback
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    HardwareStatusButton(
+                        transmitterType = transmitterType,
+                        isReady = isHardwareReady,
+                        forceMock = isForceMock,
+                        onClick = { showTransmitterSheet = true },
+                        transmitFeedback = lastTransmitLog,
+                        onFeedbackFinished = viewModel::dismissFeedback
                     )
-                )
+                }
+                if (stepState.step == AddRemoteStep.WIZARD) {
+                    ExpressiveCompactTopBar(
+                        title = title,
+                        navigationIcon = navIcon,
+                        actions = barActions
+                    )
+                } else {
+                    ExpressivePageTopBar(
+                        title = title,
+                        wide = wide,
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon,
+                        actions = barActions
+                    )
+                }
             }
         ) { padding ->
             Box(
@@ -342,6 +351,7 @@ fun AddRemoteScreen(
 
             }
         }
+        }
     }
     if (showTransmitterSheet && LocalMotionActive.current) {
         org.qinyan.rimoat.ui.components.TransmitterSelectionBottomSheet(
@@ -383,11 +393,11 @@ fun CategorySelectionView(
     val wide = rememberWideLayout()
     val learnEntry: @Composable () -> Unit = {
                 val interactionSource = remember { MutableInteractionSource() }
-                val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
+                val shape = rememberExpressiveShape(interactionSource, RoundedCornerShape(20.dp), RoundedCornerShape(28.dp))
                 Card(
                     shape = shape, interactionSource = interactionSource,
                     onClick = onCustomWizardClick,
-
+                    colors = CardDefaults.cardColors(containerColor = ExpressiveSurface.card),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = Spacing.compact)
@@ -475,30 +485,38 @@ fun CategoryGridCard(
 ) {
     val icon = getCategoryIcon(category.code)
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
+    val shape = rememberExpressiveShape(interactionSource, RoundedCornerShape(20.dp), RoundedCornerShape(28.dp))
 
     Card(
         shape = shape, interactionSource = interactionSource,
         onClick = onClick,
-
+        colors = CardDefaults.cardColors(containerColor = ExpressiveSurface.card),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 88.dp)
+            .heightIn(min = 96.dp)
             .semantics(mergeDescendants = true) { role = Role.Button }
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth().heightIn(min = 88.dp)
+                .fillMaxWidth().heightIn(min = 96.dp)
                 .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = label,
@@ -568,28 +586,34 @@ fun ConfirmRemoteView(
 
     }
     val form: @Composable () -> Unit = {
-        OutlinedTextField(
-            value = state.customRemoteName,
-            onValueChange = { if (it.length <= 100) onNameChange(it) },
-            enabled = !state.isSaving,
-            label = { Text(stringResource(R.string.screen_remote_name)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = {
-                keyboard?.hide()
-                if (canSave) onSave()
-            }),
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = ExpressiveSurface.card,
             modifier = Modifier.fillMaxWidth()
-        )
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = state.customRemoteName,
+                    onValueChange = { if (it.length <= 100) onNameChange(it) },
+                    enabled = !state.isSaving,
+                    label = { Text(stringResource(R.string.screen_remote_name)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        keyboard?.hide()
+                        if (canSave) onSave()
+                    }),
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-        state.error?.let {
-            Text(it.asString(), color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 12.dp))
+                state.error?.let {
+                    Text(it.asString(), color = MaterialTheme.colorScheme.error)
+                }
+            }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Button(
-
             onClick = onSave,
             enabled = canSave,
             modifier = Modifier

@@ -10,11 +10,12 @@ import org.qinyan.rimoat.i18n.rememberLocalizedDateTimeFormatter
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
 import org.qinyan.rimoat.ui.components.contentWidth
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -25,13 +26,16 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import java.util.Date
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
@@ -59,20 +63,47 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
     val date = rememberLocalizedDateTimeFormatter(includeDate = true)
     LaunchedEffect(active) { if (active) viewModel.loadTrash() }
     LaunchedEffect(active, error, displayedError) { if (active && displayedError != null) { snackbar.showSnackbar(displayedError, duration = SnackbarDuration.Long); viewModel.clearError() } }
-    Scaffold(topBar = { TopAppBar(title = { Text(AppStrings.get(R.string.screen_trash, "回收站")) }, navigationIcon = {
-        ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back, "返回")) }
-    }) }, snackbarHost = { AppSnackbarHost(snackbar) }) { padding ->
+    val scrollBehavior = if (wide) null else TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    ProvideExpressiveCanvas {
+    Scaffold(
+        modifier = if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier,
+        containerColor = ExpressiveSurface.canvas,
+        topBar = {
+            ExpressivePageTopBar(
+                title = AppStrings.get(R.string.screen_trash, "回收站"),
+                wide = wide,
+                scrollBehavior = scrollBehavior,
+                navigationIcon = {
+                    ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back, "返回"))
+                    }
+                }
+            )
+        },
+        snackbarHost = { AppSnackbarHost(snackbar) }
+    ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
         val list: @Composable () -> Unit = {
-        LazyColumn(if (wide) Modifier.fillMaxSize() else Modifier.contentWidth().fillMaxHeight(), state = listState, contentPadding = if (wide) PaddingValues(0.dp) else PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(trash.orEmpty(), key = { it.entryId }) { entry ->
+        LazyColumn(
+            if (wide) Modifier.fillMaxSize() else Modifier.contentWidth().fillMaxHeight(),
+            state = listState,
+            contentPadding = if (wide) PaddingValues(0.dp) else PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)
+        ) {
+            itemsIndexed(entries, key = { _, entry -> entry.entryId }) { index, entry ->
                 val interactionSource = remember { MutableInteractionSource() }
-                val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
-                val color = if (wide && entry.entryId == selectedEntry?.entryId) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
-                Card(shape = shape, modifier = Modifier.clip(shape)
-                    .then(if (wide) Modifier.clickable(interactionSource = interactionSource, indication = ripple()) { selectedEntryId = entry.entryId; selectedIndex = entries.indexOf(entry) } else Modifier)
-                    .animateItem(fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(), fadeOutSpec = motion.fastEffectsSpec()),
-                    colors = CardDefaults.cardColors(containerColor = color)) {
+                val isSelected = wide && entry.entryId == selectedEntry?.entryId
+                val color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else ExpressiveSurface.card
+                ExpressiveSegmentedSurface(
+                    index = index,
+                    count = entries.size,
+                    interactionSource = interactionSource,
+                    containerColor = color,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(), fadeOutSpec = motion.fastEffectsSpec())
+                ) {
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         val inlineActions = maxWidth >= 360.dp && LocalDensity.current.fontScale < 1.5f
                         val actions: @Composable () -> Unit = {
@@ -81,10 +112,31 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                                 onDelete = { deleteEntryId = entry.entryId })
                         }
                         Column {
-                            ListItem(headlineContent = { Text(entry.profile.name) }, supportingContent = { Text(date.format(Date(entry.deletedAt))) },
-                                leadingContent = { Icon(getCategoryIcon(entry.profile), null) },
+                            ListItem(
+                                modifier = if (wide) {
+                                    Modifier.clickable(interactionSource = interactionSource, indication = ripple()) {
+                                        selectedEntryId = entry.entryId
+                                        selectedIndex = entries.indexOf(entry)
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                                headlineContent = { Text(entry.profile.name) },
+                                supportingContent = { Text(date.format(Date(entry.deletedAt))) },
+                                leadingContent = {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceContainer,
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(getCategoryIcon(entry.profile), null)
+                                        }
+                                    }
+                                },
                                 trailingContent = if (!wide && inlineActions) actions else null,
-                                colors = ListItemDefaults.colors(containerColor = color))
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                            )
                             if (!wide && !inlineActions) {
                                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                                     horizontalArrangement = Arrangement.End) { actions() }
@@ -98,15 +150,34 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
         if (wide && entries.isNotEmpty()) TwoPaneLayout(Modifier.fillMaxSize(), primaryFraction = .4f, primaryMaxWidth = 320.dp,
             primary = list, secondary = {
                 selectedEntry?.let { entry ->
-                    Column(Modifier.fillMaxSize().verticalScroll(detailScroll).padding(8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text(entry.profile.name, style = MaterialTheme.typography.headlineSmall)
-                        Icon(getCategoryIcon(entry.profile), null)
-                        if (entry.profile.brand.isNotBlank()) Text(entry.profile.brand, style = MaterialTheme.typography.bodyLarge)
-                        if (entry.profile.room.isNotBlank()) Text(entry.profile.room)
-                        Text(date.format(Date(entry.deletedAt)), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        TrashEntryActions(entry.profile.name, !busy,
-                            onRestore = { viewModel.restoreDeleted(entry.profile.id, entry.entryId) },
-                            onDelete = { deleteEntryId = entry.entryId })
+                    Column(Modifier.fillMaxSize().verticalScroll(detailScroll).padding(8.dp)) {
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = ExpressiveSurface.card,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(getCategoryIcon(entry.profile), null)
+                                        }
+                                    }
+                                    Text(entry.profile.name, style = MaterialTheme.typography.headlineSmall)
+                                }
+                                if (entry.profile.brand.isNotBlank()) Text(entry.profile.brand, style = MaterialTheme.typography.bodyLarge)
+                                if (entry.profile.room.isNotBlank()) Text(entry.profile.room)
+                                Text(date.format(Date(entry.deletedAt)), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                TrashEntryActions(entry.profile.name, !busy,
+                                    onRestore = { viewModel.restoreDeleted(entry.profile.id, entry.entryId) },
+                                    onDelete = { deleteEntryId = entry.entryId })
+                            }
+                        }
                     }
                 }
             }) else list()
@@ -116,12 +187,13 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
             else -> null
         }
         StateFade(status, Modifier.align(Alignment.Center)) { message ->
-            if (message != null) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (message != null) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (message == R.string.screen_loading) ContainedLoadingIndicator()
                 Text(stringResource(message), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         }
+    }
     }
     if (active) trash?.firstOrNull { it.entryId == deleteEntryId }?.let { entry ->
         MotionAlertDialog(onDismissRequest = { if (!busy) deleteEntryId = null },

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.graphics.Color
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
 import org.qinyan.rimoat.ui.components.rememberWideLayout
 import androidx.compose.foundation.layout.Column
@@ -302,6 +303,7 @@ fun SingleButtonLearningDialogContent(
                                 LearningActionBar(
                                     primaryLabel = saveLabel,
                                     secondaryLabel = testLabel,
+                                    containerColor = Color.Transparent,
                                     secondary = {
                                         SoundEffectOnInteraction(enabled = false) {
                                             OutlinedButton(onClick = { onTestEmit(visibleState.signal) },

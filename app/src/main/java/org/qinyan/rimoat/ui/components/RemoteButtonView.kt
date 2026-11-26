@@ -43,28 +43,48 @@ import org.qinyan.rimoat.ui.HapticHelper
 import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.automirrored.rounded.Input
 import androidx.compose.material.icons.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Air
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowDropUp
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.CenterFocusStrong
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Eject
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.FilterCenterFocus
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Nature
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Subtitles
 import androidx.compose.material.icons.rounded.SwapCalls
 import androidx.compose.material.icons.rounded.SyncAlt
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material.icons.rounded.ZoomIn
+import androidx.compose.material.icons.rounded.ZoomOut
+import androidx.compose.ui.draw.clip
 
 enum class RemoteButtonVariant { STANDARD, POWER, ACCENT, PILL, OUTLINED }
 
@@ -87,7 +107,9 @@ fun RemoteButtonView(
     onSelectState: (() -> Unit)? = null,
     isToggle: Boolean = active != null,
     showSelectionEntry: Boolean = false,
-    onUnavailable: (() -> Unit)? = null
+    onUnavailable: (() -> Unit)? = null,
+    buttonId: String = "",
+    builtinLabel: String? = null
 ) {
     SoundEffectOnInteraction(enabled = false) {
     MaterialTheme(motionScheme = MotionScheme.standard()) {
@@ -188,10 +210,10 @@ fun RemoteButtonView(
                 ) { accessibilityRepeat() })
             }
         }
-    val resolvedIcon = icon ?: getIconVector(iconName)
+    val resolvedIcon = icon ?: resolveButtonIcon(iconName, label, buttonId, builtinLabel)
     val acceptsClick = enabled || onUnavailable != null
     // Short text-only keys (digits and OK) stay inside their circle. Longer names
-    // get a neutral function icon and a label below, preserving the full accessible name.
+    // get a semantic function icon and a label below, preserving the full accessible name.
     val textKey = resolvedIcon == null && (label.length == 1 || label == "OK")
     val content: @Composable RowScope.() -> Unit = {
         if (textKey) {
@@ -233,19 +255,44 @@ fun RemoteButtonView(
         }
         if (!textKey && label.isNotEmpty()) {
             val compact = LocalCompactRemoteButtons.current
+            val labelTopPadding = if (compact) 4.dp else 8.dp
             if (showSelectionEntry && onSelectState != null && enabled && !isLearningMode) {
                 val selectionLabel = AppStrings.get(R.string.control_select_current, "%1\$s，选择%2\$s", label, accessibilityLabel)
-                TextButton(onClick = onSelectState,
-                    modifier = Modifier.padding(top = if (compact) 4.dp else 8.dp).heightIn(min = 48.dp).clearAndSetSemantics {
-                        role = Role.Button
-                        contentDescription = selectionLabel
-                        onClick { onSelectState(); true }
-                    }, contentPadding = PaddingValues(horizontal = 4.dp), shapes = ButtonDefaults.shapes()) {
-                    Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f, false), textAlign = TextAlign.Center)
-                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, modifier = Modifier.size(20.dp))
+                Box(
+                    modifier = Modifier
+                        .padding(top = labelTopPadding)
+                        .heightIn(min = 48.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onSelectState)
+                        .clearAndSetSemantics {
+                            role = Role.Button
+                            contentDescription = selectionLabel
+                            onClick { onSelectState(); true }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.weight(1f, fill = false),
+                                textAlign = TextAlign.Center
+                            )
+                            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                    }
                 }
             } else Box(
-                if (compact) Modifier.padding(top = 4.dp) else Modifier.padding(top = 8.dp).heightIn(min = 48.dp),
+                if (compact) Modifier.padding(top = 4.dp).heightIn(min = 48.dp) else Modifier.padding(top = 8.dp).heightIn(min = 48.dp),
                 contentAlignment = Alignment.Center
             ) { Text(
                 label,
@@ -303,6 +350,56 @@ fun RemoteIconButton(
     }
 }
 
+fun resolveButtonIcon(
+    iconName: String?,
+    label: String,
+    id: String = "",
+    builtinLabel: String? = null
+): ImageVector? {
+    getIconVector(iconName)?.let { return it }
+    if (label.length == 1 || label == "OK") return null
+    val candidates = listOfNotNull(builtinLabel, label, id)
+    for (raw in candidates) {
+        val v = raw.trim().lowercase()
+        when {
+            v in setOf("电源", "开关", "power", "tv_power", "fan_power") -> return Icons.Rounded.PowerSettingsNew
+            v in setOf("返回", "back", "tv_back") -> return Icons.AutoMirrored.Rounded.ArrowBack
+            v in setOf("主页", "首页", "home", "tv_home") -> return Icons.Rounded.Home
+            v in setOf("菜单", "菜单键", "menu", "tv_menu") -> return Icons.Rounded.Menu
+            v in setOf("静音", "mute", "tv_mute") -> return Icons.AutoMirrored.Rounded.VolumeOff
+            v in setOf("信源", "输入", "信号源", "source", "input", "tv_source") -> return Icons.AutoMirrored.Rounded.Input
+            v.contains("音量+") || v.contains("vol+") || v == "vol_up" || v == "volume_up" -> return Icons.AutoMirrored.Rounded.VolumeUp
+            v.contains("音量-") || v.contains("vol-") || v == "vol_down" || v == "volume_down" -> return Icons.AutoMirrored.Rounded.VolumeDown
+            v.contains("频道+") || v == "ch_up" || v == "channel_up" -> return Icons.Rounded.ArrowDropUp
+            v.contains("频道-") || v == "ch_down" || v == "channel_down" -> return Icons.Rounded.ArrowDropDown
+            v in setOf("设置", "settings") -> return Icons.Rounded.Settings
+            v in setOf("退出", "exit") -> return Icons.AutoMirrored.Rounded.ExitToApp
+            v in setOf("信息", "info") -> return Icons.Rounded.Info
+            v in setOf("播放", "play") -> return Icons.Rounded.PlayArrow
+            v in setOf("暂停", "pause") -> return Icons.Rounded.Pause
+            v in setOf("播放/暂停", "play_pause") -> return Icons.Rounded.PlayArrow
+            v in setOf("停止", "stop") -> return Icons.Rounded.Stop
+            v in setOf("快进", "fast_forward") -> return Icons.Rounded.FastForward
+            v in setOf("快退", "rewind") -> return Icons.Rounded.FastRewind
+            v in setOf("上一曲", "上一首", "previous", "prev", "previous_track") -> return Icons.Rounded.SkipPrevious
+            v in setOf("下一曲", "下一首", "next", "next_track") -> return Icons.Rounded.SkipNext
+            v in setOf("定时", "timer") -> return Icons.Rounded.Timer
+            v in setOf("风速", "风量", "speed") -> return Icons.Rounded.Speed
+            v in setOf("摇头", "摆风", "扫风", "oscillation", "swing") -> return Icons.Rounded.SyncAlt
+            v in setOf("自然风", "nature") -> return Icons.Rounded.Nature
+            v in setOf("灯光", "照明", "light") -> return Icons.Rounded.Lightbulb
+            v in setOf("睡眠", "sleep") -> return Icons.Rounded.Bedtime
+            v in setOf("制冷", "一键制冷", "quick_cool") -> return Icons.Rounded.AcUnit
+            v in setOf("制热", "一键制热", "quick_heat") -> return Icons.Rounded.WbSunny
+            v in setOf("弹出", "出仓", "eject") -> return Icons.Rounded.Eject
+            v in setOf("字幕", "subtitles") -> return Icons.Rounded.Subtitles
+            v in setOf("放大", "缩放+", "zoom_in") -> return Icons.Rounded.ZoomIn
+            v in setOf("缩小", "缩放-", "zoom_out") -> return Icons.Rounded.ZoomOut
+        }
+    }
+    return null
+}
+
 fun getIconVector(name: String?): ImageVector? {
     if (name.isNullOrBlank()) return null
     return when (name.lowercase()) {
@@ -311,9 +408,9 @@ fun getIconVector(name: String?): ImageVector? {
         "volume_down" -> Icons.AutoMirrored.Rounded.VolumeDown
         "volume_off", "mute" -> Icons.AutoMirrored.Rounded.VolumeOff
         "input", "source" -> Icons.AutoMirrored.Rounded.Input
-        "arrow_back", "back" -> Icons.AutoMirrored.Rounded.ArrowBack
-        "home" -> Icons.Rounded.Home
-        "menu" -> Icons.Rounded.Menu
+        "arrow_back", "back", "返回" -> Icons.AutoMirrored.Rounded.ArrowBack
+        "home", "主页" -> Icons.Rounded.Home
+        "menu", "菜单", "菜单键" -> Icons.Rounded.Menu
         "keyboard_arrow_up", "up" -> Icons.Rounded.KeyboardArrowUp
         "keyboard_arrow_down", "down" -> Icons.Rounded.KeyboardArrowDown
         "keyboard_arrow_left", "left" -> Icons.Rounded.KeyboardArrowLeft
@@ -329,6 +426,19 @@ fun getIconVector(name: String?): ImageVector? {
         "nature" -> Icons.Rounded.Nature
         "center_focus_strong" -> Icons.Rounded.CenterFocusStrong
         "filter_center_focus" -> Icons.Rounded.FilterCenterFocus
+        "lightbulb", "light" -> Icons.Rounded.Lightbulb
+        "bedtime", "sleep" -> Icons.Rounded.Bedtime
+        "play_arrow", "play" -> Icons.Rounded.PlayArrow
+        "pause" -> Icons.Rounded.Pause
+        "stop" -> Icons.Rounded.Stop
+        "fast_forward" -> Icons.Rounded.FastForward
+        "fast_rewind", "rewind" -> Icons.Rounded.FastRewind
+        "skip_previous" -> Icons.Rounded.SkipPrevious
+        "skip_next" -> Icons.Rounded.SkipNext
+        "info" -> Icons.Rounded.Info
+        "settings" -> Icons.Rounded.Settings
+        "ac_unit" -> Icons.Rounded.AcUnit
+        "wb_sunny" -> Icons.Rounded.WbSunny
         else -> null
     }
 }

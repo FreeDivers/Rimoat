@@ -38,6 +38,8 @@ import org.qinyan.rimoat.i18n.localizedAcRawButtonLabel
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.viewmodel.AcControlState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 
 internal data class RemotePaneButtons(
@@ -194,7 +196,15 @@ internal fun LandscapeRemotePanel(
                     if ((split.common + split.numbers + split.extensions).isEmpty()) RemoteIdentity(profile, transmitterType)
                     if (split.common.isNotEmpty()) {
                         Box(Modifier.fillMaxWidth().onSizeChanged { commonHeight = with(density) { it.height.toDp() } }) {
-                        RemoteFunctionGrid(split.common, onSendButton, onLearnButton, isLearningMode, onRepeatButton, onUnavailable = explain)
+                            Surface(
+                                shape = RoundedCornerShape(24.dp),
+                                color = ExpressiveSurface.card,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
+                                    RemoteFunctionGrid(split.common, onSendButton, onLearnButton, isLearningMode, onRepeatButton, onUnavailable = explain)
+                                }
+                            }
                         }
                     }
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -236,29 +246,36 @@ private fun PanelScroll(tag: String, state: ScrollState, content: @Composable Co
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 private fun PanelTabs(selected: Int, onSelect: (Int) -> Unit) {
-    SecondaryTabRow(selectedTabIndex = selected, containerColor = MaterialTheme.colorScheme.surface) {
-        listOf(localizedLabel("常规功能"), localizedLabel("更多功能")).forEachIndexed { index, label ->
-            Tab(selected = selected == index, onClick = { onSelect(index) }, text = { Text(label) })
-        }
-    }
+    ExpressivePageSwitcher(
+        labels = listOf(localizedLabel("常规功能"), localizedLabel("更多功能")),
+        selectedIndex = selected,
+        onSelect = onSelect
+    )
 }
 
 @Composable
 private fun RemoteIdentity(profile: RemoteProfile, transmitterType: TransmitterType) {
-    Text(profile.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth().semantics { heading() })
-    if (profile.room.isNotBlank()) Text(profile.room, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth())
-    val category = when (profile.category) {
-        DeviceCategory.TV -> R.string.screen_category_tv
-        DeviceCategory.AC -> R.string.screen_category_ac
-        DeviceCategory.FAN -> R.string.screen_category_fan
-        DeviceCategory.AUDIO -> R.string.screen_category_audio
-        DeviceCategory.PROJECTOR -> R.string.screen_category_projector
-        DeviceCategory.CUSTOM -> R.string.screen_category_custom
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = ExpressiveSurface.card,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(profile.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth().semantics { heading() })
+            if (profile.room.isNotBlank()) Text(profile.room, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth())
+            val category = when (profile.category) {
+                DeviceCategory.TV -> R.string.screen_category_tv
+                DeviceCategory.AC -> R.string.screen_category_ac
+                DeviceCategory.FAN -> R.string.screen_category_fan
+                DeviceCategory.AUDIO -> R.string.screen_category_audio
+                DeviceCategory.PROJECTOR -> R.string.screen_category_projector
+                DeviceCategory.CUSTOM -> R.string.screen_category_custom
+            }
+            Text(stringResource(category), modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(transmitterType.displayName, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
-    Text(stringResource(category), modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Text(transmitterType.displayName, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -281,21 +298,38 @@ private fun PrimaryRemoteControls(profile: RemoteProfile, buttons: List<RemoteBu
             visibleKeys = if (learning && profile.category == DeviceCategory.TV) directions.keys else setOf("上", "下", "左", "右", "OK")
         )
     }
-    RemoteFunctionGrid(buttons.filter { it.id !in dpadKeys }, onSend, onLearn, learning, onRepeat, onUnavailable = onUnavailable)
+    val remaining = buttons.filter { it.id !in dpadKeys }
+    if (remaining.isNotEmpty()) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = ExpressiveSurface.card,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
+                RemoteFunctionGrid(remaining, onSend, onLearn, learning, onRepeat, onUnavailable = onUnavailable)
+            }
+        }
+    }
 }
 
 @Composable
 private fun NumberGrid(buttons: List<RemoteButton>, onSend: (RemoteButton) -> Unit, onLearn: (RemoteButton) -> Unit,
     learning: Boolean, onRepeat: (RemoteButton) -> Unit, onUnavailable: (RemoteButton) -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = ((maxWidth.value + 16) / 72).toInt().coerceIn(1, 3)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            buttons.sortedBy { if (remoteButtonNumber(it) == 0) 10 else remoteButtonNumber(it) ?: 0 }.chunked(columns).forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)) {
-                    row.forEach { button ->
-                        RemoteButtonView(localizedButtonLabel(button), onClick = { onSend(button) }, modifier = Modifier.width(56.dp), diameter = 56.dp,
-                            enabled = learning || button.hasSignal, isLearningMode = learning, onRepeat = { onRepeat(button) },
-                            onLongClick = { onLearn(button) }, onUnavailable = { onUnavailable(button) })
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = ExpressiveSurface.card,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)) {
+            val columns = ((maxWidth.value + 16) / 72).toInt().coerceIn(1, 3)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                buttons.sortedBy { if (remoteButtonNumber(it) == 0) 10 else remoteButtonNumber(it) ?: 0 }.chunked(columns).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)) {
+                        row.forEach { button ->
+                            RemoteButtonView(localizedButtonLabel(button), onClick = { onSend(button) }, modifier = Modifier.width(56.dp), diameter = 56.dp,
+                                enabled = learning || button.hasSignal, isLearningMode = learning, onRepeat = { onRepeat(button) },
+                                onLongClick = { onLearn(button) }, onUnavailable = { onUnavailable(button) })
+                        }
                     }
                 }
             }
@@ -307,11 +341,18 @@ private fun NumberGrid(buttons: List<RemoteButton>, onSend: (RemoteButton) -> Un
 private fun AcPanelPresets(profile: RemoteProfile, transmitting: Boolean, onResend: () -> Unit, onPreset: (AcSettings) -> Unit) {
     val labels = listOf(stringResource(R.string.screen_resend), stringResource(R.string.screen_cool_preset), stringResource(R.string.screen_heat_preset))
     val visible = (0..2).filter { "preset:$it" !in profile.panelLayout.hidden }.sortedBy { profile.panelLayout.rank("preset:$it") }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        visible.forEach { index ->
-            RemoteButtonView(labels[index], icon = when (index) { 0 -> Icons.Rounded.Refresh; 1 -> Icons.Rounded.AcUnit; else -> Icons.Rounded.WbSunny },
-                onClick = { when (index) { 0 -> onResend(); 1 -> onPreset(AcSettings(temperature = 26)); else -> onPreset(AcSettings(temperature = 24, mode = AcMode.HEAT)) } },
-                enabled = !transmitting, modifier = Modifier.fillMaxWidth())
+    if (visible.isEmpty()) return
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = ExpressiveSurface.card,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            visible.forEach { index ->
+                RemoteButtonView(labels[index], icon = when (index) { 0 -> Icons.Rounded.Refresh; 1 -> Icons.Rounded.AcUnit; else -> Icons.Rounded.WbSunny },
+                    onClick = { when (index) { 0 -> onResend(); 1 -> onPreset(AcSettings(temperature = 26)); else -> onPreset(AcSettings(temperature = 24, mode = AcMode.HEAT)) } },
+                    enabled = !transmitting, modifier = Modifier.fillMaxWidth())
+            }
         }
     }
 }

@@ -24,8 +24,8 @@ import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.components.ActionIconButton
-import org.qinyan.rimoat.ui.components.SimpleDropdownMenu
-import org.qinyan.rimoat.ui.components.SimpleDropdownMenuItem
+import org.qinyan.rimoat.ui.components.ExpressiveDropdownMenu
+import org.qinyan.rimoat.ui.components.ExpressiveMenuItem
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.AppMotion
 
@@ -50,7 +50,7 @@ fun HardwareStatusBanner(
     var expanded by remember { mutableStateOf(false) }
     LaunchedEffect(active, enabled) { if (!active || !enabled) expanded = false }
     Surface(modifier.fillMaxWidth().animateContentSize(AppMotion.current.defaultSpatialSpec()), shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Row(Modifier.padding(start = 12.dp, end = 4.dp).heightIn(min = 48.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(when {
@@ -81,18 +81,19 @@ fun HardwareStatusBanner(
             ActionIconButton(stringResource(R.string.screen_receive_settings), { expanded = true }, enabled = enabled) {
                 Icon(Icons.Rounded.MoreVert, contentDescription = null)
             }
-            SimpleDropdownMenu(
+            ExpressiveDropdownMenu(
                 expanded = active && expanded,
-                onDismissRequest = { expanded = false },
-                itemCount = 1
+                onDismissRequest = { expanded = false }
             ) {
-                SimpleDropdownMenuItem(
-                    text = { Text(stringResource(if (unavailable) R.string.screen_demo_mode else R.string.screen_exit_demo)) },
+                ExpressiveMenuItem(
                     onClick = {
                         HapticHelper.performSelection(haptic, context)
                         expanded = false
                         if (unavailable) onEnableMockMode() else onDisableMockMode?.invoke()
-                    }
+                    },
+                    text = { Text(stringResource(if (unavailable) R.string.screen_demo_mode else R.string.screen_exit_demo)) },
+                    index = 0,
+                    count = 1
                 )
             }
         }

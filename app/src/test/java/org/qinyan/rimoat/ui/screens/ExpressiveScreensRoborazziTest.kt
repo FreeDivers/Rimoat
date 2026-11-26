@@ -21,10 +21,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
-import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.isPopup
-import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -248,13 +246,13 @@ class ExpressiveScreensRoborazziTest {
 
     @Test
     @Config(qualifiers = "en-w320dp-h568dp-mdpi")
-    fun pairingAnswersFitNarrowPaneAndOverflowCommitsOnlyOnce() = exercisePairingOverflow(fontScale = 1f)
+    fun pairingAnswersFitNarrowPaneAndCommitOnlyOnce() = exercisePairingAnswers(fontScale = 1f)
 
     @Test
     @Config(qualifiers = "en-w320dp-h568dp-mdpi")
-    fun pairingOverflowKeepsBothAnswersReachableWithLargeText() = exercisePairingOverflow(fontScale = 2f)
+    fun pairingAnswersKeepBothChoicesReachableWithLargeText() = exercisePairingAnswers(fontScale = 2f)
 
-    private fun exercisePairingOverflow(fontScale: Float) {
+    private fun exercisePairingAnswers(fontScale: Float) {
         RuntimeEnvironment.setFontScale(fontScale)
         AppStrings.initialize(app)
         val model = IrRemoteModel("expressive_code", 1, "TV", 1, "Example", "Example", 1, "", 1)
@@ -281,49 +279,41 @@ class ExpressiveScreensRoborazziTest {
                 }
             }
         }
-        val overflow = compose.onNodeWithTag("pairing_answers_overflow")
+        val noResponseNode = compose.onNode(hasText(noResponse) and hasClickAction())
+        val respondedNode = compose.onNode(hasText(responded) and hasClickAction())
         fun assertAnswerLayout() {
-            val overflowBounds = overflow.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            compose.onNodeWithTag("pairing_answers_overflow").assertDoesNotExist()
+            val noBounds = noResponseNode.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            val yesBounds = respondedNode.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val groupBounds = compose.onNodeWithTag("pairing_answers_group")
                 .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val toolbarBounds = compose.onNodeWithTag("pairing_confirmation_toolbar")
                 .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val minimumTouchSize = with(compose.density) { 48.dp.toPx() }
-            assertTrue("The overflow control keeps its full 48dp target",
-                overflowBounds.width >= minimumTouchSize && overflowBounds.height >= minimumTouchSize)
-            assertTrue("The answer group contains the complete overflow control",
-                groupBounds.left <= overflowBounds.left && groupBounds.right >= overflowBounds.right &&
-                    groupBounds.top <= overflowBounds.top && groupBounds.bottom >= overflowBounds.bottom)
+            assertTrue("Both answer buttons keep full 48dp touch height",
+                noBounds.height >= minimumTouchSize && yesBounds.height >= minimumTouchSize)
+            assertTrue("The answer group contains both answer buttons",
+                groupBounds.left <= noBounds.left && groupBounds.right >= noBounds.right &&
+                    groupBounds.top <= noBounds.top && groupBounds.bottom >= noBounds.bottom &&
+                    groupBounds.left <= yesBounds.left && groupBounds.right >= yesBounds.right &&
+                    groupBounds.top <= yesBounds.top && groupBounds.bottom >= yesBounds.bottom)
+            assertTrue("Answer buttons do not overlap each other",
+                noBounds.right <= yesBounds.left || yesBounds.right <= noBounds.left ||
+                    noBounds.bottom <= yesBounds.top || yesBounds.bottom <= noBounds.top)
             assertTrue("The confirmation toolbar remains below the answer group",
                 groupBounds.bottom < toolbarBounds.top)
         }
         assertAnswerLayout()
         capture("${prefix}_before")
-        val directNoResponse = compose.onNodeWithText(noResponse)
-        if (directNoResponse.isDisplayed()) {
-            directNoResponse.assertIsDisplayed().performTouchInput { click() }
-        } else {
-            overflow.assertIsDisplayed().performTouchInput { click() }
-            compose.onNode(hasText(responded) and hasAnyAncestor(isPopup())).assertIsDisplayed()
-            compose.onNode(hasText(noResponse) and hasAnyAncestor(isPopup()))
-                .assertIsDisplayed().performTouchInput { click() }
-        }
+        noResponseNode.performTouchInput { click() }
         compose.waitForIdle()
-        compose.onNode(isPopup()).assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(listOf(false), answers)
             page = page.copy(canConfirmTest = true, verifiedFunctions = emptySet())
         }
         assertAnswerLayout()
-        overflow.assertIsDisplayed().performTouchInput { click() }
-        val responseItem = compose.onNode(hasText(responded) and hasAnyAncestor(isPopup()))
-        responseItem.assertIsDisplayed()
-        compose.onNode(isPopup()).captureRoboImage(
-            "src/test/screenshots/expressive_${prefix}_overflow.webp", roborazziOptions = options
-        )
-        responseItem.performTouchInput { click() }
+        respondedNode.performTouchInput { click() }
         compose.waitForIdle()
-        compose.onNode(isPopup()).assertDoesNotExist()
         compose.runOnIdle { assertEquals(listOf(false, true), answers) }
         capture("${prefix}_after")
 
@@ -332,8 +322,7 @@ class ExpressiveScreensRoborazziTest {
         compose.runOnIdle { page = page.copy(canConfirmTest = false, isSendingTest = true) }
         compose.onNodeWithText(app.getString(R.string.screen_response_question, "Power")).assertIsDisplayed()
         assertAnswerLayout()
-        overflow.assertIsDisplayed().performTouchInput { click() }
-        responseItem.assertIsDisplayed().assertIsNotEnabled().performTouchInput { click() }
+        respondedNode.assertIsNotEnabled().performTouchInput { click() }
         compose.runOnIdle { assertEquals(listOf(false, true), answers) }
     }
 }

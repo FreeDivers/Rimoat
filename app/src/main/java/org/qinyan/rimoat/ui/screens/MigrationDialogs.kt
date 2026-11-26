@@ -4,6 +4,7 @@ package org.qinyan.rimoat.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import org.qinyan.rimoat.ui.components.rememberExpressiveShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,8 +26,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.*
-import org.qinyan.rimoat.ui.components.SimpleDropdownMenu
-import org.qinyan.rimoat.ui.components.SimpleDropdownMenuItem
+import org.qinyan.rimoat.ui.components.ExpressiveDropdownMenu
+import org.qinyan.rimoat.ui.components.ExpressiveSelectableMenuItem
 import org.qinyan.rimoat.ui.motion.MotionBasicAlertDialog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -66,17 +67,18 @@ fun MigrationImportDialog(document: ImportDocument, existingIds: Set<String>, bu
                                     Icon(Icons.Rounded.ExpandMore, null)
                                 }
                                 val conflictEntries = ConflictChoice.entries
-                                SimpleDropdownMenu(
+                                ExpressiveDropdownMenu(
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false },
-                                    selectedIndex = conflictEntries.indexOf(current).takeIf { it >= 0 },
-                                    itemCount = conflictEntries.size
+                                    selectable = true
                                 ) {
-                                    conflictEntries.forEach { choice ->
-                                        SimpleDropdownMenuItem(
-                                            text = { Text(stringResource(conflictLabel(choice))) },
+                                    conflictEntries.forEachIndexed { index, choice ->
+                                        ExpressiveSelectableMenuItem(
                                             selected = choice == current,
-                                            onClick = { choices = choices + (profile.id to choice); expanded = false }
+                                            onClick = { choices = choices + (profile.id to choice); expanded = false },
+                                            text = { Text(stringResource(conflictLabel(choice))) },
+                                            index = index,
+                                            count = conflictEntries.size
                                         )
                                     }
                                 }
@@ -127,12 +129,22 @@ private fun conflictLabel(choice: ConflictChoice): Int = when (choice) {
 @Composable
 internal fun MigrationToggle(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = rememberExpressiveShape(interactionSource)
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape)
-        .toggleable(value = checked, interactionSource = interactionSource, indication = ripple(),
-            enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
-        Text(label, Modifier.weight(1f))
+    val shape = rememberExpressiveShape(interactionSource, RoundedCornerShape(14.dp))
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                .toggleable(value = checked, interactionSource = interactionSource, indication = ripple(),
+                    enabled = enabled, role = Role.Checkbox, onValueChange = onChange)
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
+            Text(label, Modifier.weight(1f))
+        }
     }
 }

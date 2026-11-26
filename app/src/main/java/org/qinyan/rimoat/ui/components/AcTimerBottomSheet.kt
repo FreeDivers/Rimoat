@@ -29,8 +29,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import org.qinyan.rimoat.data.timerDurationLabel
 import org.qinyan.rimoat.ui.HapticHelper
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import org.qinyan.rimoat.ui.theme.SilenceWindowClickSounds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -91,32 +95,54 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
         onSend(value)
         scope.launch { sheet.hide(); onDismiss() }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = ExpressiveSurface.canvas) {
+    ProvideExpressiveCanvas {
     SilenceWindowClickSounds()
     SoundEffectOnInteraction(enabled = false) {
         Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            .padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(if (powerOn) AppStrings.get(R.string.control_timer_off, "定时关机") else AppStrings.get(R.string.control_timer_on, "定时开机"), style = MaterialTheme.typography.titleLarge)
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (minutes == 0) AppStrings.get(R.string.control_zero_minutes, "0 分钟") else localizedTimerDurationLabel(minutes), style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
-                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { contentDescription = AppStrings.get(R.string.control_set_duration, "设定时长") })
-                Text(if (minutes == 0) "" else if (powerOn) AppStrings.get(R.string.control_expected_off, "预计关机 %1\$s", localizedTimerTargetLabel(context, now, minutes, timeFormatter)) else AppStrings.get(R.string.control_expected_on, "预计开机 %1\$s", localizedTimerTargetLabel(context, now, minutes, timeFormatter)),
-                    style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                ActionIconButton(AppStrings.get(R.string.control_shorten_timer, "缩短定时"), { select(selected - 1) }, enabled = selected > 0 && !sending) {
-                    Icon(Icons.Rounded.Remove, AppStrings.get(R.string.control_shorten_timer, "缩短定时"))
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = ExpressiveSurface.card,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (minutes == 0) AppStrings.get(R.string.control_zero_minutes, "0 分钟") else localizedTimerDurationLabel(minutes), style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { contentDescription = AppStrings.get(R.string.control_set_duration, "设定时长") })
+                        Text(if (minutes == 0) "" else if (powerOn) AppStrings.get(R.string.control_expected_off, "预计关机 %1\$s", localizedTimerTargetLabel(context, now, minutes, timeFormatter)) else AppStrings.get(R.string.control_expected_on, "预计开机 %1\$s", localizedTimerTargetLabel(context, now, minutes, timeFormatter)),
+                            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        ActionIconButton(AppStrings.get(R.string.control_shorten_timer, "缩短定时"), { select(selected - 1) }, enabled = selected > 0 && !sending) {
+                            Icon(Icons.Rounded.Remove, AppStrings.get(R.string.control_shorten_timer, "缩短定时"))
+                        }
+                        TimerDurationSlider(options, selected, !sending, { selected = it }, Modifier.weight(1f))
+                        ActionIconButton(AppStrings.get(R.string.control_extend_timer, "延长定时"), { select(selected + 1) }, enabled = selected < options.lastIndex && !sending) {
+                            Icon(Icons.Rounded.Add, AppStrings.get(R.string.control_extend_timer, "延长定时"))
+                        }
+                    }
                 }
-                TimerDurationSlider(options, selected, !sending, { selected = it }, Modifier.weight(1f))
-                ActionIconButton(AppStrings.get(R.string.control_extend_timer, "延长定时"), { select(selected + 1) }, enabled = selected < options.lastIndex && !sending) {
-                    Icon(Icons.Rounded.Add, AppStrings.get(R.string.control_extend_timer, "延长定时"))
-                }
             }
+            val presetShapes = ToggleButtonShapes(
+                shape = CircleShape,
+                pressedShape = RoundedCornerShape(14.dp),
+                checkedShape = CircleShape
+            )
+            val presetColors = ToggleButtonDefaults.colors(
+                containerColor = ExpressiveSurface.card,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                checkedContainerColor = MaterialTheme.colorScheme.primary,
+                checkedContentColor = MaterialTheme.colorScheme.onPrimary
+            )
             FlowRow(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 timerPresets(options).forEach { preset ->
                     ToggleButton(checked = minutes == preset,
                         onCheckedChange = { select(options.indexOf(preset)) }, enabled = !sending,
-                        modifier = Modifier.semantics {
+                        shapes = presetShapes,
+                        colors = presetColors,
+                        modifier = Modifier.heightIn(min = 48.dp).semantics {
                             this.selected = minutes == preset
                             role = Role.RadioButton
                         }) {
@@ -125,7 +151,7 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
                 }
             }
         }
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(16.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
             val disableLabel = AppStrings.get(R.string.control_disable_timer, "关闭定时")
             val confirmLabel = if (minutes == 0) disableLabel else AppStrings.get(R.string.control_set_timer, "设置定时")
             val showDisable = 0 in options && minutes > 0
@@ -136,29 +162,39 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
                 (textMeasurer.measure(confirmLabel, style).size.width +
                     if (showDisable) textMeasurer.measure(disableLabel, style).size.width else 0).toDp()
             }
-            val stacked = labelWidth + (if (showDisable) 112.dp else 64.dp) > maxWidth
-            val disableAction: @Composable () -> Unit = {
-                TextButton({ send(0) }, enabled = !sending, shapes = ButtonDefaults.shapes()) {
-                    Text(disableLabel)
-                }
+            val stacked = labelWidth + (if (showDisable) 104.dp else 48.dp) > maxWidth
+            val disableAction: @Composable (Modifier) -> Unit = { buttonModifier ->
+                OutlinedButton(
+                    onClick = { send(0) },
+                    enabled = !sending,
+                    modifier = buttonModifier.heightIn(min = 52.dp),
+                    shapes = ButtonDefaults.shapes()
+                ) { Text(disableLabel) }
             }
             val confirmAction: @Composable (Modifier) -> Unit = { buttonModifier ->
-                Button({ send(minutes) }, modifier = buttonModifier.heightIn(min = 48.dp),
-                    enabled = !sending, shapes = ButtonDefaults.shapes()) {
-                    Text(confirmLabel)
-                }
+                Button(
+                    onClick = { send(minutes) },
+                    modifier = buttonModifier.heightIn(min = 52.dp),
+                    enabled = !sending,
+                    shapes = ButtonDefaults.shapes()
+                ) { Text(confirmLabel) }
             }
             if (stacked) {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (showDisable) disableAction()
+                    if (showDisable) disableAction(Modifier.fillMaxWidth())
                     confirmAction(Modifier.fillMaxWidth())
                 }
-            } else HorizontalFloatingToolbar(expanded = true, modifier = Modifier.fillMaxWidth()) {
-                if (showDisable) disableAction()
+            } else Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showDisable) disableAction(Modifier.weight(1f))
                 confirmAction(Modifier.weight(1f))
             }
         }
+    }
     }
     }
 }

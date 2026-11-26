@@ -40,6 +40,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.hardware.learning.LearningState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import org.qinyan.rimoat.ui.components.*
 
 /** One current key, one status region, and a separate fixed action dock. */
@@ -60,79 +65,87 @@ internal fun LearningKeyWorkspace(
     val motion = AppMotion.current
     val learnedProgress = animateFloatAsState(page.learnedCount.toFloat() / page.keyQueue.size.coerceAtLeast(1), motion.defaultEffectsSpec(), label = "LearnedProgress")
     val status: @Composable ColumnScope.() -> Unit = {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(page.remoteName, Modifier.weight(1f).padding(end = 12.dp), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(stringResource(R.string.screen_learned_position, page.learnedCount, page.keyQueue.size), style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Spacer(Modifier.height(8.dp))
-        Box(Modifier.fillMaxWidth().clearAndSetSemantics {}) {
-            LinearWavyProgressIndicator(progress = { learnedProgress.value }, modifier = Modifier.fillMaxWidth(), waveSpeed = 0.dp)
-        }
-        Spacer(Modifier.height(12.dp))
-        HardwareStatusBanner(learnerType, available, { onMock(true) }, receiveConfirmed = receiveConfirmed,
-            onDisableMockMode = if (mock) ({ onMock(false) }) else null, enabled = !page.isTestingTransmit)
-        Column(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                StateFade(key.displayLabel(), Modifier.weight(1f)) {
-                    Text(it, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = ExpressiveSurface.card,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(page.remoteName, Modifier.weight(1f).padding(end = 12.dp), style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.screen_learned_position, page.learnedCount, page.keyQueue.size), style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary)
                 }
-                if (key.status == KeyLearnStatus.CAPTURED || key.status == KeyLearnStatus.LEARNED) {
-                    ActionIconButton(stringResource(R.string.screen_rerecord), onRecord, enabled = available && !page.isTestingTransmit) {
-                        Icon(Icons.Rounded.Replay, contentDescription = null)
+                Spacer(Modifier.height(8.dp))
+                Box(Modifier.fillMaxWidth().clearAndSetSemantics {}) {
+                    LinearWavyProgressIndicator(progress = { learnedProgress.value }, modifier = Modifier.fillMaxWidth(), waveSpeed = 0.dp)
+                }
+                Spacer(Modifier.height(12.dp))
+                HardwareStatusBanner(learnerType, available, { onMock(true) }, receiveConfirmed = receiveConfirmed,
+                    onDisableMockMode = if (mock) ({ onMock(false) }) else null, enabled = !page.isTestingTransmit)
+                Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                        StateFade(key.displayLabel(), Modifier.weight(1f)) {
+                            Text(it, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
+                        }
+                        if (key.status == KeyLearnStatus.CAPTURED || key.status == KeyLearnStatus.LEARNED) {
+                            ActionIconButton(stringResource(R.string.screen_rerecord), onRecord, enabled = available && !page.isTestingTransmit) {
+                                Icon(Icons.Rounded.Replay, contentDescription = null)
+                            }
+                        } else Spacer(Modifier.size(48.dp))
                     }
-                } else Spacer(Modifier.size(48.dp))
-            }
-            Spacer(Modifier.height(8.dp))
-            Box(Modifier.fillMaxWidth().heightIn(min = 120.dp), contentAlignment = Alignment.CenterStart) {
-                StateFade(key.status) { status ->
-                when (status) {
-                    KeyLearnStatus.LEARNING -> Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text(
-                            if (learnerType == LearnerType.MOCK) stringResource(R.string.screen_simulated_receive) else stringResource(R.string.screen_press_original),
-                            Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        IrListeningRipple(
-                            remainingSeconds = (learner as? LearningState.Listening)?.remainingSeconds ?: 30,
-                            totalSeconds = (learner as? LearningState.Listening)?.totalSeconds ?: 30)
-                    }
-                    KeyLearnStatus.CAPTURED, KeyLearnStatus.LEARNED -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            if (status == KeyLearnStatus.LEARNED) stringResource(R.string.screen_learned) else stringResource(R.string.screen_signal_received),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                        )
-                        key.capturedSignal?.let { signal ->
-                            IrWaveformPreview(signal)
+                    Spacer(Modifier.height(8.dp))
+                    Box(Modifier.fillMaxWidth().heightIn(min = 120.dp), contentAlignment = Alignment.CenterStart) {
+                        StateFade(key.status) { status ->
+                        when (status) {
+                            KeyLearnStatus.LEARNING -> Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Text(
+                                    if (learnerType == LearnerType.MOCK) stringResource(R.string.screen_simulated_receive) else stringResource(R.string.screen_press_original),
+                                    Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                IrListeningRipple(
+                                    remainingSeconds = (learner as? LearningState.Listening)?.remainingSeconds ?: 30,
+                                    totalSeconds = (learner as? LearningState.Listening)?.totalSeconds ?: 30)
+                            }
+                            KeyLearnStatus.CAPTURED, KeyLearnStatus.LEARNED -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(
+                                    if (status == KeyLearnStatus.LEARNED) stringResource(R.string.screen_learned) else stringResource(R.string.screen_signal_received),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                                )
+                                key.capturedSignal?.let { signal ->
+                                    IrWaveformPreview(signal)
+                                }
+                            }
+                            else -> Text(
+                                if (status == KeyLearnStatus.SKIPPED) stringResource(R.string.screen_skipped) else stringResource(R.string.screen_awaiting_record),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                            )
+                        }
                         }
                     }
-                    else -> Text(
-                        if (status == KeyLearnStatus.SKIPPED) stringResource(R.string.screen_skipped) else stringResource(R.string.screen_awaiting_record),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                    )
+                    page.testFeedbackMessage?.let {
+                        Text(
+                            it.asString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                        )
+                    }
+                    page.errorMessage?.let {
+                        Text(
+                            it.asString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                        )
+                    }
                 }
-                }
-            }
-            page.testFeedbackMessage?.let {
-                Text(
-                    it.asString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                )
-            }
-            page.errorMessage?.let {
-                Text(
-                    it.asString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                )
             }
         }
     }
@@ -156,9 +169,17 @@ internal fun LearningKeyWorkspace(
                         val learned = item.status == KeyLearnStatus.LEARNED
                         val current = page.currentIndex == index
                         val container by animateColorAsState(
-                            if (learned) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                            when {
+                                learned -> MaterialTheme.colorScheme.primaryContainer
+                                current -> MaterialTheme.colorScheme.secondaryContainer
+                                else -> ExpressiveSurface.card
+                            },
                             motion.fastEffectsSpec(), label = "LearnedKeyColor")
-                        val content = if (learned) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                        val content = when {
+                            learned -> MaterialTheme.colorScheme.onPrimaryContainer
+                            current -> MaterialTheme.colorScheme.onSecondaryContainer
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
                         val keyStateDescription = stringResource(when (item.status) {
                             KeyLearnStatus.LEARNED -> R.string.screen_learned
                             KeyLearnStatus.CAPTURED -> R.string.screen_awaiting_confirm
@@ -166,27 +187,40 @@ internal fun LearningKeyWorkspace(
                             KeyLearnStatus.SKIPPED -> R.string.screen_skipped
                             KeyLearnStatus.PENDING -> R.string.screen_unlearned
                         })
-                        ToggleButton(checked = current, onCheckedChange = {
-                                HapticHelper.performSelection(haptic, context)
-                                onSelect(index)
-                            },
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics {
-                                stateDescription = keyStateDescription
-                                selected = current
-                                role = Role.RadioButton
-                            },
-                            colors = ToggleButtonDefaults.colors(containerColor = container, checkedContainerColor = container,
-                                contentColor = content, checkedContentColor = content),
-                            border = BorderStroke(if (current) 2.dp else 1.dp,
-                                if (current) MaterialTheme.colorScheme.primary else if (learned) Color.Transparent else MaterialTheme.colorScheme.outlineVariant),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
-                        ) {
-                                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    Text(item.displayLabel(), Modifier.fillMaxWidth().padding(horizontal = 20.dp), textAlign = TextAlign.Center)
-                                    if (learned)
-                                        Icon(Icons.Rounded.Check, null, Modifier.align(Alignment.CenterStart).size(16.dp))
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val keyShape = rememberExpressiveShape(interactionSource, RoundedCornerShape(16.dp), RoundedCornerShape(22.dp))
+                        Surface(
+                            shape = keyShape,
+                            color = container,
+                            contentColor = content,
+                            border = if (current) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .clip(keyShape)
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = ripple(),
+                                    role = Role.RadioButton
+                                ) {
+                                    HapticHelper.performSelection(haptic, context)
+                                    onSelect(index)
                                 }
+                                .semantics {
+                                    stateDescription = keyStateDescription
+                                    selected = current
+                                    role = Role.RadioButton
+                                }
+                        ) {
+                            Box(
+                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(item.displayLabel(), Modifier.fillMaxWidth().padding(horizontal = 20.dp), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+                                if (learned)
+                                    Icon(Icons.Rounded.Check, null, Modifier.align(Alignment.CenterStart).size(16.dp))
                             }
+                        }
                     }
                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -208,9 +242,8 @@ internal fun LearningKeyWorkspace(
                     Column(Modifier.fillMaxSize().verticalScroll(secondaryScroll).padding(8.dp)) { keyGrid() }
                 })
         } else {
-            Column(Modifier.fillMaxSize().verticalScroll(primaryScroll).padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Column(Modifier.fillMaxSize().verticalScroll(primaryScroll).padding(horizontal = 16.dp, vertical = 8.dp)) {
                 status()
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(Modifier.height(16.dp))
                 keyGrid()
             }
@@ -231,14 +264,18 @@ internal fun LearningKeyActions(
     Box(Modifier.fillMaxWidth().then(if (inPane) Modifier else Modifier.navigationBarsPadding())
         .padding(horizontal = if (inPane) 0.dp else 20.dp, vertical = 12.dp)) {
         when (key.status) {
-            KeyLearnStatus.LEARNING -> HorizontalFloatingToolbar(
-                expanded = true, modifier = Modifier.align(Alignment.CenterEnd)
+            KeyLearnStatus.LEARNING -> Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = ExpressiveSurface.card,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                OutlinedButton(
-                    onClick = { HapticHelper.performSelection(haptic, context); onCancel() },
-                    shapes = ButtonDefaults.shapes(),
-                    modifier = Modifier.heightIn(min = 56.dp)
-                ) { Text(stringResource(R.string.screen_cancel_receive)) }
+                Box(Modifier.fillMaxWidth().padding(12.dp)) {
+                    OutlinedButton(
+                        onClick = { HapticHelper.performSelection(haptic, context); onCancel() },
+                        shapes = ButtonDefaults.shapes(),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                    ) { Text(stringResource(R.string.screen_cancel_receive)) }
+                }
             }
             KeyLearnStatus.CAPTURED, KeyLearnStatus.LEARNED -> LearningActionBar(
                 primaryLabel = stringResource(R.string.screen_confirm_continue),

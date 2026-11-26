@@ -1,7 +1,5 @@
 package org.qinyan.rimoat.ui.screens
 
-import org.qinyan.rimoat.ui.components.rememberExpressiveShape
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import org.qinyan.rimoat.i18n.AppStrings
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -9,8 +7,10 @@ import android.content.res.Configuration
 import androidx.core.net.toUri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -25,18 +25,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.ui.components.ActionIconButton
 import org.qinyan.rimoat.ui.components.AppSnackbarHost
+import org.qinyan.rimoat.ui.components.ExpressivePageTopBar
+import org.qinyan.rimoat.ui.components.ExpressiveSegmentedSurface
+import org.qinyan.rimoat.ui.components.ExpressiveShapeTokens
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
 import org.qinyan.rimoat.ui.components.rememberWideLayout
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import kotlinx.coroutines.launch
 
 @Composable
@@ -59,74 +67,141 @@ private fun AboutContent(versionName: String, onBack: () -> Unit, onLicensesClic
     val wide = rememberWideLayout()
     val identityScroll = rememberScrollState()
     val linksScroll = rememberScrollState()
+    val scrollBehavior = if (wide) null else TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    ProvideExpressiveCanvas {
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.let { if (scrollBehavior != null) it.nestedScroll(scrollBehavior.nestedScrollConnection) else it },
+        containerColor = ExpressiveSurface.canvas,
         snackbarHost = { AppSnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.about_title)) },
+            ExpressivePageTopBar(
+                title = stringResource(R.string.about_title),
+                wide = wide,
+                scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back, "返回"))
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                }
             )
         }
     ) { padding ->
         val identity: @Composable () -> Unit = {
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = if (wide) 8.dp else 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = ExpressiveSurface.card,
+                modifier = Modifier
+                    .widthIn(max = 600.dp)
+                    .fillMaxWidth()
+                    .let { if (wide) it else it.padding(horizontal = 16.dp) }
             ) {
-                Image(
-                    painterResource(R.drawable.ic_launcher), contentDescription = null,
-                    modifier = Modifier.size(88.dp).clip(MaterialTheme.shapes.medium)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    stringResource(R.string.about_version, versionName),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = if (wide) 12.dp else 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(if (wide) 6.dp else 8.dp)
+                ) {
+                    Image(
+                        painterResource(R.drawable.ic_launcher), contentDescription = null,
+                        modifier = Modifier.size(if (wide) 68.dp else 88.dp).clip(RoundedCornerShape(if (wide) 18.dp else 22.dp))
+                    )
+                    if (!wide) Spacer(Modifier.height(6.dp))
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainer
+                    ) {
+                        Text(
+                            stringResource(R.string.about_version, versionName),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
+                    }
+                }
             }
         }
         val links: @Composable () -> Unit = {
             val repositoryInteraction = remember { MutableInteractionSource() }
             val licensesInteraction = remember { MutableInteractionSource() }
-            val repositoryShape = rememberExpressiveShape(repositoryInteraction)
-            val licensesShape = rememberExpressiveShape(licensesInteraction)
-            Column(Modifier.widthIn(max = 600.dp).fillMaxWidth()) {
-                ListItem(
-                    modifier = Modifier.clip(repositoryShape).clickable(interactionSource = repositoryInteraction, indication = ripple(), role = Role.Button) {
-                        try {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, repositoryUrl.toUri()))
-                        } catch (_: ActivityNotFoundException) {
-                            scope.launch { snackbar.showSnackbar(unavailableMessage, duration = SnackbarDuration.Short) }
-                        }
-                    },
-                    headlineContent = { Text(stringResource(R.string.about_repository)) },
-                    supportingContent = { Text(repositoryUrl) },
-                    leadingContent = { Icon(Icons.Rounded.Code, contentDescription = null) },
-                    trailingContent = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) }
-                )
-                ListItem(
-                    modifier = Modifier.clip(licensesShape)
-                        .clickable(interactionSource = licensesInteraction, indication = ripple(), role = Role.Button, onClick = onLicensesClick).heightIn(min = 64.dp),
-                    headlineContent = { Text(stringResource(R.string.about_license)) },
-                    leadingContent = { Icon(Icons.Rounded.Description, contentDescription = null) },
-                    trailingContent = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) }
-                )
+            Column(
+                Modifier
+                    .widthIn(max = 600.dp)
+                    .fillMaxWidth()
+                    .let { if (wide) it else it.padding(horizontal = 16.dp) },
+                verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)
+            ) {
+                ExpressiveSegmentedSurface(
+                    index = 0,
+                    count = 2,
+                    interactionSource = repositoryInteraction,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ListItem(
+                        modifier = Modifier.clickable(interactionSource = repositoryInteraction, indication = ripple(), role = Role.Button) {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, repositoryUrl.toUri()))
+                            } catch (_: ActivityNotFoundException) {
+                                scope.launch { snackbar.showSnackbar(unavailableMessage, duration = SnackbarDuration.Short) }
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(stringResource(R.string.about_repository)) },
+                        supportingContent = { Text(repositoryUrl) },
+                        leadingContent = {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.Code, contentDescription = null)
+                                }
+                            }
+                        },
+                        trailingContent = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) }
+                    )
+                }
+                ExpressiveSegmentedSurface(
+                    index = 1,
+                    count = 2,
+                    interactionSource = licensesInteraction,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ListItem(
+                        modifier = Modifier
+                            .clickable(interactionSource = licensesInteraction, indication = ripple(), role = Role.Button, onClick = onLicensesClick)
+                            .heightIn(min = 64.dp),
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(stringResource(R.string.about_license)) },
+                        leadingContent = {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.Description, contentDescription = null)
+                                }
+                            }
+                        },
+                        trailingContent = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) }
+                    )
+                }
             }
         }
         if (wide) TwoPaneLayout(Modifier.fillMaxSize().padding(padding), primaryFraction = .4f,
             primary = { Column(Modifier.fillMaxSize().verticalScroll(identityScroll), horizontalAlignment = Alignment.CenterHorizontally) { identity() } },
             secondary = { Column(Modifier.fillMaxSize().verticalScroll(linksScroll)) { links() } })
-        else Column(Modifier.fillMaxSize().padding(padding).verticalScroll(identityScroll).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        else Column(
+            Modifier.fillMaxSize().padding(padding).verticalScroll(identityScroll).padding(top = 8.dp, bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             identity(); links()
         }
+    }
     }
 }
 

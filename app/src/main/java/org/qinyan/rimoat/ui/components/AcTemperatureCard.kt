@@ -47,9 +47,13 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.ui.HapticHelper
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AcTemperatureCard(
     temperature: Int,
@@ -64,7 +68,12 @@ fun AcTemperatureCard(
     onTogglePower: () -> Unit,
     statusSummary: String? = null,
     unavailableDescriptions: Map<AcAction, String> = emptyMap(),
-    onUnavailable: ((AcAction) -> Unit)? = null
+    onUnavailable: ((AcAction) -> Unit)? = null,
+    modeLabel: String? = null,
+    modeIcon: ImageVector? = null,
+    fanLabel: String? = null,
+    fanIcon: ImageVector? = null,
+    timerLabel: String? = null
 ) {
     SoundEffectOnInteraction(enabled = false) {
     MaterialTheme(motionScheme = MotionScheme.standard()) {
@@ -77,13 +86,27 @@ fun AcTemperatureCard(
     val powerLabel = if (isLearningMode) AppStrings.get(R.string.control_learn_power) else AppStrings.get(if (powerOn) R.string.control_power_off else R.string.control_power_on)
     val powerAction = if (powerOn) AcAction.POWER_OFF else AcAction.POWER_ON
     val fontScale = LocalDensity.current.fontScale
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = ExpressiveSurface.card
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val stackedHeader = maxWidth < (72 + 112 * fontScale).dp
                 val title: @Composable () -> Unit = {
-                Text(if (isDemonstrating) AppStrings.get(R.string.control_simulation_setting, "模拟设定") else AppStrings.get(R.string.control_target_temp, "设定温度"),
-                    style = MaterialTheme.typography.titleMedium)
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isDemonstrating) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = if (isDemonstrating) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                    ) {
+                        Text(
+                            text = if (isDemonstrating) AppStrings.get(R.string.control_simulation_setting, "模拟设定") else AppStrings.get(R.string.control_target_temp, "设定温度"),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
                 }
                 val power: @Composable () -> Unit = {
                 UnavailableAcControl(canTogglePower, powerLabel, unavailableDescriptions[powerAction],
@@ -102,14 +125,14 @@ fun AcTemperatureCard(
                     },
                     enabled = canTogglePower,
                     colors = IconButtonDefaults.filledIconToggleButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        checkedContainerColor = MaterialTheme.colorScheme.error,
-                        checkedContentColor = MaterialTheme.colorScheme.onError),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        checkedContainerColor = MaterialTheme.colorScheme.primary,
+                        checkedContentColor = MaterialTheme.colorScheme.onPrimary),
                     onCheckedChange = { powerHaptic(); onTogglePower() }
                 ) {
                     Icon(if (powerOn) Icons.Rounded.PowerSettingsNew else Icons.Rounded.PowerOff,
-                        contentDescription = null)
+                        contentDescription = null, modifier = Modifier.size(28.dp))
                 }
                 }
                 }
@@ -122,7 +145,6 @@ fun AcTemperatureCard(
                     power()
                 }
             }
-            Spacer(Modifier.height(16.dp))
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val stacked = maxWidth < (144 + 136 * fontScale).dp
                 val decrease: @Composable () -> Unit = {
@@ -171,7 +193,36 @@ fun AcTemperatureCard(
                     decrease(); readout(); increase()
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            val statusChips = buildList {
+                if (!modeLabel.isNullOrBlank()) add(Triple(modeIcon, modeLabel, false))
+                if (!fanLabel.isNullOrBlank()) add(Triple(fanIcon, fanLabel, false))
+                if (!timerLabel.isNullOrBlank()) add(Triple(null, timerLabel, true))
+            }
+            if (statusChips.isNotEmpty()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().clearAndSetSemantics {},
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    statusChips.forEach { (chipIcon, chipLabel, highlighted) ->
+                        Surface(
+                            shape = CircleShape,
+                            color = if (highlighted) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+                            contentColor = if (highlighted) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                chipIcon?.let { Icon(it, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                Text(chipLabel, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     }

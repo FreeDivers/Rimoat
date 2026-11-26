@@ -12,8 +12,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -25,6 +27,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -32,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.motion.*
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 
@@ -74,6 +80,8 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
     val motion = AppMotion.current
     val page = RoomPage(currentRoom, assigning)
     fun back() { if (assigning) assigning = false else if (wide) onBack() else if (selected != null) selected = null else onBack() }
+    val allRooms = rooms + ""
+    ProvideExpressiveCanvas {
     MotionContent(page, contentKey = { if (wide) "wide:${it.assigning}" else "${it.room != null}:${it.assigning}" },
         isBack = { from, to -> to.room == null || (from.assigning && !to.assigning) },
         backTarget = if (assigning) RoomPage(currentRoom) else if (!wide && selected != null) RoomPage(null) else null,
@@ -82,33 +90,54 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
         val memberListState = if (destination.assigning) assignmentScroll else membersScroll
         val room = destination.room
         val members = remotes.filter { it.room == room }
-        Scaffold(topBar = {
-            TopAppBar(title = { Text(if (destination.assigning) AppStrings.get(R.string.screen_assign_remotes, "分配遥控器") else room?.ifBlank { AppStrings.get(R.string.screen_unassigned, "未分配") } ?: AppStrings.get(R.string.screen_manage_rooms, "房间管理"),
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
-                navigationIcon = { ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), ::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back, "返回")) } },
-                actions = {
-                    if (!wide && room == null) ActionIconButton(AppStrings.get(R.string.screen_new_room, "新建房间"), { oldName = null; name = ""; edit = true }) {
-                        Icon(Icons.Rounded.Add, AppStrings.get(R.string.screen_new_room, "新建房间"))
+        val isRoomListRoot = !wide && room == null
+        val scrollBehavior = if (isRoomListRoot) TopAppBarDefaults.exitUntilCollapsedScrollBehavior() else null
+        Scaffold(
+            modifier = if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier,
+            containerColor = ExpressiveSurface.canvas,
+            topBar = {
+                val titleText = if (destination.assigning) AppStrings.get(R.string.screen_assign_remotes, "分配遥控器")
+                    else room?.ifBlank { AppStrings.get(R.string.screen_unassigned, "未分配") }
+                    ?: AppStrings.get(R.string.screen_manage_rooms, "房间管理")
+                ExpressivePageTopBar(
+                    title = titleText,
+                    wide = !isRoomListRoot,
+                    scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), ::back) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back, "返回"))
+                        }
+                    },
+                    actions = {
+                        if (!wide && room == null) ActionIconButton(AppStrings.get(R.string.screen_new_room, "新建房间"), { oldName = null; name = ""; edit = true }) {
+                            Icon(Icons.Rounded.Add, AppStrings.get(R.string.screen_new_room, "新建房间"))
+                        }
                     }
-                })
-        }, bottomBar = {
-            if (!wide && room != null && room.isNotBlank()) HorizontalFloatingToolbar(
-                expanded = true,
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                Button(onClick = { assigning = !destination.assigning },
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    shapes = ButtonDefaults.shapes()
+                )
+            },
+            bottomBar = {
+                if (!wide && room != null && room.isNotBlank()) Surface(
+                    color = ExpressiveSurface.canvas,
+                    tonalElevation = 2.dp
                 ) {
-                    Text(if (destination.assigning) AppStrings.get(R.string.screen_done, "完成") else AppStrings.get(R.string.screen_assign_remotes, "分配遥控器"))
+                    Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
+                        Button(
+                            onClick = { assigning = !destination.assigning },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                            shapes = ButtonDefaults.shapes()
+                        ) {
+                            Text(if (destination.assigning) AppStrings.get(R.string.screen_done, "完成") else AppStrings.get(R.string.screen_assign_remotes, "分配遥控器"))
+                        }
+                    }
                 }
-            }
-        }, snackbarHost = { AppSnackbarHost(snackbar) }) { padding ->
+            },
+            snackbarHost = { AppSnackbarHost(snackbar) }
+        ) { padding ->
             val roomItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
                     if (wide && !destination.assigning) item(key = "new_room") {
-                        OutlinedButton(
+                        FilledTonalButton(
                             onClick = { oldName = null; name = ""; edit = true },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp).heightIn(min = 48.dp),
                             shapes = ButtonDefaults.shapes()
                         ) {
                             Icon(Icons.Rounded.Add, null, Modifier.size(20.dp))
@@ -116,79 +145,165 @@ fun RoomManagementScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
                             Text(AppStrings.get(R.string.screen_new_room, "新建房间"))
                         }
                     }
-                    items(rooms + "", key = { "room_$it" }) { item ->
+                    itemsIndexed(allRooms, key = { _, item -> "room_$item" }) { index, item ->
                         val interactionSource = remember { MutableInteractionSource() }
-                        val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
                         val count = remotes.count { it.room == item }
                         val isSelected = wide && item == room
-                        val color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
-                        Card(onClick = { selected = item; assigning = false }, shape = shape, interactionSource = interactionSource, colors = CardDefaults.cardColors(containerColor = color), modifier = Modifier.fillMaxWidth().semantics { this.selected = isSelected }.animateItem(
-                            fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(), fadeOutSpec = motion.fastEffectsSpec())) {
-                            ListItem(headlineContent = { Text(item.ifBlank { AppStrings.get(R.string.screen_unassigned, "未分配") }, style = MaterialTheme.typography.titleMedium) },
+                        val color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else ExpressiveSurface.card
+                        ExpressiveSegmentedSurface(
+                            index = index,
+                            count = allRooms.size,
+                            interactionSource = interactionSource,
+                            containerColor = color,
+                            modifier = Modifier.fillMaxWidth().animateItem(
+                                fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(), fadeOutSpec = motion.fastEffectsSpec()
+                            )
+                        ) {
+                            ListItem(
+                                headlineContent = { Text(item.ifBlank { AppStrings.get(R.string.screen_unassigned, "未分配") }, style = MaterialTheme.typography.titleMedium) },
                                 supportingContent = { Text(AppStrings.get(R.string.screen_remote_count, "%1\$d 个遥控器", count)) },
-                                leadingContent = { Icon(if (item.isBlank()) Icons.Rounded.DevicesOther else Icons.Rounded.MeetingRoom, null) },
+                                leadingContent = {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceContainer,
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(if (item.isBlank()) Icons.Rounded.DevicesOther else Icons.Rounded.MeetingRoom, null)
+                                        }
+                                    }
+                                },
                                 trailingContent = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
-                                colors = ListItemDefaults.colors(containerColor = color),
-                                modifier = Modifier.padding(vertical = 8.dp))
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .semantics { this.selected = isSelected }
+                                    .clickable(interactionSource = interactionSource, indication = ripple(), role = Role.Button) {
+                                        selected = item; assigning = false
+                                    }
+                                    .padding(vertical = 6.dp)
+                            )
                         }
                     }
             }
             val detailItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
                 if (room != null && destination.assigning) {
-                    item { Text(room, style = MaterialTheme.typography.titleMedium) }
+                    item {
+                        Text(room, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 10.dp))
+                    }
                     if (remotes.isEmpty()) item(key = "assign_empty") {
                         Text(AppStrings.get(R.string.screen_no_remotes, "暂无遥控器"), color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.animateItem(fadeInSpec = motion.defaultEffectsSpec(), placementSpec = null, fadeOutSpec = motion.fastEffectsSpec()))
                     }
-                    items(remotes, key = { it.id }) { remote ->
+                    itemsIndexed(remotes, key = { _, remote -> remote.id }) { index, remote ->
                         val interactionSource = remember { MutableInteractionSource() }
-                        val shape = rememberExpressiveShape(interactionSource)
                         val checked = remote.room == room
-                        ListItem(headlineContent = { Text(remote.name) }, supportingContent = { Text(remote.room.ifBlank { AppStrings.get(R.string.screen_unassigned, "未分配") }) },
-                            leadingContent = { Icon(getCategoryIcon(remote), null) }, trailingContent = { Checkbox(checked, null) },
-                            modifier = Modifier.clip(shape).toggleable(checked, interactionSource = interactionSource,
-                                indication = ripple(), role = Role.Checkbox) { viewModel.moveToRoom(remote.id, if (it) room else "") })
+                        ExpressiveSegmentedSurface(
+                            index = index,
+                            count = remotes.size,
+                            interactionSource = interactionSource,
+                            containerColor = if (checked) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f) else ExpressiveSurface.card,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            ListItem(
+                                headlineContent = { Text(remote.name) },
+                                supportingContent = { Text(remote.room.ifBlank { AppStrings.get(R.string.screen_unassigned, "未分配") }) },
+                                leadingContent = {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceContainer,
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(getCategoryIcon(remote), null)
+                                        }
+                                    }
+                                },
+                                trailingContent = { Checkbox(checked, null) },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier.toggleable(checked, interactionSource = interactionSource,
+                                    indication = ripple(), role = Role.Checkbox) { viewModel.moveToRoom(remote.id, if (it) room else "") }
+                            )
+                        }
                     }
                 } else if (room != null) {
                     if (room.isNotBlank()) item {
-                        FlowRow(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { oldName = room; name = room; edit = true }, shapes = ButtonDefaults.shapes()) {
-                                Icon(Icons.Rounded.Edit, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text(AppStrings.get(R.string.screen_rename, "重命名"))
-                            }
-                            TextButton(onClick = { removing = room }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
-                                Icon(Icons.Rounded.DeleteOutline, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text(AppStrings.get(R.string.screen_remove_room, "移除房间"))
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = ExpressiveSurface.card,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+                        ) {
+                            FlowRow(
+                                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilledTonalButton(onClick = { oldName = room; name = room; edit = true }, shapes = ButtonDefaults.shapes()) {
+                                    Icon(Icons.Rounded.Edit, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text(AppStrings.get(R.string.screen_rename, "重命名"))
+                                }
+                                TextButton(onClick = { removing = room }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
+                                    Icon(Icons.Rounded.DeleteOutline, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text(AppStrings.get(R.string.screen_remove_room, "移除房间"))
+                                }
                             }
                         }
                     }
-                    item { Text(AppStrings.get(R.string.screen_remote, "遥控器"), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    item {
+                        Text(AppStrings.get(R.string.screen_remote, "遥控器"), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
+                    }
                     if (members.isEmpty()) item(key = "room_empty") {
                         Text(AppStrings.get(R.string.screen_no_remotes, "暂无遥控器"),
                             modifier = Modifier.animateItem(fadeInSpec = motion.defaultEffectsSpec(), placementSpec = null, fadeOutSpec = motion.fastEffectsSpec()).padding(vertical = 20.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    items(members, key = { it.id }) { remote ->
-                        ListItem(headlineContent = { Text(remote.name) }, leadingContent = { Icon(getCategoryIcon(remote), null) },
-                            trailingContent = { ActionIconButton(AppStrings.get(R.string.screen_move_name, "移动%1\$s", remote.name), { movingRemote = remote.id }) { Icon(Icons.AutoMirrored.Rounded.DriveFileMove, AppStrings.get(R.string.screen_move_name, "移动%1\$s", remote.name)) } },
-                            modifier = Modifier.animateItem(fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(), fadeOutSpec = motion.fastEffectsSpec()))
+                    itemsIndexed(members, key = { _, remote -> remote.id }) { index, remote ->
+                        ExpressiveSegmentedSurface(
+                            index = index,
+                            count = members.size,
+                            modifier = Modifier.fillMaxWidth().animateItem(
+                                fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(), fadeOutSpec = motion.fastEffectsSpec()
+                            )
+                        ) {
+                            ListItem(
+                                headlineContent = { Text(remote.name) },
+                                leadingContent = {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainer,
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(getCategoryIcon(remote), null)
+                                        }
+                                    }
+                                },
+                                trailingContent = {
+                                    ActionIconButton(AppStrings.get(R.string.screen_move_name, "移动%1\$s", remote.name), { movingRemote = remote.id }) {
+                                        Icon(Icons.AutoMirrored.Rounded.DriveFileMove, AppStrings.get(R.string.screen_move_name, "移动%1\$s", remote.name))
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                            )
+                        }
                     }
                 }
                 if (wide && !room.isNullOrBlank()) item(key = "assign_action") {
-                    Button(onClick = { assigning = !destination.assigning }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shapes = ButtonDefaults.shapes()) {
+                    Button(onClick = { assigning = !destination.assigning }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp).heightIn(min = 48.dp), shapes = ButtonDefaults.shapes()) {
                         Text(AppStrings.get(if (destination.assigning) R.string.screen_done else R.string.screen_assign_remotes, if (destination.assigning) "完成" else "分配遥控器"))
                     }
                 }
             }
             if (wide) TwoPaneLayout(Modifier.fillMaxSize().padding(padding), primaryFraction = .4f, primaryMaxWidth = 320.dp,
                 primary = {
-                    LazyColumn(Modifier.fillMaxSize(), state = roomListState, verticalArrangement = Arrangement.spacedBy(12.dp), content = roomItems)
+                    LazyColumn(Modifier.fillMaxSize(), state = roomListState, verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap), content = roomItems)
                 }, secondary = {
-                    LazyColumn(Modifier.fillMaxSize(), state = memberListState, verticalArrangement = Arrangement.spacedBy(12.dp), content = detailItems)
+                    LazyColumn(Modifier.fillMaxSize(), state = memberListState, verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap), content = detailItems)
                 })
             else LazyColumn(Modifier.padding(padding).contentWidth().fillMaxHeight(), state = if (room == null) roomListState else memberListState,
-                contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)) {
                 if (room == null) roomItems() else detailItems()
             }
         }
+    }
     }
     if (active && edit) MotionAlertDialog(onDismissRequest = { edit = false }, title = { Text(if (oldName == null) AppStrings.get(R.string.screen_add_room, "添加房间") else AppStrings.get(R.string.screen_rename_room, "重命名房间")) },
         text = { Column { OutlinedTextField(name, { name = it.take(60) }, label = { Text(AppStrings.get(R.string.screen_room_name, "房间名称")) }, singleLine = true); displayedError?.let { Text(it, color = MaterialTheme.colorScheme.error) } } },

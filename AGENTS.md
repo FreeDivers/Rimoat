@@ -109,8 +109,8 @@ UI 层与小组件层不得感知红外信号由内置红外、USB 外设、串�
 8. **语言切换与验收**：保持默认资源与已支持语言键和占位符一致，不得静态永久缓存译文；日常多语言界面使用第一顺位配置语言、字号和主题进行本地验收，涉及系统能力或最终全链路验收时才按第二顺位检查设备，未运行的检查不得记为通过。
 9. **语言资源目录**：当前使用完整英语默认资源 `values/`，并维护简体中文 `values-zh/`、繁体中文 `values-b+zh+Hant/`、英语 `values-en/`、日语 `values-ja/`；默认与显式英语资源保持一致。需要地区限定时使用 `values-en-rUS`、`values-zh-rTW` 等格式，地区前的小写 `r` 不可省略；BCP 47 格式如 `values-b+en+US`、`values-b+zh+Hant` 也可使用，不得写成 `values-en-US` / `values-zh-TW`。语言标签（如 `zh-CN`）与资源目录限定符不是同一语法；语言列表、Manifest 的 `localeConfig` 与 `res/xml/locales_config.xml` 应保持一致。新增地区变体仍须保留完整默认资源，仅在构建时校验。
 10. **ViewModel 文案状态**：不得仅为读取字符串向 ViewModel 注入或保存 Activity、View 或其 Context。新增或重构的提示/错误状态使用 `UiText` 密封类型或等价结构，携带 `@StringRes` 资源 ID、格式参数，复数另携带 `@PluralsRes` ID 和数量，在 Compose/Glance 展示边界按当前应用语言解析；`DynamicString` 仅用于用户输入或确实动态的外部文本，不能绕过应用文案资源化。底层返回稳定错误类型，由展示层映射资源，不根据中文或译文的前缀判断错误类型。Application Context 不等同于 Activity 泄漏，但已有 `AppStrings` 全局读取不能成为在 ViewModel 中缓存已翻译文案的理由；相关本地测试按第 0 节第一顺位编写和运行，回退仍遵循第 1 条。
-11. **应用语言 API 与迁移边界**：跨版本手动语言切换优先统一到 AndroidX `AppCompatDelegate.setApplicationLocales(LocaleListCompat)`，结合现有 `locales_config.xml`；接入时同步处理 `MainActivity`、Widget 配置 Activity 的 `AppCompatActivity` 宿主与主题兼容、Android 12 及以下的语言持久化，以及既有语言偏好的迁移，不能只加入一次 API 调用。Android 13+ 的 `LocaleManager` 也是官方 API，不将它误判为过时方案；系统设置与应用内选择必须共享同一语言来源。当前 `AppLanguage` 自管的旧版 `attachBaseContext` / `createConfigurationContext` 路径属于迁移范围，不再复制扩散，也不使用 `Resources.updateConfiguration()` 或仅修改 `Locale.setDefault()` 代替应用语言 API。Widget/后台的非 Activity Context 资源解析需单独适配，不能假定旧版 Application Context 自动继承 AppCompat 语言。迁移前核对依赖，完成后覆盖新旧 API、切回跟随系统及 Launcher 小组件刷新；本规则不表示迁移已完成。
-12. **日期、时长与数字**：回收站时间、定时预计开关机时间和数字按当前应用资源配置的 Locale 格式化，不直接假定 `Locale.getDefault()` 等于应用内选择。日期/时间采用本地化格式器，时钟遵循系统 12/24 小时偏好，并明确使用的时区；格式化结果可作为 `%1$s` 等参数插入完整句子资源。定时时长是持续时间，不当作日期处理，使用本地化单位及必要的复数资源。项目最低 API 为 24，采用 `java.time.DateTimeFormatter` 前必须核对核心库脱糖支持，否则使用兼容的 Android/Java 日期 API；不能仅因编译 JDK 较新就假定低版本设备支持。数字使用 `NumberFormat` 等合适的本地化格式器；今后若出现金额，明确币种后再格式化，语言切换不得改变币种。协议数值、JSON、稳定 ID 与机器日志仍使用既定机器格式，不把本地化展示字符串写回存储或编码器。
+11. **应用语言 API 与迁移边界**：跨版本手动语言切换优先统一到 AndroidX `AppCompatDelegate.setApplicationLocales(LocaleListCompat)` 与 `locales_config.xml`，同步处理 `MainActivity`、`WidgetConfigurationActivity` 的 `AppCompatActivity` 宿主与主题兼容、Android 12 及以下持久化与旧偏好迁移；Android 13+ `LocaleManager` 与应用内选择须共享同一语言来源。当前 `AppLanguage` 自管的 `attachBaseContext` / `createConfigurationContext` 路径属于迁移范围，不再复制扩散，也不得用 `Resources.updateConfiguration()` 或仅改 `Locale.setDefault()` 替代。Widget 与后台的非 Activity Context 需单独适配，迁移完成后须覆盖新旧 API、跟随系统及小组件刷新。
+12. **日期、时长与数字**：回收站时间、定时预计开关机时间和数字按当前应用资源 Locale 格式化，不假定 `Locale.getDefault()` 等于应用内选择。日期/时间采用本地化格式器并遵循系统 12/24 小时制与明确时区；定时时长按持续时间处理（搭配本地化单位与复数）。最低 API 为 24，使用 `java.time.DateTimeFormatter` 前需核对核心库脱糖支持，否则用兼容 API。数字使用 `NumberFormat`；协议数值、JSON、稳定 ID 与机器日志保持机器格式，不写回本地化展示文本。
 
 ## 6. Android 开发与验证
 
@@ -125,12 +125,12 @@ UI 层与小组件层不得感知红外信号由内置红外、USB 外设、串�
 
 ## 7. 设计规范
 
-- 界面视觉、配色、字体、间距、组件样式、动效与交互设计统一以 [DESIGN.md](DESIGN.md) 与 `ui/theme/`（`Color.kt`、`Shape.kt`、`Spacing.kt`、`Theme.kt`、`Type.kt`）为准；涉及 UI 设计或修改时，先阅读并遵循 [DESIGN.md](DESIGN.md)。
-- 应用设计系统为 MD3E：主题使用 `MaterialExpressiveTheme` 和 `MotionScheme.expressive()`；新增 UI 优先使用 MD3E 组件，动效从 `MaterialTheme.motionScheme`（或 `AppMotion.current`）读取弹簧参数，不另建固定时长体系。密集遥控区可局部使用 `MotionScheme.standard()` 降低弹跳，保持触控位置与命令次数稳定。
-- 模式、风速、挡位和筛选优先使用 `ButtonGroup` / `ToggleButton`，明确保留选择与无障碍语义；合适的操作区使用 `HorizontalFloatingToolbar`，多动作入口按场景评估 `FloatingActionButtonMenu` / `SplitButtonLayout`。加载使用 `LoadingIndicator` / `ContainedLoadingIndicator` / `LinearWavyProgressIndicator`，真实倒计时与确定进度不得用装饰动画代替。窄屏、大字号和长译文允许换行、滚动或纵向布局。
-- 涉及 MD3E 组件、Jetpack Compose / Glance 或 Android 系统 API 时，优先查阅 Android Developers 官方文档（`https://developer.android.com`）与 Material Design 3 官方规范（`https://m3.material.io/components`），并结合当前工程依赖版本核实 API 与默认令牌行为。
-- Compose 圆角遵循项目 Material 3 版本的组件默认形状和 `Shapes()` 主题令牌；支持形变的按钮优先使用组件 `shapes` 参数及官方默认值。自定义遥控按键使用主题弹簧驱动轻微按压形变，不缩小触控目标，不改变按键布局、连按和发射逻辑；不设全应用统一半径或覆盖标准组件绘制。小组件外框仍遵循系统 Host。
-- 完整保留 Material You 动态取色与 `pureBlackBackground`：AMOLED 纯黑只覆盖既定基础表面，容器对比度与动态色来源保持现有逻辑。UI 迁移和样式调整不得改动 ViewModel 业务逻辑、红外发射或外设通信，也不得顺带修改 `cpp/`、`hardware/`。普通 App UI 任务不顺带改动 `widget/`；明确的小组件任务遵循第 8 节。
+- 界面视觉、配色、字体、间距、组件样式、动效与交互细节以 [DESIGN.md](DESIGN.md) 与 `ui/theme/`（`Color.kt`、`Shape.kt`、`Spacing.kt`、`Theme.kt`、`Type.kt`）为准；修改 UI 前须先对照 [DESIGN.md](DESIGN.md)。
+- 应用采用 MD3E：主题使用 `MaterialExpressiveTheme` 与 `MotionScheme.expressive()`，动效从 `MaterialTheme.motionScheme`（或 `AppMotion.current`）读取弹簧参数，不另建固定时长体系；密集遥控区局部使用 `MotionScheme.standard()` 降低弹跳，保持触控稳定。
+- 全屏页面通过 `ProvideExpressiveCanvas` 与 `ExpressiveSurface` 维持浅绿画布/纯白卡片（深色为深灰画布/低容器卡片）层级，不套硬边 `1dp` 描边。顶栏按页面角色选用 `ExpressivePageTopBar`（竖屏 `MediumFlexibleTopAppBar` / 横屏紧凑 `TopAppBar`）或 `ExpressiveCompactTopBar`；双页切换使用 `ExpressivePageSwitcher`。
+- 短筛选与定时预设使用 `ToggleButton`，全宽单选列表使用 `ExpressiveSingleChoiceRow` 并保留 `Role.RadioButton` / `selected` 语义；单功能或窄屏底部直接放置胶囊按钮，不额外套用外层 `HorizontalFloatingToolbar`；多动作入口按场景评估 `FloatingActionButtonMenu` / `SplitButtonLayout`。加载使用 `LoadingIndicator` / `ContainedLoadingIndicator` / `LinearWavyProgressIndicator`，真倒计时与确定进度不使用装饰动画。窄屏、大字号与长译文通过换行、滚动或纵向布局适配。
+- 涉及 MD3E 组件、Compose / Glance 或系统 API 时，优先查阅 Android Developers 官方文档（`https://developer.android.com`）与 Material Design 3 规范（`https://m3.material.io/components`），并结合当前工程依赖版本核实默认令牌与行为。
+- 完整保留 Material You 动态取色与 `pureBlackBackground`（AMOLED 纯黑仅覆盖既定基础表面，小组件边界见第 8 节）。UI 调整不得改动 ViewModel 业务逻辑、`hardware/`、`cpp/`，普通 App UI 任务不顺带修改 `widget/`。
 
 ## 8. 桌面小组件工程边界
 

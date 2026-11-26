@@ -9,12 +9,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -24,6 +27,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -72,8 +76,19 @@ fun DpadController(
 ) {
     SoundEffectOnInteraction(enabled = false) {
     MaterialTheme(motionScheme = MotionScheme.standard()) {
-    Surface(modifier = modifier.size(size.coerceAtLeast(216.dp)).semantics { isTraversalGroup = true }, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainer) {
-        Box(Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
+    Surface(
+        modifier = modifier.size(size.coerceAtLeast(196.dp)).semantics { isTraversalGroup = true },
+        shape = CircleShape,
+        color = ExpressiveSurface.card
+    ) {
+        Box(
+            Modifier
+                .padding(10.dp)
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.65f), CircleShape)
+                .padding(4.dp),
+            contentAlignment = Alignment.Center
+        ) {
             listOf(
                 Triple("上", Alignment.TopCenter, onUp), Triple("下", Alignment.BottomCenter, onDown),
                 Triple("左", androidx.compose.ui.AbsoluteAlignment.CenterLeft, onLeft), Triple("右", androidx.compose.ui.AbsoluteAlignment.CenterRight, onRight),
@@ -117,8 +132,8 @@ private fun DpadKey(
     val interactionSource = remember { MutableInteractionSource() }
     val pressShape = rememberExpressiveShape(
         interactionSource,
-        if (label == "OK") MaterialTheme.shapes.medium else CircleShape,
-        if (label == "OK") RoundedCornerShape(16.dp) else RoundedCornerShape(40)
+        CircleShape,
+        if (label == "OK") RoundedCornerShape(20.dp) else RoundedCornerShape(40)
     )
     val clickHaptic = org.qinyan.rimoat.ui.rememberPressHaptic(interactionSource, enabled, isLearningMode)
     val pressed by interactionSource.collectIsPressedAsState()

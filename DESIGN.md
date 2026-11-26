@@ -19,8 +19,8 @@
 - **Primary Container：** `#e1eecf`（选中项与激活状态的柔和浅绿容器填充）
 - **On-Primary Container：** `#284508`（主色容器内的深林绿文字与图标）
 - **Secondary & Tertiary：** `#555d50`（`secondaryContainer = #e8ebe5`）、`#4d635b`（`tertiaryContainer = #dfebe4`）
-- **Background & Surface：** `#ffffff`（基础背景）、`#f8f9f7`（`surfaceContainerLow`）、`#f2f4f0`（`surfaceContainer`）、`#ecefe9`（`surfaceContainerHigh`）、`#e6e9e3`（`surfaceContainerHighest`）
-- **Border / Outline：** `#747873`（`outline`）、`#dee1db`（`outlineVariant`）
+- **Background & Surface：** `#ffffff`（基础表面）、`#f6f8f3`（`surfaceContainerLow`）、`#eef2e8`（`surfaceContainer`，全屏浅绿画布底色）、`#e4e9dd`（`surfaceContainerHigh`）、`#dbe1d3`（`surfaceContainerHighest`）；`surfaceContainerLowest`（`#ffffff`）作为浅色画布上的纯净卡片表面
+- **Border / Outline：** `#747873`（`outline`）、`#d5dbd0`（`outlineVariant`）
 - **Text (Primary)：** `#1f1f1f`（`onBackground` / `onSurface`）
 - **Text (Muted)：** `#444746`（`onSurfaceVariant`，用于次级标签与当前设置项取值）
 
@@ -29,10 +29,14 @@
 - **On-Primary：** `#203600`
 - **Primary Container：** `#314a1a`（`onPrimaryContainer = #d3edb5`）
 - **Secondary & Tertiary：** `#c2c8ba`（`secondaryContainer = #3c4337`）、`#b3cfc0`（`tertiaryContainer = #354c40`）
-- **Background & Surface：** `#121412`（深色基础画布）、`#1a1d18`（`surfaceContainerLow`）、`#20231e`（`surfaceContainer`）、`#292d26`（`surfaceContainerHigh`）、`#343830`（`surfaceContainerHighest`）
+- **Background & Surface：** `#121412`（深色基础画布，AMOLED 纯黑模式为 `#000000`）、`#0e100d`（`surfaceContainerLowest`）、`#1b1f19`（`surfaceContainerLow`，深色画布卡片表面）、`#21261f`（`surfaceContainer`）、`#2b3128`（`surfaceContainerHigh`）、`#353b31`（`surfaceContainerHighest`）
 - **Border / Outline：** `#8d9387`（`outline`）、`#363b33`（`outlineVariant`）
 - **Text (Primary)：** `#e4e6e1`（`onBackground` / `onSurface`）
 - **Text (Muted)：** `#c0c5bb`（`onSurfaceVariant`）
+
+### 全屏画布与分段容器层次（`ExpressiveSurface`）
+- **显式画布注入：** 全屏页面由 `ProvideExpressiveCanvas` 与 `Scaffold(containerColor = ExpressiveSurface.canvas)`、`MotionContent` 共同维护连贯画布——浅色使用鼠尾草绿调 `surfaceContainer`（`#eef2e8`）衬托纯白 `surfaceContainerLowest`（`#ffffff`）卡片；深色使用 `#121412`（或 AMOLED `#000000`）衬托 `surfaceContainerLow`（`#1b1f19`）卡片，依靠色调对比区分层级，不在分组外再套硬边 `1dp` 边框。
+- **卡片内部徽章与独立宿主回退：** 白色卡片内部的功能图标底徽使用 `surfaceContainer` 保持可见对比；脱离 `ProvideExpressiveCanvas` 的独立组件或测试容器自动回退为 `surfaceContainerLow` 卡片底色，防止白底上出现白卡。
 
 ### 功能与语义强调色
 - **电源红（`AccentPower`）：** `#d32f2f`（电源按键专用强调色）
@@ -58,14 +62,16 @@
 - **官方组件优先：** 使用当前工程 Material 3 版本的 Expressive API，不手绘标准按钮、单选控件或进度条。`Card`、`ListItem`、`SearchBar`、`Slider`、`Switch`、`Checkbox`、`DropdownMenu`、`ModalBottomSheet` 和页签等继续按其任务语义使用，不为统一外形改变交互含义。
 - **形状令牌：** 保留 `Shapes()` 的组件默认角色：`extraSmall`（4dp）、`small`（8dp）、`medium`（12dp）、`large`（16dp）、`extraLarge`（28dp）。这些是静止状态的通用令牌，不能据此覆盖所有官方组件为同一圆角。按钮组、切换按钮和浮动工具栏使用各自的官方形状与按压行为。
 - **标准按钮形变：** `Button`、`FilledTonalButton`、`OutlinedButton`、`TextButton` 等使用 `ButtonDefaults.shapes()`；图标按钮使用 `IconButtonDefaults.shapes()`，图标切换按钮使用 `toggleableShapes()`。新增代码优先选择 `shapes` 重载，并用命名参数传入 `modifier`，避免仍落入静态 `shape` 重载。
-- **自定义可点击容器：** 遥控器卡片、品牌行、设置行、房间与编辑预览共用 `MutableInteractionSource`，使用 `rememberExpressiveShape` 在当前形状与按压形状之间过渡。只改变轮廓和视觉反馈，不改变布局占位、焦点顺序或点击区域。不可点击的容器保持静态。
+- **自定义可点击容器与分段列表（`ExpressiveContainers`）：** 遥控器卡片、品牌行、设置行、房间、回收站、关于链接与开源库列表通过 `ExpressiveSegmentedSurface` 与 `rememberSegmentedExpressiveShape` 统一管理圆角（组首尾外侧 `20dp`、相邻内侧 `4dp`、条目间距 `2dp`）与按压形变；形变只改变轮廓和视觉反馈，不改变布局占位、焦点顺序或点击区域。不可点击容器保持静态。
+- **顶栏与双页切换角色：** 浏览与管理类页面（首页、分类、设置、房间管理、回收站、关于、开源许可列表）在竖屏使用可折叠 `MediumFlexibleTopAppBar`（`ExpressivePageTopBar`），横屏双栏窗口自动切换为紧凑 `TopAppBar` 以节省纵向空间；遥控面板、布局编辑、品牌筛选、对码与学习工作区使用单行紧凑 `ExpressiveCompactTopBar`。双页内容切换采用居中动画胶囊轨道 `ExpressivePageSwitcher`（高 `52dp`）。
 
 | 场景 | 首选组件与使用规则 |
 |---|---|
-| 分类、模式、风速、挡位、定时预设与单选列表 | `ToggleButton`；关联短选项可放入 `ButtonGroup` 获得分组按压扩张。单选容器声明 `selectableGroup()`，选项保留 `selected` 与 `Role.RadioButton`；实际选择状态由页面状态驱动，重复点选不得产生第二份状态。 |
-| 同一任务的并列动作 | `ButtonGroup`；按钮按真实可用状态启用。较长标签采用换行、自适应列或官方溢出菜单，不能挤压到无法辨认。溢出项保留原名称、回调和禁用状态。 |
-| 页面底部主操作与相邻辅助操作 | `HorizontalFloatingToolbar`；通过实际译文宽度与可用空间决定布局。窄屏或大字时切换为纵向容器，完整保留按钮文字和热区，不强制单行。 |
-| 多个相关悬浮快捷操作 | 评估 `FloatingActionButtonMenu`；只有单个“添加”动作时保留普通 FAB，不额外制造菜单层级。 |
+| 短筛选、定时预设 | `ToggleButton`（首页分类、定时预设使用统一胶囊形状与 `selected` 语义）；选中状态由页面状态驱动，重复点选不产生第二份状态。 |
+| 全宽单选列表（通道、串口模块等） | `ExpressiveSingleChoiceRow`（分段卡片、圆形图标底徽与右侧选中标志）；保留 `Role.RadioButton` 与 `selected` 合并语义，避免全宽条目按胶囊翻方导致比例失调。 |
+| 同一任务的并列确认动作 | 在容器内依据实测译文宽度切换横向并排 `Row` 或纵向堆叠 `Column`（如对码确认“无响应 / 有响应”通过 `BoxWithConstraints` 自适应），不使用溢出菜单折叠隐藏。 |
+| 页面底部单一或简单动作栏 | 在锚定底部表面、卡片或弹窗底部内直接放置 `Button`、`FilledTonalButton` 或 `OutlinedButton`，不为单个主按钮或窄屏操作额外嵌套外层 `HorizontalFloatingToolbar`。 |
+| 多个相关悬浮快捷操作 | 评估 `FloatingActionButtonMenu`；首页单一“添加”入口保留单一胶囊 `ExtendedFloatingActionButton`（窄屏按空间自适应），不额外增加菜单层级。 |
 | 一个主动作及其同一任务的替代操作 | 评估 `SplitButtonLayout`；前提是主次关系明确。测试发射与保存、恢复与永久删除等含义不同的操作继续独立呈现。 |
 | 不确定耗时的加载、恢复或发送等待 | `LoadingIndicator`；需要独立容器强调时使用 `ContainedLoadingIndicator`。仅在真实忙碌状态显示，结束即移除。 |
 | 下载进度、已学习数量或外设配置加载 | `LinearWavyProgressIndicator`；已知进度绑定真实数值，未知进度使用不确定模式。静态完成比例关闭波浪平移，不模拟任务前进。 |
@@ -75,11 +81,12 @@
 
 ## 5. 间距与布局
 
-- **基准单位：** `4dp`（`2dp` 仅限组件内部微对齐使用）
-- **间距阶梯：** `[4, 8, 12, 16, 20, 24dp]`
-  - `4–8dp`：图标与文字间距、相邻可交互目标的最小间距（`>= 8dp`）
-  - `12–16dp`：标准卡片与容器内边距、表单参数间距（`12dp`）、数字键盘横向间距（`16dp`）
-  - `20–24dp`：分组间距与对话框内容内边距
+- **基准单位与分段间距：** 以 `4dp` 为基准单位；分段列表项之间统一使用 `2dp`（`ExpressiveShapeTokens.SegmentedGap`）制造清晰的组内微切分感。
+- **间距阶梯：** `[2, 4, 8, 12, 16, 20, 24dp]`
+  - `2dp`：分段容器组内相邻卡片间隔（`SegmentedGap`）
+  - `4–8dp`：图标与文字间距、相邻可交互圆键的最小间距（`>= 8dp`）
+  - `12–16dp`：卡片内容内边距、表单参数间距（`12dp`）、数字键盘横向间距（`16dp`）
+  - `20–24dp`：分组段落间距、卡片外圆角令牌与弹窗内边距
 - **响应式适配（视口断点 `320dp`、`480dp`、`569dp`）：** 网格与操作行通过测量实际本地化文本宽度（`TextMeasurer` + `BoxWithConstraints`），在窄屏或 `200%` 大字号下自动在 `1`、`2`、`3` 列之间切换，避免短标签逐字折行。
 - **横屏与宽窗口布局（`width >= 480dp && width > height * 1.2`）：** 使用扣除系统安全区域、不受输入法遮挡影响的窗口尺寸判断。按任务组织双栏：主控与扩展、筛选与结果、列表与详情、预览与编辑分别并排，两栏独立滚动。`480–599dp` 外边距与栏间距使用 `8dp`，更宽窗口使用 `16dp`，列表侧栏按内容分配并限制可读宽度。保持既有遥控按键尺寸与 `48dp` 触控区域，窄栏和大字号通过减少列数、换行与局部滚动适配。搜索、选择、编辑草稿、页签及数字键展开状态由横竖布局共用。
 
@@ -97,11 +104,11 @@
 ## 7. 无障碍设计（Accessibility）
 
 ### 对比度标准
-- **白底（`#ffffff`）配主文字（`#1f1f1f`）：** 对比度 ≈ **16.6:1**（远超 WCAG AAA `7:1`）
+- **白底（`#ffffff`）配主文字（`#1f1f1f`）：** 对比度 ≈ **16.5:1**（超过 WCAG AAA `7:1`）
 - **主色绿（`#3e6700`）配纯白文字（`#ffffff`）：** 对比度 ≈ **6.7:1**（超过交互控件 WCAG AA `4.5:1`）
 - **白底（`#ffffff`）配次级文字（`#444746`）：** 对比度 ≈ **9.3:1**（超过 WCAG AAA `7:1`）
-- **中性表面（`#f2f4f0`）配主文字（`#1f1f1f`）：** 对比度 ≈ **15.1:1**（超过 WCAG AAA）
-- **深色背景（`#121412`）配深色主绿（`#aed67b`）：** 对比度 ≈ **10.8:1**（超过 WCAG AAA）
+- **浅色画布（`#eef2e8`）配主文字（`#1f1f1f`）：** 对比度 ≈ **14.5:1**（超过 WCAG AAA `7:1`）
+- **深色画布（`#121412`）配深色主绿（`#aed67b`）：** 对比度 ≈ **11.2:1**（超过 WCAG AAA `7:1`）
 
 ### 基础无障碍要求
 - **最小触控热区：** 应用页面与桌面小组件的所有可点击目标不小于 `48dp × 48dp`，相邻可点击目标间距不少于 `8dp`。
@@ -120,36 +127,30 @@
 
 ### 8.2 首页、筛选与遥控器卡片（`RemoteListScreen`）
 
-- 顶栏标题为 `Rimoat`（`app_name`），右侧为发射通道状态图标与设置齿轮。保留 `SearchBar`；竖屏分类采用可横向滚动的 `ButtonGroup` 与 `ToggleButton`，选中分类滚入可见区域。横屏侧栏按空间换行排列 `ToggleButton`，两种布局共用筛选状态。
-- 房间使用锚点 `DropdownMenu`，保留选中项通栏底色、对准触发位置且无右侧对勾的样式；房间数量与名称可变，不强行改成固定宽度的内联组。排序图标保留当前值与无障碍说明。
-- 空库展示空状态与主添加按钮；单一添加入口保留普通 FAB。加载只在实际读取期间展示波浪进度。
-- 遥控卡片最小高度 `72dp`、间距 `8dp`，左侧 `24dp` 电器图标，中部名称允许完整换行并保留 `16dp` 收藏星标，右侧管理按钮热区为 `48dp`。卡片按压形变与弹簧列表重排不得改变点击、收藏或删除的触发方式。
-- 保留右滑收藏、左滑移入回收站：底部距侧边 `28dp` 处露出 `48dp` 正圆图标，`80dp` 完全显现，`104dp` 触发阈值，最大拖动 `144dp`。滑动阈值不随弹簧视觉进度改变。
+- **顶栏与筛选：** 顶栏使用 `ExpressivePageTopBar`（竖屏为可折叠 `MediumFlexibleTopAppBar`，展示应用名与遥控器数量副标题；横屏双栏为紧凑 `TopAppBar`），右侧保留发射通道图标与设置入口。搜索栏使用纯白圆角 `SearchBar`；竖屏分类使用可横向滚动的 `ToggleButton` 胶囊组（选中滚入可见区，并在弹簧过冲下保持单行），横屏侧栏按可用宽度换行排列。
+- **房间与排序：** 房间选择（锚点 `ExpressiveDropdownMenu`）与排序按钮使用色调胶囊样式；下拉菜单统一采用 MD3E 分段菜单容器（`DropdownMenuPopup` + `DropdownMenuGroup` + `SelectableDropdownMenuItem` / `DropdownMenuItem`），呈现分组圆角、`tertiaryContainer` 选中高亮与勾选图标，适配任意房间长度；排序按钮保留当前状态与无障碍说明。
+- **列表、空状态与滑动：** 空库居中展示带 `88dp` 主色容器图标的空状态卡片；单一添加入口保留胶囊 `ExtendedFloatingActionButton`；仅在实际读取期间展示波浪进度。遥控卡片使用 `ExpressiveSegmentedSurface`（最小高 `72dp`、组内间隔 `2dp`），左侧为 `44dp` 圆角方形 `surfaceContainer` 图标底徽，中部展示名称与房间/品牌副信息（禁用 `U+00B7`）及收藏星标，右侧菜单热区 `>= 48dp`。右滑收藏、左滑移入回收站保持既有阈值：距侧边 `28dp` 处露出 `48dp` 正圆图标，`80dp` 完全显现，`104dp` 触发阈值，最大拖动 `144dp`。
 
 ### 8.3 遥控面板、定时与布局编辑
 
-- 顶栏提供编辑、学习模式开关和发射源反馈。静止发射按键为正圆：电源 `72dp`、常规 `64dp`、数字键 `56dp`，数字键横向间距 `16dp`；按压允许第 6 节规定的小幅形变。方向盘保留 `216dp` 圆角方盘与 `64dp` 中央确认键，五区独立焦点按“上 → 左 → 确认 → 右 → 下”遍历，物理左右不随 RTL 镜像。
-- 空调主卡片包含 `displayLarge` 温度、加减键和电源图标切换按钮；空间不足时加减键移至读数下方，温度边界由既有状态约束禁用。模式、风速、风向等保留圆键单击循环与圆外 `48dp` 直选入口；直选菜单使用 `ToggleButton` 列，保留当前选中项，提交后立即关闭并禁用退出过程中的操作。
-- 定时预设使用 `ToggleButton`；滑块保留离散取值、限值、触觉和状态绑定。底部使用 `HorizontalFloatingToolbar`，大字号或窄屏下以纵向布局完整展示“关闭定时”和确认动作，不压缩核心时间信息；是否显示关闭动作仍由当前定时状态决定。
-- 扩展功能 `<= 6` 个且不超过可用高度 `30%`（或 `240dp`）时同页合并，否则使用“常规功能 / 更多功能”页签与 `HorizontalPager`。横竖屏共用选择、数字键展开与学习状态。
-- 布局编辑预览复用按键图形与按压轮廓，拖动采用轻微抬升和弹簧重排；隐藏、排序、恢复默认及保存继续执行原有回调。形变不得更改拖动命中范围或持久化内容。
-- 不可用按键灰显，`5 秒` 内连续点按 `3 次` 弹出 `Indefinite` 诊断 `Snackbar`，含原因详情与关闭；详情区分缺信号、模式限制、编码限制与硬件不可用。这些诊断条件保持业务含义。
+- **基础按键与方向盘：** 顶栏使用 `ExpressiveCompactTopBar` 提供编辑、学习开关与发射源入口。静止发射按键为正圆：电源 `72dp`、常规 `64dp`、数字键 `56dp`（横向间距 `16dp`），按压保留第 6 节的标准形变。方向盘采用 `CircleShape` 一体化圆形转盘（`>= 196dp`，默认 `208dp`），内嵌同心圆盘与 `64dp` 中央确认键，焦点按“上 → 左 → 确认 → 右 → 下”遍历，物理左右不随 RTL 镜像。
+- **电视与图标映射：** 电视竖屏将“音量+/音量-”与“频道+/频道-”分别封装在 `36dp` 圆角竖向双联摇杆胶囊中；功能组置于 `24dp` 圆角卡片内。`RemoteButtonView` 依据 `buttonId`、`builtinLabel` 及常见中文键名补全语义图标（返回、主页、菜单、静音、信源、退出等），`0–9` 与 `OK` 保持纯文本键。
+- **空调卡片与直选：** 空调主卡（`28dp` 圆角）整合状态标签胶囊、`displayLarge` 温度、加减键、电源切换键及底部分隔的模式/风速/定时状态条（状态条屏蔽重复播报）。电源开机为 `primary` 主色底，关机为中性 `surfaceContainerHigh`。模式、风速、风向等在 `48dp` 热区内使用轻量胶囊下拉角标实现等高对齐；直选菜单采用 MD3E `ExpressiveDropdownMenu`（`SelectableDropdownMenuItem`）。
+- **定时、分页与编辑：** 定时底部弹窗采用 `ExpressiveSurface.canvas` 背景、`ExpressiveSurface.card` 读数卡片、圆形胶囊 `ToggleButton` 预设及底部直排动作按钮（窄屏/大字自动纵向全宽排列）。扩展功能 `<= 6` 个且不超可用高度 `30%`（或 `240dp`）时同页合并，否则通过 `ExpressivePageSwitcher` 切换“常规功能 / 更多功能”。布局编辑采用 `18dp`/`24dp` 预览卡片与统一语义图标，拖动仅作轻微抬升与弹簧重排。不可用按键灰显，`5 秒` 内连按 `3 次` 弹出 `Indefinite` 诊断 `Snackbar` 说明原因。
 
 ### 8.4 添加、品牌、对码与红外学习
 
-- **添加对码：** 保留“选择类型 → 选择品牌 → 按键对码 → 确认保存”，每次进入从类型选择开始。类型卡、热门品牌卡和品牌行采用按压形变，加载采用 `LoadingIndicator`。品牌页保留两字母大写短标（无拉丁或拼音字母时回退 `IR`）及右侧 `56dp` 通道、`48dp` 宽 A–Z/`#` 索引；索引以准确滑动定位为主，不增加移动命中目标的弹跳。
-- **对码操作：** 方案名称仍按列表顺序生成；“无响应 / 有响应”使用 `ButtonGroup`，保持触觉、启用条件和单次反馈提交。长译文可进入官方溢出菜单，两个结果必须均可访问。“使用此方案”放入 `HorizontalFloatingToolbar`，忙碌时真实禁用。
-- **学习配置：** 电器类型和学习按键队列采用 `ToggleButton`，保持单选语义。学习网格按内容调整为 `1–3` 列；已学键用 `primaryContainer` 底色和勾选图标，当前键保留 `2dp` 主色边框，状态不能仅靠颜色区分。
-- **学习状态：** 顶部接收器状态与 `headlineLarge` 当前按键名保持清晰；等待接收时使用 `ContainedLoadingIndicator` 与真实剩余秒数，捕获后展示真实波形、脉冲数、时长和频率。已学习比例用确定的 `LinearWavyProgressIndicator`，关闭波浪平移，恢复会话的忙碌状态使用容器加载指示器。
-- **学习动作：** 测试发射和确认/保存是独立动作，宽度足够时进入浮动工具栏；窄屏、长译文或 `200%` 字号改为纵向布局。单键学习对话框使用同一规则，不强制单行。测试、保存、接收期间的禁用条件以及取消、重录、跳过和继续学习回调保持不变。
+- **添加对码：** 保持“选择类型 → 选择品牌 → 按键对码 → 确认保存”。电器类型采用 `20dp` 圆角图标徽章卡片，确认表单置于 `24dp` 卡片内。品牌页展示 `38dp` `primaryContainer` 首字母方徽、字母分组下的分段白卡行、胶囊搜索框及右侧 A–Z/`#` 快速索引。
+- **对码确认：** 代码切换器使用 `24dp` 胶囊，按键分组置于 `24dp` 卡片内；下方 `28dp` 确认区依据实测译文宽度直接并排或堆叠显示“无响应 / 有响应”，不使用溢出菜单隐藏；底部直接放置胶囊主按钮“使用此方案”，忙碌时真实禁用。
+- **学习配置与工作区：** 学习向导的电器类型卡片与添加页一致（选中态呈现 `primaryContainer` 与勾选徽章），队列按钮使用 `16dp` 圆角切片；工作区顶部状态条与 `24dp` 主卡展示 `headlineLarge` 当前按键名，等待接收使用 `ContainedLoadingIndicator` 与真实剩余秒数，捕获后展示真实波形、脉冲数、时长与频率，已学进度使用确定的 `LinearWavyProgressIndicator`。
+- **学习动作：** 测试发射与确认/保存直接在底部容器内按可用宽度并排或纵向排列，单键学习对话框与主体保持统一透明/高容器层级，禁用条件及取消、重录、跳过、继续学习回调不变。
 
 ### 8.5 设置、发射通道与管理页面
 
-- 设置页按“外观、遥控器、备份与导入、应用”分组，每行最小 `64dp`，间隔 `8dp`；可点击行与开关所在行使用轮廓形变。取值右对齐并保留锚点菜单；语言与配置选择继续等待弹层退出后应用，避免新宿主重建期间重复交互。
-- 动态取色、深浅色与纯黑偏好由统一主题解析；纯黑只覆盖第 1 节的四个基础表面。开关仍为 `Switch`，多项备份导入选择仍为 `Checkbox`，不将不同语义统一改成单选。
-- 发射通道和串口模块类型使用 `ToggleButton` 单选列表；可用、待授权、未连接与演示状态分别展示。串口配置读取使用波浪加载指示器；授权与刷新只调用现有逻辑，不能因选择动效自动重放发送。
-- 房间分配动作使用浮动工具栏，可点击房间卡与移入房间行采用轮廓形变；恢复与永久删除保持独立操作及危险色语义。回收站每项两个操作保留 `48dp` 热区，大字或窄屏可移至右下；恢复加载使用 `ContainedLoadingIndicator`。
-- 关于、仓库链接及离线许可列表共用主题、按压轮廓和标准形变按钮；许可加载使用 `LoadingIndicator`。备份导入和更新对话框保留真实进度与错误状态，下载使用确定的波浪进度，不改变取消或安装条件。
+- **设置页：** 通过 `SettingsSectionScope` 按可见项自动生成 `ExpressiveSegmentedSurface` 分段卡片，不使用外层硬边描边；自动旋转子选项内嵌于同一展开卡片内并以细分割线区隔，每行最小高 `64dp`。取值右对齐并保留锚点菜单；开关使用 `Switch`，多项备份导入使用圆角 `Checkbox`。
+- **发射通道与串口：** 通道与串口模块类型使用 `ExpressiveSingleChoiceRow` 分段单选列表，分别呈现可用、待授权、未连接（置灰并保持对比）与演示状态；串口配置读取使用波浪加载指示器。
+- **房间管理与回收站：** 统一采用 `ExpressivePageTopBar`、`ProvideExpressiveCanvas` 与 `ExpressiveSegmentedSurface`（卡片内徽章使用 `surfaceContainer` 保持浅/深色可辨）；房间管理底部在锚定表面内直接承载 `52dp` 胶囊主按钮；回收站横屏详情置于 `24dp` 卡片。
+- **关于、开源许可与弹窗：** 关于、开源库列表及详情均采用 `ProvideExpressiveCanvas`、`ExpressivePageTopBar`、`ExpressiveSegmentedSurface` 与 `20–28dp` 内容卡片（关于页在横屏大字号下自适应缩紧图标与版本徽章圆角以防裁剪）；备份导入与更新弹窗保留真实进度与错误状态。
 
 ### 8.6 UI 验证与预览
 

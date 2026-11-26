@@ -59,6 +59,17 @@ import org.qinyan.rimoat.ui.motion.*
 import org.qinyan.rimoat.ui.screens.BrandSelectionView
 import org.qinyan.rimoat.ui.components.getCategoryIcon
 import kotlinx.coroutines.CancellationException
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 
 @Composable
@@ -127,22 +138,24 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
             catch (e: Exception) { error = UiText.Resource(R.string.screen_brand_load_failed) }
             finally { loading = false }
         }
-        Scaffold(topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        stringResource(R.string.screen_choose_brand),
-                        modifier = Modifier.semantics { heading() }
-                    )
-                },
-                navigationIcon = {
-                    ActionIconButton(stringResource(R.string.screen_back_to_brand), { pickBrand = false }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+        val brandScrollBehavior = if (!wide) TopAppBarDefaults.exitUntilCollapsedScrollBehavior() else null
+        ProvideExpressiveCanvas {
+        Scaffold(
+            modifier = Modifier.let { if (brandScrollBehavior != null) it.nestedScroll(brandScrollBehavior.nestedScrollConnection) else it },
+            containerColor = ExpressiveSurface.canvas,
+            topBar = {
+                ExpressivePageTopBar(
+                    title = stringResource(R.string.screen_choose_brand),
+                    wide = wide,
+                    scrollBehavior = brandScrollBehavior,
+                    navigationIcon = {
+                        ActionIconButton(stringResource(R.string.screen_back_to_brand), { pickBrand = false }) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                        }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-            )
-        }) { brandPadding ->
+                )
+            }
+        ) { brandPadding ->
             Column(Modifier.fillMaxSize().padding(brandPadding)) {
                 error?.let {
                     Text(
@@ -161,35 +174,30 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                     })
             }
         }
+        }
     } else {
     MotionContent(targetState = state, contentKey = { it.motionKey },
         isBack = { from, to -> to.step.ordinal < from.step.ordinal },
         backTarget = state.backPreview(), onBack = { viewModel.handleBack() }) { page ->
-        Scaffold(topBar = {
-            TopAppBar(
-                title = {
-                    val title = when (page.step) {
-                        WizardStep.SETUP -> stringResource(R.string.screen_learn_remote)
-                        WizardStep.LEARNING -> stringResource(R.string.screen_learn_buttons)
-                        WizardStep.REVIEW -> stringResource(R.string.screen_save_remote)
-                    }
-                    Text(
-                        title,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.semantics {
-                            heading()
-                            contentDescription = title
-                        }
-                    )
-                },
-                navigationIcon = {
+        val scrollBehavior = if (!wide && page.step != WizardStep.LEARNING) {
+            TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+        } else null
+        ProvideExpressiveCanvas {
+        Scaffold(
+            modifier = Modifier.let { if (scrollBehavior != null) it.nestedScroll(scrollBehavior.nestedScrollConnection) else it },
+            containerColor = ExpressiveSurface.canvas,
+            topBar = {
+                val title = when (page.step) {
+                    WizardStep.SETUP -> stringResource(R.string.screen_learn_remote)
+                    WizardStep.LEARNING -> stringResource(R.string.screen_learn_buttons)
+                    WizardStep.REVIEW -> stringResource(R.string.screen_save_remote)
+                }
+                val navIcon: @Composable () -> Unit = {
                     ActionIconButton(stringResource(R.string.screen_back), { if (!viewModel.handleBack()) onBack() }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
                     }
-                },
-                actions = {
+                }
+                val barActions: @Composable RowScope.() -> Unit = {
                     ScreenRotationIconButton()
                     if (page.step == WizardStep.LEARNING) {
                         Spacer(Modifier.width(4.dp))
@@ -203,17 +211,31 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                             modifier = Modifier.heightIn(min = 48.dp)
                         ) { Text(stringResource(R.string.screen_done)) }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-            )
-        }, bottomBar = {
-            if (page.step == WizardStep.LEARNING && !wide) LearningKeyActions(page, available,
-                onRecord = { HapticHelper.performStartListening(haptic, context); viewModel.startLearningCurrentKey() },
-                onCancel = viewModel::cancelCurrentKeyLearning,
-                onSkip = viewModel::skipCurrentKey,
-                onConfirm = viewModel::confirmCurrentKey,
-                onTest = { HapticHelper.performTestEmit(haptic, context); viewModel.testTransmitCurrentKey() })
-        }) { padding ->
+                }
+                if (page.step == WizardStep.LEARNING) {
+                    ExpressiveCompactTopBar(
+                        title = title,
+                        navigationIcon = navIcon,
+                        actions = barActions
+                    )
+                } else {
+                    ExpressivePageTopBar(
+                        title = title,
+                        wide = wide,
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon,
+                        actions = barActions
+                    )
+                }
+            }, bottomBar = {
+                if (page.step == WizardStep.LEARNING && !wide) LearningKeyActions(page, available,
+                    onRecord = { HapticHelper.performStartListening(haptic, context); viewModel.startLearningCurrentKey() },
+                    onCancel = viewModel::cancelCurrentKeyLearning,
+                    onSkip = viewModel::skipCurrentKey,
+                    onConfirm = viewModel::confirmCurrentKey,
+                    onTest = { HapticHelper.performTestEmit(haptic, context); viewModel.testTransmitCurrentKey() })
+            }
+        ) { padding ->
             if (page.isRestoring) Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { ContainedLoadingIndicator() }
             else when (page.step) {
                 WizardStep.SETUP -> LearningSetupContent(
@@ -241,6 +263,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                 WizardStep.REVIEW -> LearningReviewContent(page, viewModel::returnToLearning,
                     { viewModel.saveRemote() }, Modifier.fillMaxSize().padding(padding))
             }
+        }
         }
     }
     if (active && addKey) {
@@ -340,32 +363,57 @@ internal fun LearningSetupContent(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { (category, label) ->
                             val selected = page.selectedApplianceType == category
-                            ToggleButton(
-                                checked = selected,
-                                onCheckedChange = {
-                                    HapticHelper.performSelection(haptic, context)
-                                    onCategory(category)
-                                },
-
+                            val interactionSource = remember { MutableInteractionSource() }
+                            val shape = rememberExpressiveShape(interactionSource, RoundedCornerShape(20.dp), RoundedCornerShape(26.dp))
+                            Surface(
+                                shape = shape,
+                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else ExpressiveSurface.card,
+                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .heightIn(min = 88.dp)
+                                    .heightIn(min = 96.dp)
+                                    .clip(shape)
+                                    .clickable(
+                                        interactionSource = interactionSource,
+                                        indication = ripple(),
+                                        role = Role.RadioButton
+                                    ) {
+                                        HapticHelper.performSelection(haptic, context)
+                                        onCategory(category)
+                                    }
                                     .semantics(mergeDescendants = true) {
                                         role = Role.RadioButton
                                         this.selected = selected
-                                    },
-                                colors = ToggleButtonDefaults.colors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    contentColor = MaterialTheme.colorScheme.onSurface,
-                                    checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                                ),
-                                contentPadding = PaddingValues(12.dp)
+                                    }
                             ) {
-                                Column(Modifier.fillMaxWidth().heightIn(min = 64.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                    Icon(getCategoryIcon(category.catalogCode), null, Modifier.size(28.dp))
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                                Box(Modifier.fillMaxWidth().heightIn(min = 96.dp).padding(10.dp)) {
+                                    if (selected) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.CheckCircle,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.align(Alignment.TopEnd).size(18.dp)
+                                        )
+                                    }
+                                    Column(
+                                        Modifier.fillMaxWidth().align(Alignment.Center),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(44.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(getCategoryIcon(category.catalogCode), null, Modifier.size(24.dp))
+                                            }
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                                    }
                                 }
                             }
                         }
@@ -377,40 +425,48 @@ internal fun LearningSetupContent(
 
     }
     val form: @Composable () -> Unit = {
-        OutlinedTextField(
-            value = page.remoteName,
-            onValueChange = onNameChange,
-            modifier = Modifier.fillMaxWidth().semantics { nameError?.let { error(it) } },
-            label = { Text(stringResource(R.string.screen_remote_name)) },
-            singleLine = true,
-            isError = nameError != null,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            keyboardActions = KeyboardActions(onNext = { brandFocusRequester.requestFocus() })
-        )
-        OutlinedTextField(
-            value = page.brand,
-            onValueChange = onBrandChange,
-            modifier = Modifier.fillMaxWidth().focusRequester(brandFocusRequester),
-            label = { Text(stringResource(R.string.screen_brand_optional)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = {
-                keyboard?.hide()
-                focusManager.clearFocus()
-            }),
-            trailingIcon = {
-                ActionIconButton(stringResource(R.string.screen_choose_catalog_brand), {
-                    keyboard?.hide()
-                    onPickBrand()
-                }) { Icon(Icons.Rounded.ListAlt, contentDescription = null) }
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = ExpressiveSurface.card,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = page.remoteName,
+                    onValueChange = onNameChange,
+                    modifier = Modifier.fillMaxWidth().semantics { nameError?.let { error(it) } },
+                    label = { Text(stringResource(R.string.screen_remote_name)) },
+                    singleLine = true,
+                    isError = nameError != null,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { brandFocusRequester.requestFocus() })
+                )
+                OutlinedTextField(
+                    value = page.brand,
+                    onValueChange = onBrandChange,
+                    modifier = Modifier.fillMaxWidth().focusRequester(brandFocusRequester),
+                    label = { Text(stringResource(R.string.screen_brand_optional)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        keyboard?.hide()
+                        focusManager.clearFocus()
+                    }),
+                    trailingIcon = {
+                        ActionIconButton(stringResource(R.string.screen_choose_catalog_brand), {
+                            keyboard?.hide()
+                            onPickBrand()
+                        }) { Icon(Icons.Rounded.ListAlt, contentDescription = null) }
+                    }
+                )
+                page.errorMessage?.let {
+                    Text(
+                        it.asString(),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    )
+                }
             }
-        )
-        page.errorMessage?.let {
-            Text(
-                it.asString(),
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-            )
         }
         Button(
             onClick = {
@@ -418,9 +474,8 @@ internal fun LearningSetupContent(
                 HapticHelper.performRemoteClick(haptic, context)
                 onStart()
             },
-
             shapes = ButtonDefaults.shapes(),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
         ) { Text(stringResource(R.string.screen_start_learning)) }
     }
     if (wide) {
@@ -450,14 +505,23 @@ internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: 
     val context = LocalContext.current
     val wide = rememberWideLayout()
     val summary: @Composable () -> Unit = {
-        Text(page.remoteName, style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.semantics { heading() })
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(page.selectedApplianceType.label(), style = MaterialTheme.typography.bodyMedium)
-            if (page.brand.isNotBlank()) Text(page.brand, style = MaterialTheme.typography.bodyMedium)
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = ExpressiveSurface.card,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(page.remoteName, style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.semantics { heading() })
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(page.selectedApplianceType.label(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (page.brand.isNotBlank()) Text(page.brand, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(stringResource(R.string.screen_learned_count, page.learnedCount),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { heading() })
+            }
         }
-        Text(stringResource(R.string.screen_learned_count, page.learnedCount),
-            color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { heading() })
     }
     val actions: @Composable () -> Unit = {
         page.errorMessage?.let { error ->
@@ -467,20 +531,37 @@ internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: 
         OutlinedButton(
             onClick = { HapticHelper.performSelection(haptic, context); onContinue() },
             shapes = ButtonDefaults.shapes(),
-            enabled = !page.isSaving, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            enabled = !page.isSaving, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
         ) { Text(stringResource(R.string.screen_continue_learning)) }
         Button(
             onClick = { HapticHelper.performSaveSuccess(haptic, context); onSave() },
             shapes = ButtonDefaults.shapes(),
             enabled = page.learnedCount > 0 && !page.isSaving,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
         ) { Text(if (page.isSaving) stringResource(R.string.screen_saving) else stringResource(R.string.screen_save)) }
     }
+    val learnedItems = remember(page.keyQueue) { page.keyQueue.filter { it.status == KeyLearnStatus.LEARNED } }
     val learned: LazyListScope.() -> Unit = {
-        items(page.keyQueue.filter { it.status == KeyLearnStatus.LEARNED }, key = { it.id }) { key ->
-            ListItem(headlineContent = { Text(key.displayLabel()) },
-                leadingContent = { Icon(getIconVector(key.iconName) ?: Icons.Rounded.Tune, null) },
-                trailingContent = { Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary) })
+        itemsIndexed(learnedItems, key = { _, key -> key.id }) { index, key ->
+            val icon = resolveButtonIcon(key.iconName, key.displayLabel(), key.id, key.builtinLabel) ?: Icons.Rounded.Tune
+            ExpressiveSegmentedSurface(index = index, count = learnedItems.size) {
+                ListItem(
+                    headlineContent = { Text(key.displayLabel()) },
+                    leadingContent = {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    },
+                    trailingContent = { Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
         }
     }
     if (wide) {
@@ -491,14 +572,14 @@ internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: 
             },
             secondary = {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp), content = learned)
+                    verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap), content = learned)
             })
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { summary() } }
+            verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)) {
+            item { Box(Modifier.padding(bottom = 12.dp)) { summary() } }
             learned()
-            item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { actions() } }
+            item { Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { actions() } }
         }
     }
 }

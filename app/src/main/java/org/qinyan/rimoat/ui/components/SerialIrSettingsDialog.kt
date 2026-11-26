@@ -114,35 +114,33 @@ internal fun SerialIrSettingsForm(
                                 Text(selectedDevice?.label ?: if (selectionMissing) selectedLabel
                                     else if (saved.vendorId == null) AppStrings.get(R.string.control_select_serial, "选择 USB 串口") else AppStrings.get(R.string.control_keep_serial, "保留已绑定的 USB 串口"))
                             }
-                            val selectedDeviceIndex = devices.indexOfFirst { it.connectionId == selectedConnectionId }.takeIf { it >= 0 }
-                            SimpleDropdownMenu(
+                            ExpressiveDropdownMenu(
                                 expanded = deviceMenu,
                                 onDismissRequest = { deviceMenu = false },
-                                selectedIndex = selectedDeviceIndex,
-                                itemCount = devices.size
+                                selectable = true
                             ) {
-                                devices.forEach { device ->
+                                devices.forEachIndexed { index, device ->
                                     val chosen = device.connectionId == selectedConnectionId
-                                    SimpleDropdownMenuItem(
+                                    ExpressiveSelectableMenuItem(
                                         selected = chosen,
-                                        contentPadding = PaddingValues(
-                                            horizontal = SimpleDropdownMenuDefaults.ItemHorizontalPadding,
-                                            vertical = 8.dp
-                                        ),
-                                        text = { Column {
-                                            Text(device.label)
-                                            Text(AppStrings.get(R.string.control_port_count, "%1\$d 个串口", device.portCount), style = MaterialTheme.typography.bodySmall)
-                                            if (devices.count { it.label == device.label } > 1) {
-                                                Text(device.deviceName, style = MaterialTheme.typography.bodySmall)
-                                            }
-                                        } },
                                         onClick = {
                                             if (!chosen) port = "0"
                                             selectedConnectionId = device.connectionId
                                             selectedLabel = device.label
                                             error = null
                                             deviceMenu = false
-                                        }
+                                        },
+                                        text = { Text(device.label) },
+                                        supportingText = {
+                                            Column {
+                                                Text(AppStrings.get(R.string.control_port_count, "%1\$d 个串口", device.portCount))
+                                                if (devices.count { it.label == device.label } > 1) {
+                                                    Text(device.deviceName)
+                                                }
+                                            }
+                                        },
+                                        index = index,
+                                        count = devices.size
                                     )
                                 }
                             }

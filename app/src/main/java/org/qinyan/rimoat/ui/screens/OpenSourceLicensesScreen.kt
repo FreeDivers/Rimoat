@@ -2,15 +2,15 @@
 
 package org.qinyan.rimoat.ui.screens
 
-import org.qinyan.rimoat.ui.components.rememberExpressiveShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import org.qinyan.rimoat.i18n.AppStrings
 import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -21,7 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -36,8 +37,13 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.OpenSourceLicenseCatalog
 import org.qinyan.rimoat.data.OpenSourceLibrary
 import androidx.compose.ui.tooling.preview.Preview
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import org.qinyan.rimoat.ui.components.ActionIconButton
+import org.qinyan.rimoat.ui.components.ExpressivePageTopBar
+import org.qinyan.rimoat.ui.components.ExpressiveSegmentedSurface
+import org.qinyan.rimoat.ui.components.ExpressiveShapeTokens
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
 import org.qinyan.rimoat.ui.components.rememberWideLayout
 import org.qinyan.rimoat.ui.motion.MotionContent
@@ -101,17 +107,23 @@ private fun OpenSourceLicensesContent(
             if (libraryId != library.id) onLibraryClick(library.id)
         }
     }
+    val isListRoot = !wide && libraryId == null
+    val scrollBehavior = if (isListRoot) TopAppBarDefaults.exitUntilCollapsedScrollBehavior() else null
+
+    ProvideExpressiveCanvas {
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.let { if (scrollBehavior != null) it.nestedScroll(scrollBehavior.nestedScrollConnection) else it },
+        containerColor = ExpressiveSurface.canvas,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.licenses_title)) },
+            ExpressivePageTopBar(
+                title = stringResource(R.string.licenses_title),
+                wide = !isListRoot,
+                scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onClick = { if (active) onBack() }, enabled = active) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back, "返回"))
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                }
             )
         }
     ) { padding ->
@@ -122,33 +134,57 @@ private fun OpenSourceLicensesContent(
                     Text(stringResource(R.string.licenses_unavailable), Modifier.padding(24.dp))
                 else -> {
                     val list: @Composable () -> Unit = {
-                    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        item(key = "search") { OutlinedTextField(
-                            value = query, onValueChange = { query = it },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                            label = { Text(stringResource(R.string.licenses_search)) },
-                            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) }, singleLine = true
-                        ) }
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(horizontal = if (wide) 0.dp else 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)
+                    ) {
+                        item(key = "search") {
+                            OutlinedTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = ExpressiveSurface.card,
+                                    unfocusedContainerColor = ExpressiveSurface.card,
+                                    unfocusedBorderColor = Color.Transparent
+                                ),
+                                label = { Text(stringResource(R.string.licenses_search)) },
+                                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                                singleLine = true
+                            )
+                        }
                         if (filtered.isEmpty()) item {
                             Text(stringResource(R.string.licenses_empty), Modifier.padding(24.dp))
                         }
-                        items(filtered, key = { it.id }) { entry ->
+                        itemsIndexed(filtered, key = { _, entry -> entry.id }) { index, entry ->
                             val interactionSource = remember { MutableInteractionSource() }
-                            val shape = rememberExpressiveShape(interactionSource)
-                            ListItem(
-                                modifier = Modifier.clip(shape)
-                                    .clickable(interactionSource = interactionSource, indication = ripple(), enabled = active, role = Role.Button, onClick = { if (active) { selectedId = entry.id; onLibraryClick(entry.id) } })
-                                    .heightIn(min = 64.dp),
-                                headlineContent = { Text(entry.name) },
-                                supportingContent = {
-                                    Column {
-                                        Text("${entry.version}  /  ${entry.license}")
-                                        if (entry.debugOnly) Text(stringResource(R.string.licenses_debug_only))
-                                    }
-                                },
-                                colors = ListItemDefaults.colors(containerColor = if (wide && entry.id == library?.id) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
-                                trailingContent = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) }
-                            )
+                            val isSelected = wide && entry.id == library?.id
+                            val containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else ExpressiveSurface.card
+                            ExpressiveSegmentedSurface(
+                                index = index,
+                                count = filtered.size,
+                                interactionSource = interactionSource,
+                                containerColor = containerColor,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                ListItem(
+                                    modifier = Modifier
+                                        .clickable(interactionSource = interactionSource, indication = ripple(), enabled = active, role = Role.Button, onClick = { if (active) { selectedId = entry.id; onLibraryClick(entry.id) } })
+                                        .heightIn(min = 64.dp),
+                                    headlineContent = { Text(entry.name) },
+                                    supportingContent = {
+                                        Column {
+                                            Text("${entry.version}  /  ${entry.license}")
+                                            if (entry.debugOnly) Text(stringResource(R.string.licenses_debug_only))
+                                        }
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    trailingContent = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) }
+                                )
+                            }
                         }
                     }
                     }
@@ -157,14 +193,39 @@ private fun OpenSourceLicensesContent(
                         if (library == null) Text(stringResource(R.string.licenses_empty), Modifier.padding(16.dp))
                         else detailStates.SaveableStateProvider(library.id) {
                             val detailState = rememberLazyListState()
-                            LazyColumn(Modifier.fillMaxSize(), state = detailState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            LazyColumn(Modifier.fillMaxSize(), state = detailState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 item {
-                                    Text(library.name, Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
-                                    SelectionContainer { Text(library.id, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    Surface(
+                                        shape = RoundedCornerShape(24.dp),
+                                        color = ExpressiveSurface.card,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(library.name, Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
+                                            SelectionContainer { Text(library.id, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            Surface(
+                                                shape = RoundedCornerShape(100),
+                                                color = MaterialTheme.colorScheme.surfaceContainer
+                                            ) {
+                                                Text(
+                                                    library.license,
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
-                                item { Text(library.license, style = MaterialTheme.typography.titleMedium) }
-                                library.documents.forEach { id -> item(key = id) {
-                                    SelectionContainer { Text(catalog.documents.getValue(id), style = MaterialTheme.typography.bodyMedium) }
+                                library.documents.forEach { docId -> item(key = docId) {
+                                    Surface(
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = ExpressiveSurface.card,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        SelectionContainer {
+                                            Text(catalog.documents.getValue(docId), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp))
+                                        }
+                                    }
                                 } }
                             }
                         }
@@ -182,6 +243,7 @@ private fun OpenSourceLicensesContent(
                 }
             }
         }
+    }
     }
 }
 

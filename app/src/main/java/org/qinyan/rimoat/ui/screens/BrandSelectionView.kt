@@ -24,7 +24,11 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import org.qinyan.rimoat.ui.components.ExpressiveShapeTokens
+import org.qinyan.rimoat.ui.components.rememberSegmentedExpressiveShape
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.*
@@ -71,7 +75,7 @@ fun BrandSelectionView(
     isLoading: Boolean,
     onSearchChange: (String) -> Unit,
     onBrandClick: (IrBrand) -> Unit,
-    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surface,
+    containerColor: androidx.compose.ui.graphics.Color = ExpressiveSurface.canvas,
     precomputedGroupsCn: List<BrandIndexGroup>? = null,
     precomputedGroupsEn: List<BrandIndexGroup>? = null
 ) {
@@ -135,7 +139,7 @@ fun BrandSelectionView(
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 row.forEach { brand ->
                                                     val interactionSource = remember { MutableInteractionSource() }
-                                                    val shape = rememberExpressiveShape(interactionSource, MaterialTheme.shapes.large)
+                                                    val shape = rememberExpressiveShape(interactionSource, RoundedCornerShape(20.dp), RoundedCornerShape(28.dp))
                                                     Card(
                                                         shape = shape, interactionSource = interactionSource,
                                                         onClick = { keyboard?.hide(); onBrandClick(brand) },
@@ -143,9 +147,9 @@ fun BrandSelectionView(
                                                         modifier = Modifier
                                                             .weight(1f)
                                                             .semantics(mergeDescendants = true) { role = Role.Button },
-                                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                                                        colors = CardDefaults.cardColors(containerColor = ExpressiveSurface.card)
                                                     ) {
-                                                        Column(Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                                                        Column(Modifier.fillMaxWidth().heightIn(min = 92.dp).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally,
                                                             verticalArrangement = Arrangement.Center) {
                                                             BrandMark(brand)
                                                             Spacer(Modifier.height(8.dp))
@@ -189,7 +193,7 @@ fun BrandSelectionView(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize().padding(end = 56.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap),
                         contentPadding = PaddingValues(start = 16.dp, end = 12.dp, bottom = bottomSpace)
                     ) {
                         if (showPopular && !wide) item(key = "popular", contentType = "popular") { popularContent() }
@@ -200,16 +204,18 @@ fun BrandSelectionView(
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).semantics { heading() }
-                                            .padding(horizontal = 12.dp, vertical = 8.dp))
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 38.dp).semantics { heading() }
+                                            .padding(horizontal = 8.dp, vertical = 8.dp))
                                 }
                             }
-                            items(group.brands, key = { "brand_${it.brandIdx}_${it.nameCn}_${it.nameEn}" },
-                                contentType = { "brand" }) { brand ->
+                            itemsIndexed(group.brands, key = { _, it -> "brand_${it.brandIdx}_${it.nameCn}_${it.nameEn}" },
+                                contentType = { _, _ -> "brand" }) { index, brand ->
                                 BrandListItem(
                                     brand = brand,
                                     displayName = brand.displayName(preferEnglish, otherBrandLabel),
                                     enabled = !isLoading,
+                                    index = index,
+                                    count = group.brands.size,
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = motion.defaultEffectsSpec(), placementSpec = motion.defaultSpatialSpec(),
                                         fadeOutSpec = motion.fastEffectsSpec()
@@ -276,38 +282,46 @@ private fun BrandListItem(
     displayName: String,
     enabled: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    index: Int = 0,
+    count: Int = 1
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
     val compact = maxWidth < 280.dp
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = rememberExpressiveShape(interactionSource)
-    Row(
+    val shape = rememberSegmentedExpressiveShape(interactionSource, index, count)
+    Surface(
+        shape = shape,
+        color = ExpressiveSurface.card,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clip(shape)
             .clickable(interactionSource = interactionSource, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = if (compact) 8.dp else 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.width(if (compact) 32.dp else 48.dp), contentAlignment = Alignment.Center) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .padding(horizontal = if (compact) 12.dp else 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             BrandMark(brand)
+            Spacer(Modifier.width(if (compact) 10.dp else 16.dp))
+            Text(
+                text = displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(if (compact) 8.dp else 12.dp))
+            if (!compact) Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
         }
-        Spacer(Modifier.width(if (compact) 8.dp else 16.dp))
-        Text(
-            text = displayName,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-        Spacer(Modifier.width(if (compact) 8.dp else 16.dp))
-        if (!compact) Icon(
-            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp)
-        )
     }
 }
 
@@ -317,9 +331,17 @@ private fun BrandListItem(
 @Composable
 private fun BrandMark(brand: IrBrand) {
     val mark = remember(brand.brandIdx, brand.nameEn, brand.pinyin, brand.nameCn) { brandMonogram(brand) }
-    Text(mark, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary, maxLines = 1,
-        modifier = Modifier.clearAndSetSemantics { }, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.size(38.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(mark, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = 1,
+                modifier = Modifier.clearAndSetSemantics { }, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+    }
 }
 
 /** One 48dp-wide adjustable control: small letters are positions in a scrubber, not tiny buttons. */

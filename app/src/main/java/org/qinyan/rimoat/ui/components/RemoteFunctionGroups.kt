@@ -10,6 +10,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.ui.motion.ExpandSection
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 
 internal fun remoteFunctionGroup(label: String): String = when {
     listOf("音量", "静音", "声", "均衡").any { it in label } -> "声音"
@@ -58,11 +60,24 @@ fun RemoteFunctionGroups(buttons: List<RemoteButton>, onSend: (RemoteButton) -> 
             }
         }
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         groups.forEach { (name, keys) ->
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(localizedLabel(name), modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                RemoteFunctionGrid(keys, onSend, onLearn, learning, onRepeat, enabled, buttonContent, onUnavailable, buttonLabel)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    localizedLabel(name),
+                    modifier = Modifier.padding(horizontal = 4.dp).semantics { heading() },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = ExpressiveSurface.card,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
+                        RemoteFunctionGrid(keys, onSend, onLearn, learning, onRepeat, enabled, buttonContent, onUnavailable, buttonLabel)
+                    }
+                }
             }
         }
     }
@@ -87,7 +102,8 @@ internal fun RemoteFunctionGrid(buttons: List<RemoteButton>, onSend: (RemoteButt
                         isLearningMode = learning, enabled = learning || enabled(button),
                         onUnavailable = onUnavailable?.let { explain -> { explain(button) } },
                         diameter = if (button.iconName == "power" || button.id.contains("power")) 72.dp else 64.dp,
-                        variant = if (button.iconName == "power" || button.label in listOf("电源", "开关")) RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD)
+                        variant = if (button.iconName == "power" || button.label in listOf("电源", "开关")) RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD,
+                        buttonId = button.id, builtinLabel = button.builtinLabel)
                 }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }

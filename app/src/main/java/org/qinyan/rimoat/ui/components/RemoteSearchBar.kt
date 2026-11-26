@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 
 @Stable
 class SearchFocusController {
@@ -119,6 +120,7 @@ fun RemoteSearchBar(
         },
         expanded = false,
         onExpandedChange = {},
+        colors = SearchBarDefaults.colors(containerColor = ExpressiveSurface.card),
         windowInsets = WindowInsets(0)
     ) {}
 }

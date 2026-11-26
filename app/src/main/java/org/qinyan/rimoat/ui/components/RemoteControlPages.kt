@@ -25,12 +25,13 @@ fun RemoteControlPages(hasMore: Boolean, labels: List<String> = listOf(localized
     LaunchedEffect(pager.currentPage) { onPageSelected(pager.currentPage) }
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
-        SecondaryTabRow(selectedTabIndex = pager.currentPage, containerColor = MaterialTheme.colorScheme.surface) {
-            labels.forEachIndexed { index, label ->
-                Tab(selected = pager.currentPage == index, onClick = { scope.launch { pager.animateScrollToPage(index, animationSpec = motion.defaultSpatialSpec()) } },
-                    modifier = Modifier.padding(horizontal = 4.dp), text = { Text(label) })
+        ExpressivePageSwitcher(
+            labels = labels,
+            selectedIndex = pager.currentPage,
+            onSelect = { index ->
+                scope.launch { pager.animateScrollToPage(index, animationSpec = motion.defaultSpatialSpec()) }
             }
-        }
+        )
         HorizontalPager(state = pager, modifier = Modifier.weight(1f).fillMaxWidth(), key = { it }) { page ->
             content(page == 1)
         }

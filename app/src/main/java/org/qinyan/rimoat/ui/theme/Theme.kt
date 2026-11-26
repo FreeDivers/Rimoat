@@ -3,13 +3,18 @@ package org.qinyan.rimoat.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.SoundEffectOnInteraction
@@ -143,4 +148,58 @@ fun IrRemoteTheme(
         motionScheme = MotionScheme.expressive(),
         content = { SoundEffectOnInteraction(enabled = false, content = content) }
     )
+}
+
+/** True inside full-page expressive scaffolds so cards use crisp surfaceContainerLowest on light canvas. */
+val LocalExpressiveCanvas = compositionLocalOf { false }
+
+/**
+ * Semantic surface hierarchy shared across all Compose screens and standalone components:
+ * - Light full screen: tinted `surfaceContainer` canvas with pure white `surfaceContainerLowest` cards.
+ * - Dark / AMOLED full screen: base `surface` (`#121412` / `#000000`) with elevated `surfaceContainerLow` cards.
+ * - Isolated test/preview hosts without a canvas provider fall back to `surfaceContainerLow` for visible card contrast.
+ */
+object ExpressiveSurface {
+    val isDark: Boolean
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    val canvas: Color
+        @Composable @ReadOnlyComposable get() = if (isDark) {
+            MaterialTheme.colorScheme.surface
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        }
+
+    val card: Color
+        @Composable @ReadOnlyComposable get() = when {
+            isDark -> MaterialTheme.colorScheme.surfaceContainerLow
+            LocalExpressiveCanvas.current -> MaterialTheme.colorScheme.surfaceContainerLowest
+            else -> MaterialTheme.colorScheme.surfaceContainerLow
+        }
+
+    val cardElevated: Color
+        @Composable @ReadOnlyComposable get() = if (isDark) {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        }
+
+    val pill: Color
+        @Composable @ReadOnlyComposable get() = when {
+            isDark -> MaterialTheme.colorScheme.surfaceContainerHigh
+            LocalExpressiveCanvas.current -> MaterialTheme.colorScheme.surfaceContainerLowest
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh
+        }
+
+    val scrolledTopBar: Color
+        @Composable @ReadOnlyComposable get() = if (isDark) {
+            MaterialTheme.colorScheme.surfaceContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        }
+}
+
+@Composable
+fun ProvideExpressiveCanvas(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalExpressiveCanvas provides true, content = content)
 }
