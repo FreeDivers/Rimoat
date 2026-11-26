@@ -9,6 +9,8 @@ import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.ui.viewmodel.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Files
@@ -394,6 +396,214 @@ class AddRemoteLifecycleTest {
             assertNull(vm.uiState.value.error)
             assertFalse(vm.uiState.value.isLoading)
 
+            backgroundScope.coroutineContext.cancelChildren()
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain(); dir.deleteRecursively() }
+    }
+
+    @Test fun interruptedRestoreBySearchResumesCheckpointingSubsequentProgress() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val dir = Files.createTempDirectory("add-remote-restore-search-").toFile()
+        val context = object : ContextWrapper(null) {
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? = null
+            override fun getFilesDir() = dir
+        }
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val sony = IrBrand(2, "索尼", "Sony", "suoni", 2)
+            val models = listOf(
+                IrRemoteModel("R_tv_1", 1, "电视", 2, "索尼", "Sony", 1, "方案1", 1),
+                IrRemoteModel("R_tv_2", 1, "电视", 2, "索尼", "Sony", 2, "方案2", 2)
+            )
+            val catalog = Catalog()
+            val repo = RemoteRepository(context, backgroundScope)
+            val manager = IrTransmitterManager(context, backgroundScope)
+            val initialDraft = PairingProgress(categoryId = 1, step = AddRemoteStep.BRAND, query = "")
+            val handle = androidx.lifecycle.SavedStateHandle(
+                mapOf("pairing_progress" to Json.encodeToString(initialDraft))
+            )
+            val vm = AddRemoteViewModel(catalog, repo, manager, handle).also { store.put("first", it) }
+            runCurrent()
+            assertEquals(AddRemoteStep.BRAND, vm.uiState.value.step)
+            assertTrue(vm.uiState.value.isLoading)
+
+            // User starts typing while restored brand list is still loading.
+            vm.searchBrand("索")
+            runCurrent()
+            catalog.brands.getValue("索").complete(listOf(sony))
+            runCurrent()
+            assertFalse(vm.uiState.value.isLoading)
+            assertEquals(listOf(sony), vm.uiState.value.brands)
+
+            catalog.models.complete(models)
+            vm.selectBrand(sony)
+            runCurrent()
+            vm.nextModel()
+            runCurrent()
+            vm.updateCustomName("客厅索尼电视")
+            vm.proceedToConfirm()
+            runCurrent()
+
+            val persisted = checkNotNull(handle.get<String>("pairing_progress"))
+            val restoredCatalog = Catalog().apply {
+                brands["索"] = CompletableDeferred(listOf(sony))
+                this.models.complete(models)
+            }
+            val restoredHandle = androidx.lifecycle.SavedStateHandle(mapOf("pairing_progress" to persisted))
+            val restored = AddRemoteViewModel(restoredCatalog, repo, manager, restoredHandle)
+                .also { store.put("restored", it) }
+            runCurrent()
+
+            assertEquals(AddRemoteStep.CONFIRM, restored.uiState.value.step)
+            assertEquals(sony, restored.uiState.value.selectedBrand)
+            assertEquals("R_tv_2", restored.uiState.value.currentRemote?.remoteId)
+            assertEquals("客厅索尼电视", restored.uiState.value.customRemoteName)
+            backgroundScope.coroutineContext.cancelChildren()
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain(); dir.deleteRecursively() }
+    }
+
+    @Test fun failedBrandRestoreResumesCheckpointingSubsequentProgress() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val dir = Files.createTempDirectory("add-remote-restore-fail-").toFile()
+        val context = object : ContextWrapper(null) {
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? = null
+            override fun getFilesDir() = dir
+        }
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val sony = IrBrand(2, "索尼", "Sony", "suoni", 2)
+            val models = listOf(
+                IrRemoteModel("R_tv_1", 1, "电视", 2, "索尼", "Sony", 1, "方案1", 1),
+                IrRemoteModel("R_tv_2", 1, "电视", 2, "索尼", "Sony", 2, "方案2", 2)
+            )
+            val catalog = Catalog()
+            val repo = RemoteRepository(context, backgroundScope)
+            val manager = IrTransmitterManager(context, backgroundScope)
+            val initialDraft = PairingProgress(categoryId = 1, step = AddRemoteStep.BRAND)
+            val handle = androidx.lifecycle.SavedStateHandle(
+                mapOf("pairing_progress" to Json.encodeToString(initialDraft))
+            )
+            val vm = AddRemoteViewModel(catalog, repo, manager, handle).also { store.put("first", it) }
+            runCurrent()
+            catalog.brands.getValue("").completeExceptionally(java.io.IOException("db busy"))
+            runCurrent()
+            assertFalse(vm.uiState.value.isLoading)
+            assertNotNull(vm.uiState.value.error)
+
+            vm.searchBrand("索")
+            runCurrent()
+            catalog.brands.getValue("索").complete(listOf(sony))
+            runCurrent()
+            catalog.models.complete(models)
+            vm.selectBrand(sony)
+            runCurrent()
+            vm.nextModel()
+            runCurrent()
+            vm.updateCustomName("卧室索尼电视")
+            runCurrent()
+
+            val persisted = checkNotNull(handle.get<String>("pairing_progress"))
+            val restoredCatalog = Catalog().apply {
+                brands["索"] = CompletableDeferred(listOf(sony))
+                this.models.complete(models)
+            }
+            val restoredHandle = androidx.lifecycle.SavedStateHandle(mapOf("pairing_progress" to persisted))
+            val restored = AddRemoteViewModel(restoredCatalog, repo, manager, restoredHandle)
+                .also { store.put("restored", it) }
+            runCurrent()
+
+            assertEquals(AddRemoteStep.WIZARD, restored.uiState.value.step)
+            assertEquals(sony, restored.uiState.value.selectedBrand)
+            assertEquals("R_tv_2", restored.uiState.value.currentRemote?.remoteId)
+            assertEquals("卧室索尼电视", restored.uiState.value.customRemoteName)
+            backgroundScope.coroutineContext.cancelChildren()
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain(); dir.deleteRecursively() }
+    }
+
+    @Test fun restoringWizardWithSearchQueryKeepsBrandListConsistentOnBack() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val dir = Files.createTempDirectory("add-remote-restore-query-").toFile()
+        val context = object : ContextWrapper(null) {
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? = null
+            override fun getFilesDir() = dir
+        }
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val xiaomi = IrBrand(1, "小米", "Xiaomi", "xiaomi", 1)
+            val sony = IrBrand(2, "索尼", "Sony", "suoni", 1)
+            val tcl = IrBrand(3, "TCL", "TCL", "tcl", 1)
+            val catalog = Catalog().apply {
+                brands[""] = CompletableDeferred(listOf(xiaomi, sony, tcl))
+                brands["索"] = CompletableDeferred(listOf(sony))
+                models.complete(listOf(IrRemoteModel("R_tv_1", 1, "电视", 2, "索尼", "Sony", 1, "方案1", 1)))
+            }
+            val repo = RemoteRepository(context, backgroundScope)
+            val manager = IrTransmitterManager(context, backgroundScope)
+            val draft = PairingProgress(
+                categoryId = 1,
+                brandId = sony.brandIdx,
+                step = AddRemoteStep.WIZARD,
+                query = "索",
+                brands = mapOf("1:2" to BrandProgress(remoteId = "R_tv_1"))
+            )
+            val handle = androidx.lifecycle.SavedStateHandle(mapOf("pairing_progress" to Json.encodeToString(draft)))
+            val vm = AddRemoteViewModel(catalog, repo, manager, handle).also { store.put("restored", it) }
+            runCurrent()
+
+            assertEquals(AddRemoteStep.WIZARD, vm.uiState.value.step)
+            assertEquals(sony, vm.uiState.value.selectedBrand)
+
+            assertTrue(vm.handleBack())
+            runCurrent()
+            assertEquals(AddRemoteStep.BRAND, vm.uiState.value.step)
+            assertEquals("索", vm.uiState.value.brandSearchQuery)
+            assertEquals(listOf(sony), vm.uiState.value.brands)
+            assertEquals(listOf(sony), vm.uiState.value.brandGroupsCn?.flatMap { it.brands })
+            assertEquals(listOf(sony), vm.uiState.value.brandGroupsEn?.flatMap { it.brands })
+            backgroundScope.coroutineContext.cancelChildren()
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain(); dir.deleteRecursively() }
+    }
+
+    @Test fun restoringConfirmFallsBackToFullCatalogWhenSelectedBrandNotInQueryResults() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val dir = Files.createTempDirectory("add-remote-restore-fallback-").toFile()
+        val context = object : ContextWrapper(null) {
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? = null
+            override fun getFilesDir() = dir
+        }
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val sony = IrBrand(2, "索尼", "Sony", "suoni", 1)
+            val catalog = Catalog().apply {
+                brands["不存在"] = CompletableDeferred(emptyList())
+                brands[""] = CompletableDeferred(listOf(sony))
+                models.complete(listOf(IrRemoteModel("R_tv_1", 1, "电视", 2, "索尼", "Sony", 1, "方案1", 1)))
+            }
+            val repo = RemoteRepository(context, backgroundScope)
+            val manager = IrTransmitterManager(context, backgroundScope)
+            val draft = PairingProgress(
+                categoryId = 1,
+                brandId = sony.brandIdx,
+                step = AddRemoteStep.CONFIRM,
+                query = "不存在",
+                brands = mapOf("1:2" to BrandProgress(remoteId = "R_tv_1", name = "我的电视"))
+            )
+            val handle = androidx.lifecycle.SavedStateHandle(mapOf("pairing_progress" to Json.encodeToString(draft)))
+            val vm = AddRemoteViewModel(catalog, repo, manager, handle).also { store.put("restored", it) }
+            runCurrent()
+
+            assertEquals(AddRemoteStep.CONFIRM, vm.uiState.value.step)
+            assertEquals(sony, vm.uiState.value.selectedBrand)
+            assertEquals("我的电视", vm.uiState.value.customRemoteName)
+            assertTrue(vm.handleBack())
+            assertTrue(vm.handleBack())
+            runCurrent()
+            assertEquals(AddRemoteStep.BRAND, vm.uiState.value.step)
+            assertEquals("不存在", vm.uiState.value.brandSearchQuery)
+            assertTrue(vm.uiState.value.brands.isEmpty())
             backgroundScope.coroutineContext.cancelChildren()
         } finally { store.clear(); runCurrent(); Dispatchers.resetMain(); dir.deleteRecursively() }
     }

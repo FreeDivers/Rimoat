@@ -191,15 +191,19 @@ class AddRemoteViewModel(
                 if (restoring && category != null && draft.step != AddRemoteStep.CATEGORY) {
                     _uiState.update { it.copy(selectedCategory = category, step = AddRemoteStep.BRAND,
                         brandSearchQuery = draft.query, isLoading = true) }
-                    val brands = irDbRepository.getBrandsForCategory(category.id, "")
+                    val brands = irDbRepository.getBrandsForCategory(category.id, draft.query)
                     val (groupsCn, groupsEn) = precomputeBrandGroups(brands)
                     if (epoch != loadEpoch) return@launch
                     _uiState.update { it.copy(brands = brands, brandGroupsCn = groupsCn, brandGroupsEn = groupsEn, isLoading = false) }
                     val brand = brands.firstOrNull { it.brandIdx == draft.brandId }
+                        ?: if (draft.brandId != null && draft.query.isNotBlank() && draft.step in listOf(AddRemoteStep.WIZARD, AddRemoteStep.CONFIRM)) {
+                            irDbRepository.getBrandsForCategory(category.id, "").firstOrNull { it.brandIdx == draft.brandId }
+                        } else null
+                    if (epoch != loadEpoch) return@launch
                     restoring = false
                     if (brand != null && draft.step in listOf(AddRemoteStep.WIZARD, AddRemoteStep.CONFIRM)) {
                         selectBrand(brand, draft.step)
-                    } else if (draft.query.isNotBlank()) searchBrand(draft.query)
+                    }
                 } else restoring = false
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
@@ -211,6 +215,8 @@ class AddRemoteViewModel(
                         )
                     }
                 }
+            } finally {
+                restoring = false
             }
         }
     }
@@ -230,6 +236,7 @@ class AddRemoteViewModel(
         val state = _uiState.value
         if (state.step != AddRemoteStep.BRAND || saving) return
         val categoryId = state.selectedCategory?.id ?: return
+        restoring = false
         val epoch = cancelLoad()
         _uiState.update { it.copy(brandSearchQuery = query, isLoading = true, error = null) }
         loadJob = viewModelScope.launch { loadBrands(categoryId, query, epoch) }
@@ -260,6 +267,7 @@ class AddRemoteViewModel(
     fun selectBrand(brand: IrBrand, restoredStep: AddRemoteStep = AddRemoteStep.WIZARD) {
         val category = _uiState.value.selectedCategory ?: return
         if (saving) return
+        restoring = false
         checkpoint()
         onScreenStopped()
         val saved = progress.brands[brandKey(category.id, brand.brandIdx)]
@@ -531,6 +539,7 @@ class AddRemoteViewModel(
 
     fun handleBack(): Boolean {
         if (saving || _uiState.value.isSendingTest) return true
+        restoring = false
         cancelLoad()
         _uiState.update { it.copy(isLoading = false, error = null) }
         clearFeedback()
