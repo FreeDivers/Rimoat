@@ -2,6 +2,7 @@
 
 package org.qinyan.rimoat.ui.screens
 
+import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -23,6 +24,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
@@ -43,7 +45,9 @@ import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.qinyan.rimoat.ui.theme.Spacing
 import org.qinyan.rimoat.ui.viewmodel.AppUpdateState
 import org.qinyan.rimoat.ui.viewmodel.AppUpdateViewModel
+import org.qinyan.rimoat.ui.viewmodel.UpdateErrorStage
 import org.qinyan.rimoat.ui.viewmodel.UpdatePhase
+import org.qinyan.rimoat.ui.viewmodel.defaultErrorStage
 
 @Composable
 internal fun appUpdateViewModel(): AppUpdateViewModel {
@@ -67,8 +71,8 @@ internal fun AppUpdateHost(viewModel: AppUpdateViewModel, modifier: Modifier = M
         viewModel.permissionResult(UpdateInstaller.allowed(context))
         onPauseOrDispose { }
     }
-    LaunchedEffect(state.phase) {
-        if (state.phase == UpdatePhase.READY) {
+    LaunchedEffect(state.phase, state.minimized) {
+        if (state.phase == UpdatePhase.READY && !state.minimized) {
             if (!UpdateInstaller.allowed(context)) viewModel.requirePermission()
             else try {
                 val intent = UpdateInstaller.installIntent(context, checkNotNull(state.apk))
@@ -87,7 +91,9 @@ internal fun AppUpdateHost(viewModel: AppUpdateViewModel, modifier: Modifier = M
                 viewModel.awaitingPermission()
                 permission.launch(UpdateInstaller.permissionIntent(context))
             } catch (_: Exception) { viewModel.permissionUnavailable() }
-        }, modifier = modifier)
+        },
+        onMinimize = viewModel::minimize,
+        modifier = modifier)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -101,26 +107,50 @@ internal fun AppUpdateDialog(
     onInstall: () -> Unit,
     onPermission: () -> Unit,
     modifier: Modifier = Modifier,
+    onMinimize: () -> Unit = {},
 ) {
-    if (state.phase == UpdatePhase.CLOSED) return
+    if (state.phase == UpdatePhase.CLOSED || state.minimized) return
+    val guardedPhase = state.phase in setOf(
+        UpdatePhase.DOWNLOADING,
+        UpdatePhase.READY,
+        UpdatePhase.INSTALLING,
+        UpdatePhase.DOWNLOADED,
+    )
+    var confirmCancel by remember { mutableStateOf(false) }
+    LaunchedEffect(guardedPhase, state.minimized) {
+        if (!guardedPhase || state.minimized) confirmCancel = false
+    }
     val title = when (state.phase) {
         UpdatePhase.AVAILABLE -> R.string.update_title_available
         UpdatePhase.DOWNLOADING -> R.string.update_title_downloading
         UpdatePhase.PERMISSION, UpdatePhase.WAITING_PERMISSION -> R.string.update_title_permission
-        UpdatePhase.READY, UpdatePhase.DOWNLOADED, UpdatePhase.INSTALLING -> R.string.update_title_ready
+        UpdatePhase.READY, UpdatePhase.INSTALLING -> R.string.update_title_ready
+        UpdatePhase.DOWNLOADED -> if (state.failure == UpdateFailure.INSTALLER) {
+            R.string.update_title_error_install
+        } else {
+            R.string.update_title_ready
+        }
+        UpdatePhase.ERROR -> when (state.errorStage ?: state.failure?.defaultErrorStage() ?: UpdateErrorStage.CHECK) {
+            UpdateErrorStage.CHECK -> R.string.update_title_error_check
+            UpdateErrorStage.DOWNLOAD -> R.string.update_title_error_download
+            UpdateErrorStage.VERIFY -> R.string.update_title_error_verify
+            UpdateErrorStage.INSTALL -> R.string.update_title_error_install
+        }
         else -> R.string.update_check
     }
     val action: Pair<Int, () -> Unit>? = when (state.phase) {
         UpdatePhase.AVAILABLE -> if (state.release?.asset != null) R.string.update_now to onDownload
             else R.string.update_retry to onCheck
+        UpdatePhase.DOWNLOADING -> R.string.update_background_download to onMinimize
         UpdatePhase.ERROR -> R.string.update_retry to if (state.release?.asset != null) onDownload else onCheck
         UpdatePhase.PERMISSION -> R.string.update_open_settings to onPermission
         UpdatePhase.DOWNLOADED -> R.string.update_install to onInstall
         else -> null
     }
     MotionAlertDialog(
-        onDismissRequest = onCancel,
+        onDismissRequest = { if (guardedPhase) confirmCancel = true else onCancel() },
         modifier = modifier.testTag("app_update_dialog"),
+        properties = DialogProperties(dismissOnClickOutside = !guardedPhase),
         title = { Text(stringResource(title)) },
         text = {
             StateFade(state, contentKey = { it.phase }) { displayed ->
@@ -128,22 +158,92 @@ internal fun AppUpdateDialog(
             }
         },
         confirmButton = {
-            FlowRow(horizontalArrangement = Arrangement.End, verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
-                action?.let { (label, callback) ->
-                    TextButton(onClick = callback, modifier = Modifier.padding(end = Spacing.small), shapes = ButtonDefaults.shapes()) {
-                        Text(stringResource(label))
-                    }
+            action?.let { (label, callback) ->
+                Button(onClick = callback, shapes = ButtonDefaults.shapes()) {
+                    Text(stringResource(label))
                 }
-                TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes()) {
+                Text(stringResource(R.string.cancel))
             }
         },
     )
+    if (confirmCancel && guardedPhase) {
+        val downloading = state.phase == UpdatePhase.DOWNLOADING
+        MotionAlertDialog(
+            onDismissRequest = { confirmCancel = false },
+            modifier = Modifier.testTag("app_update_cancel_confirm_dialog"),
+            title = {
+                Text(stringResource(
+                    if (downloading) R.string.update_cancel_confirm_title_downloading
+                    else R.string.update_cancel_confirm_title_ready
+                ))
+            },
+            text = {
+                Text(stringResource(
+                    if (downloading) R.string.update_cancel_confirm_message_downloading
+                    else R.string.update_cancel_confirm_message_ready
+                ))
+            },
+            confirmButton = {
+                if (downloading) {
+                    Button(
+                        onClick = {
+                            confirmCancel = false
+                            onMinimize()
+                        },
+                        shapes = ButtonDefaults.shapes(),
+                    ) { Text(stringResource(R.string.update_background_download)) }
+                } else {
+                    Button(
+                        onClick = {
+                            confirmCancel = false
+                            onCancel()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                        shapes = ButtonDefaults.shapes(),
+                    ) { Text(stringResource(R.string.update_cancel_confirm_action)) }
+                }
+            },
+            dismissButton = {
+                if (downloading) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.small),
+                    ) {
+                        TextButton(
+                            onClick = {
+                                confirmCancel = false
+                                onCancel()
+                            },
+                            shapes = ButtonDefaults.shapes(),
+                        ) { Text(stringResource(R.string.update_cancel_confirm_action)) }
+                        TextButton(
+                            onClick = { confirmCancel = false },
+                            shapes = ButtonDefaults.shapes(),
+                        ) { Text(stringResource(R.string.update_continue)) }
+                    }
+                } else {
+                    TextButton(
+                        onClick = { confirmCancel = false },
+                        shapes = ButtonDefaults.shapes(),
+                    ) { Text(stringResource(R.string.update_continue)) }
+                }
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun UpdateDialogBody(state: AppUpdateState, installedVersion: String, modifier: Modifier = Modifier) {
     val configuration = LocalConfiguration.current
+    val context = LocalContext.current
     val locale = configuration.locales[0]
     val notes = state.release?.notes(locale.toLanguageTag()).orEmpty()
     Column(
@@ -175,10 +275,14 @@ private fun UpdateDialogBody(state: AppUpdateState, installedVersion: String, mo
                     LinearWavyProgressIndicator(progress = { animated }, modifier = Modifier.fillMaxWidth().testTag("update_progress"))
                     Text(NumberFormat.getPercentInstance(locale).format(fraction.toDouble()),
                         style = MaterialTheme.typography.titleMedium)
-                    val format = NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 1 }
-                    Text(stringResource(R.string.update_download_size,
-                        format.format(state.downloadedBytes / 1048576.0), format.format(state.totalBytes / 1048576.0)),
-                        textAlign = TextAlign.Center)
+                    Text(
+                        stringResource(
+                            R.string.update_download_size,
+                            Formatter.formatShortFileSize(context, state.downloadedBytes),
+                            Formatter.formatShortFileSize(context, state.totalBytes),
+                        ),
+                        textAlign = TextAlign.Center,
+                    )
                     if (fraction >= 1f) StatusText(stringResource(R.string.update_verifying))
                 }
             }

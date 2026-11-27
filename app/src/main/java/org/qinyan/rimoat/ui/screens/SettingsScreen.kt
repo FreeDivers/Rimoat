@@ -16,7 +16,11 @@ import android.content.ContextWrapper
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import java.text.NumberFormat
+import org.qinyan.rimoat.ui.viewmodel.AppUpdateState
+import org.qinyan.rimoat.ui.viewmodel.UpdatePhase
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.IrRemoteApplication
 import org.qinyan.rimoat.i18n.AppLanguage
@@ -111,6 +115,7 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
     val transferBusy by viewModel.transferBusy.collectAsStateWithLifecycle()
     val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
     val allRemotes by viewModel.allRemotes.collectAsStateWithLifecycle()
+    val updateState by updateViewModel.state.collectAsStateWithLifecycle()
     var showIrFormats by rememberSaveable { mutableStateOf(false) }
     var showTransmitterSheet by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
@@ -390,7 +395,18 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
                         )
                     }
                     item { index, count ->
-                        SettingsAction(stringResource(R.string.update_check), Icons.Rounded.SystemUpdate, index = index, count = count, onClick = updateViewModel::check)
+                        UpdateSettingsRow(
+                            updateState = updateState,
+                            index = index,
+                            count = count,
+                            onClick = {
+                                if (updateState.minimized && updateState.phase != UpdatePhase.CLOSED) {
+                                    updateViewModel.resume()
+                                } else {
+                                    updateViewModel.check()
+                                }
+                            },
+                        )
                     }
                     item { index, count ->
                         SettingsAction(stringResource(R.string.settings_about), Icons.Rounded.Info, index = index, count = count, onClick = onAboutClick)
@@ -680,6 +696,136 @@ private fun SettingsValueRow(
         }
     } else {
         rowContent()
+    }
+}
+
+@Composable
+private fun UpdateSettingsRow(
+    updateState: AppUpdateState,
+    index: Int,
+    count: Int,
+    onClick: () -> Unit,
+) {
+    if (!updateState.minimized || updateState.phase == UpdatePhase.CLOSED) {
+        SettingsAction(
+            title = stringResource(R.string.update_check),
+            icon = Icons.Rounded.SystemUpdate,
+            index = index,
+            count = count,
+            onClick = onClick,
+        )
+        return
+    }
+    val interactionSource = remember { MutableInteractionSource() }
+    val locale = LocalConfiguration.current.locales[0]
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val title = stringResource(R.string.update_check)
+    val titleStyle = MaterialTheme.typography.bodyLarge
+    val statusStyle = MaterialTheme.typography.labelLarge
+    val secondaryColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val fraction = if (updateState.totalBytes > 0) {
+        (updateState.downloadedBytes.toDouble() / updateState.totalBytes).coerceIn(0.0, 1.0).toFloat()
+    } else {
+        0f
+    }
+    val statusText = when (updateState.phase) {
+        UpdatePhase.DOWNLOADING -> NumberFormat.getPercentInstance(locale).format(fraction.toDouble())
+        UpdatePhase.READY, UpdatePhase.DOWNLOADED, UpdatePhase.PERMISSION -> stringResource(R.string.update_ready_badge)
+        UpdatePhase.ERROR -> stringResource(R.string.update_failed_badge)
+        else -> ""
+    }
+    val statusColor = if (updateState.phase == UpdatePhase.ERROR) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val titleMinimum = with(density) {
+        measurer.measure(title, titleStyle).multiParagraph.minIntrinsicWidth.toDp() + 1.dp
+    }
+    val statusMinimum = with(density) {
+        measurer.measure(statusText, statusStyle).multiParagraph.minIntrinsicWidth.toDp() + 1.dp
+    }
+    val progressWidth = if (updateState.phase == UpdatePhase.DOWNLOADING) 56.dp + Spacing.small else 0.dp
+    val trailingControlWidth = progressWidth + 24.dp + Spacing.small
+    ExpressiveSegmentedSurface(
+        index = index,
+        count = count,
+        interactionSource = interactionSource,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = ripple(),
+                    role = Role.Button,
+                    onClick = onClick,
+                )
+                .semantics { if (statusText.isNotEmpty()) stateDescription = statusText }
+                .heightIn(min = 64.dp),
+        ) {
+            if (maxWidth < 300.dp || titleMinimum + statusMinimum + trailingControlWidth > maxWidth - 84.dp) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.SystemUpdate, null, Modifier.size(24.dp), tint = secondaryColor)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
+                        Text(title, style = titleStyle, color = MaterialTheme.colorScheme.onSurface)
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                        ) {
+                            if (updateState.phase == UpdatePhase.DOWNLOADING) {
+                                LinearWavyProgressIndicator(
+                                    progress = { fraction },
+                                    modifier = Modifier.weight(1f).testTag("settings_update_progress"),
+                                )
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
+                            if (statusText.isNotEmpty()) {
+                                Text(statusText, style = statusStyle, color = statusColor)
+                            }
+                            Icon(Icons.Rounded.ChevronRight, null, Modifier.size(24.dp), tint = secondaryColor)
+                        }
+                    }
+                }
+            } else {
+                ListItem(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+                    headlineContent = { Text(title) },
+                    leadingContent = { Icon(Icons.Rounded.SystemUpdate, null, Modifier.size(24.dp)) },
+                    trailingContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                        ) {
+                            if (statusText.isNotEmpty()) {
+                                Text(statusText, style = statusStyle, color = statusColor)
+                            }
+                            if (updateState.phase == UpdatePhase.DOWNLOADING) {
+                                LinearWavyProgressIndicator(
+                                    progress = { fraction },
+                                    modifier = Modifier.width(56.dp).testTag("settings_update_progress"),
+                                )
+                            }
+                            Icon(Icons.Rounded.ChevronRight, null, Modifier.size(24.dp))
+                        }
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        headlineColor = MaterialTheme.colorScheme.onSurface,
+                        leadingIconColor = secondaryColor,
+                        trailingIconColor = secondaryColor,
+                    ),
+                )
+            }
+        }
     }
 }
 
