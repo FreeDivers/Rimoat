@@ -31,6 +31,9 @@
     <string name="screen_export_remote">匯出此遙控器</string>
     <string name="screen_trash_remote">移入資源回收筒</string>
     <string name="screen_trashed">已移入資源回收筒</string>
+    <plurals name="screen_trashed_remotes">
+        <item quantity="other">已將 %1$d 個遙控器移入資源回收筒</item>
+    </plurals>
     <string name="screen_undo">撤銷</string>
     <string name="screen_delete_remote">刪除遙控器</string>
     <string name="screen_delete">刪除</string>
@@ -199,4 +202,7 @@
     <string name="screen_search_empty">沒有符合此搜尋的遙控器</string>
     <string name="screen_filter_empty">沒有符合這些篩選條件的遙控器</string>
     <string name="screen_clear_search">清除搜尋</string>
+    <string name="screen_leave_learning_title">放棄目前學習？</string>
+    <string name="screen_leave_learning_message">現在跳轉將會捨棄尚未儲存的學習進度。</string>
+    <string name="screen_discard_and_switch">放棄並跳轉</string>
 </resources>

@@ -31,6 +31,10 @@
     <string name="screen_export_remote">Export remote</string>
     <string name="screen_trash_remote">Move to trash</string>
     <string name="screen_trashed">Moved to trash</string>
+    <plurals name="screen_trashed_remotes">
+        <item quantity="one">Moved %1$d remote to trash</item>
+        <item quantity="other">Moved %1$d remotes to trash</item>
+    </plurals>
     <string name="screen_undo">Undo</string>
     <string name="screen_delete_remote">Delete remote</string>
     <string name="screen_delete">Delete</string>
@@ -199,4 +203,7 @@
     <string name="screen_search_empty">No remotes match this search</string>
     <string name="screen_filter_empty">No remotes match these filters</string>
     <string name="screen_clear_search">Clear search</string>
+    <string name="screen_leave_learning_title">Leave remote learning?</string>
+    <string name="screen_leave_learning_message">Switching now will discard your unsaved learning progress.</string>
+    <string name="screen_discard_and_switch">Discard and switch</string>
 </resources>

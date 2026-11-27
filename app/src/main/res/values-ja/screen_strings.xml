@@ -31,6 +31,9 @@
     <string name="screen_export_remote">リモコンをエクスポート</string>
     <string name="screen_trash_remote">ゴミ箱に移動</string>
     <string name="screen_trashed">ゴミ箱に移動しました</string>
+    <plurals name="screen_trashed_remotes">
+        <item quantity="other">%1$d 件のリモコンをゴミ箱に移動しました</item>
+    </plurals>
     <string name="screen_undo">元に戻す</string>
     <string name="screen_delete_remote">リモコンを削除</string>
     <string name="screen_delete">削除</string>
@@ -199,4 +202,7 @@
     <string name="screen_search_empty">検索に一致するリモコンがありません</string>
     <string name="screen_filter_empty">条件に一致するリモコンがありません</string>
     <string name="screen_clear_search">検索を消去</string>
+    <string name="screen_leave_learning_title">学習を終了しますか？</string>
+    <string name="screen_leave_learning_message">このまま移動すると、保存されていない学習内容が破棄されます。</string>
+    <string name="screen_discard_and_switch">破棄して移動</string>
 </resources>

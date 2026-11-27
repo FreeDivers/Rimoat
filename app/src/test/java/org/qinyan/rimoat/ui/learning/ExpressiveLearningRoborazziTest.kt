@@ -166,4 +166,73 @@ class ExpressiveLearningRoborazziTest {
         compose.onNodeWithText(app.getString(R.string.screen_close)).assertIsDisplayed().performTouchInput { click() }
         assertEquals(1, closes)
     }
+
+    @Test fun leaveLearningDialogCoversLightDarkAmoledAndDynamicColors() {
+        AppStrings.initialize(app)
+        var dark by mutableStateOf(false)
+        var pureBlack by mutableStateOf(false)
+        var dynamic by mutableStateOf(false)
+        var confirms = 0
+        var dismisses = 0
+        compose.setContent {
+            IrRemoteTheme(dynamicColor = dynamic, darkTheme = dark, pureBlackBackground = pureBlack) {
+                LeaveLearningDraftDialog(
+                    onConfirmDiscard = { confirms++ },
+                    onDismiss = { dismisses++ }
+                )
+            }
+        }
+        compose.onNodeWithText(app.getString(R.string.screen_leave_learning_title)).assertIsDisplayed()
+        capture("leave_dialog_light", dialog = true)
+
+        compose.runOnIdle { dark = true; pureBlack = false; dynamic = false }
+        capture("leave_dialog_dark", dialog = true)
+
+        compose.runOnIdle { dark = true; pureBlack = true; dynamic = false }
+        capture("leave_dialog_amoled", dialog = true)
+
+        compose.runOnIdle { dark = false; pureBlack = false; dynamic = true }
+        capture("leave_dialog_dynamic", dialog = true)
+
+        compose.onNodeWithText(app.getString(R.string.screen_continue_learning)).performTouchInput { click() }
+        assertEquals(1, dismisses)
+        assertEquals(0, confirms)
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w320dp-h891dp-port-mdpi")
+    fun leaveLearningDialogNarrowLargeTextKeepsBothActionsReachable() {
+        RuntimeEnvironment.setFontScale(2f)
+        AppStrings.initialize(app)
+        assertEquals(2f, app.resources.configuration.fontScale, 0f)
+        var show by mutableStateOf(true)
+        var confirms = 0
+        var dismisses = 0
+        compose.setContent {
+            IrRemoteTheme(dynamicColor = false, darkTheme = false) {
+                if (show) {
+                    LeaveLearningDraftDialog(
+                        onConfirmDiscard = { confirms++; show = false },
+                        onDismiss = { dismisses++; show = false }
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText(app.getString(R.string.screen_leave_learning_title)).assertIsDisplayed()
+        compose.onNodeWithText(app.getString(R.string.screen_continue_learning))
+            .assertIsDisplayed().assertIsEnabled().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithText(app.getString(R.string.screen_discard_and_switch))
+            .assertIsDisplayed().assertIsEnabled().assertHeightIsAtLeast(48.dp)
+        capture("leave_dialog_large_before", dialog = true)
+
+        compose.onNodeWithText(app.getString(R.string.screen_continue_learning)).performTouchInput { click() }
+        assertEquals(1, dismisses)
+        assertEquals(0, confirms)
+
+        compose.runOnIdle { show = true }
+        compose.onNodeWithText(app.getString(R.string.screen_discard_and_switch))
+            .assertIsDisplayed().performTouchInput { click() }
+        assertEquals(1, confirms)
+        assertEquals(1, dismisses)
+    }
 }

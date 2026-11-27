@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.ui.learning.CustomRemoteWizardScreen
 import org.qinyan.rimoat.ui.learning.CustomRemoteWizardViewModel
+import org.qinyan.rimoat.ui.learning.LeaveLearningDraftDialog
 import org.qinyan.rimoat.ui.learning.WizardDrafts
 import org.qinyan.rimoat.ui.screens.AddRemoteScreen
 import org.qinyan.rimoat.ui.screens.RemoteControlScreen
@@ -43,6 +44,7 @@ import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.qinyan.rimoat.ui.viewmodel.AddRemoteViewModel
 import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -62,31 +64,40 @@ sealed interface AppScreen {
     ) : AppScreen
 }
 
+private fun encodeScreen(screen: AppScreen): List<String> = when (screen) {
+    AppScreen.Rooms -> listOf("rooms")
+    AppScreen.Trash -> listOf("trash")
+    AppScreen.Settings -> listOf("settings")
+    AppScreen.About -> listOf("about")
+    AppScreen.OpenSourceLicenses -> listOf("licenses")
+    is AppScreen.LibraryLicense -> listOf("license", screen.libraryId)
+    AppScreen.RemoteList -> listOf("list")
+    AppScreen.AddRemote -> listOf("add")
+    is AppScreen.RemoteControl -> listOf("control", screen.remoteId)
+    is AppScreen.CustomRemoteWizard -> listOf("wizard", screen.category.name, screen.sessionId)
+}
+
+private fun decodeScreen(values: List<String>): AppScreen = when (values.firstOrNull()) {
+    "control" -> AppScreen.RemoteControl(values[1])
+    "rooms" -> AppScreen.Rooms
+    "trash" -> AppScreen.Trash
+    "settings" -> AppScreen.Settings
+    "about" -> AppScreen.About
+    "licenses" -> AppScreen.OpenSourceLicenses
+    "license" -> AppScreen.LibraryLicense(values[1])
+    "add" -> AppScreen.AddRemote
+    "wizard" -> AppScreen.CustomRemoteWizard(DeviceCategory.valueOf(values[1]), values[2])
+    else -> AppScreen.RemoteList
+}
+
 private val ScreenSaver = listSaver<AppScreen, String>(
-    save = { screen -> when (screen) {
-        AppScreen.Rooms -> listOf("rooms")
-        AppScreen.Trash -> listOf("trash")
-        AppScreen.Settings -> listOf("settings")
-        AppScreen.About -> listOf("about")
-        AppScreen.OpenSourceLicenses -> listOf("licenses")
-        is AppScreen.LibraryLicense -> listOf("license", screen.libraryId)
-        AppScreen.RemoteList -> listOf("list")
-        AppScreen.AddRemote -> listOf("add")
-        is AppScreen.RemoteControl -> listOf("control", screen.remoteId)
-        is AppScreen.CustomRemoteWizard -> listOf("wizard", screen.category.name, screen.sessionId)
-    } },
-    restore = { values -> when (values.firstOrNull()) {
-        "control" -> AppScreen.RemoteControl(values[1])
-        "rooms" -> AppScreen.Rooms
-        "trash" -> AppScreen.Trash
-        "settings" -> AppScreen.Settings
-        "about" -> AppScreen.About
-        "licenses" -> AppScreen.OpenSourceLicenses
-        "license" -> AppScreen.LibraryLicense(values[1])
-        "add" -> AppScreen.AddRemote
-        "wizard" -> AppScreen.CustomRemoteWizard(DeviceCategory.valueOf(values[1]), values[2])
-        else -> AppScreen.RemoteList
-    } }
+    save = { encodeScreen(it) },
+    restore = ::decodeScreen
+)
+
+private val NullableScreenSaver = listSaver<AppScreen?, String>(
+    save = { screen -> screen?.let(::encodeScreen).orEmpty() },
+    restore = { values -> if (values.isEmpty()) null else decodeScreen(values) }
 )
 
 class MainActivity : AppCompatActivity() {
@@ -203,18 +214,23 @@ class MainActivity : AppCompatActivity() {
                         mutableStateOf<AppScreen>(AppScreen.RemoteList)
                     }
                     var addFlowInitialized by rememberSaveable { mutableStateOf(false) }
+                    var pendingExternalDestination by rememberSaveable(stateSaver = NullableScreenSaver) {
+                        mutableStateOf<AppScreen?>(null)
+                    }
 
                     // A recreated Activity only restores the current page, even if it rotated mid-transition.
                     LaunchedEffect(Unit) { pageViewModels.releaseExcept(currentScreen) }
 
-                    fun navigate(destination: AppScreen) {
+                    fun navigate(destination: AppScreen, discardWizardDraft: Boolean = true) {
                         if (destination == currentScreen) return
                         val wizard = currentScreen as? AppScreen.CustomRemoteWizard
                         if (wizard != null) {
                             pageViewModels.findOwner(wizard)?.let { owner ->
-                                wizardViewModel(wizard, owner).discardDraft()
+                                val vm = wizardViewModel(wizard, owner)
+                                if (discardWizardDraft) vm.discardDraft() else vm.onScreenStopped()
                             }
                         }
+                        pendingExternalDestination = null
                         currentScreen = destination
                     }
 
@@ -243,18 +259,39 @@ class MainActivity : AppCompatActivity() {
                         )
                     } else null
 
-                    LaunchedEffect(widgetDestination) {
-                        val destination = widgetDestination ?: return@LaunchedEffect
-                        repository.awaitLoaded()
-                        if (destination is AppScreen.RemoteControl && repository.getRemote(destination.remoteId) == null) {
-                            navigate(AppScreen.RemoteList)
+                    fun applyExternalDestination(destination: AppScreen, discardWizardDraft: Boolean) {
+                        if (destination is AppScreen.RemoteControl && repository.remotes.value.none { it.id == destination.remoteId }) {
+                            navigate(AppScreen.RemoteList, discardWizardDraft = discardWizardDraft)
                             listViewModel.reportTransferError(org.qinyan.rimoat.i18n.UiText.resource(R.string.shortcut_unavailable))
                         } else {
                             if (destination == AppScreen.AddRemote) {
                                 addViewModel?.reset()
                                 addFlowInitialized = true
                             }
-                            navigate(destination)
+                            navigate(destination, discardWizardDraft = discardWizardDraft)
+                        }
+                    }
+
+                    LaunchedEffect(widgetDestination) {
+                        val destination = widgetDestination ?: return@LaunchedEffect
+                        repository.awaitLoaded()
+                        val wizard = currentScreen as? AppScreen.CustomRemoteWizard
+                        if (wizard != null && destination != wizard) {
+                            val wizardVm = pageViewModels.findOwner(wizard)?.let { owner -> wizardViewModel(wizard, owner) }
+                            if (wizardVm != null) {
+                                if (wizardVm.uiState.value.isRestoring || wizardVm.uiState.value.isSaving) {
+                                    wizardVm.uiState.first { !it.isRestoring && !it.isSaving }
+                                }
+                                if (currentScreen == wizard && destination != currentScreen && wizardVm.uiState.value.hasDraftProgress) {
+                                    wizardVm.onScreenStopped()
+                                    pendingExternalDestination = destination
+                                    widgetDestination = null
+                                    return@LaunchedEffect
+                                }
+                            }
+                            applyExternalDestination(destination, discardWizardDraft = wizardVm != null)
+                        } else {
+                            applyExternalDestination(destination, discardWizardDraft = true)
                         }
                         widgetDestination = null
                     }
@@ -405,6 +442,18 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     }
+                    }
+                    val pendingTarget = pendingExternalDestination
+                    if (pendingTarget != null && currentScreen is AppScreen.CustomRemoteWizard) {
+                        LeaveLearningDraftDialog(
+                            onConfirmDiscard = {
+                                pendingExternalDestination = null
+                                applyExternalDestination(pendingTarget, discardWizardDraft = true)
+                            },
+                            onDismiss = {
+                                pendingExternalDestination = null
+                            }
+                        )
                     }
                 }
             }

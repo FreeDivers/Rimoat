@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -129,6 +130,54 @@ class PageLifecycleRoborazziTest {
             scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
             awaitText(R.string.screen_search_remote)
             compose.onNode(hasSetTextAction()).assertIsNotFocused()
+        }
+    }
+
+    @Test fun widgetIntentDuringWizardPromptsAndPreservesDraftWhenCancelled() {
+        val profile = RemoteProfile(id = "fixture-remote", name = "Living room TV")
+        runBlocking { app.repository.awaitLoaded(); app.repository.saveRemote(profile) }
+        launch("add").use { scenario ->
+            awaitText(R.string.screen_choose_category)
+            awaitText(R.string.screen_learn_physical)
+            compose.onNodeWithText(app.getString(R.string.screen_learn_physical)).performClick()
+            awaitText(R.string.screen_remote_name)
+            compose.onNodeWithText(app.getString(R.string.screen_remote_name)).performTextInput("Living room remote")
+            val drafts = app.filesDir.resolve("wizard-drafts")
+            compose.waitUntil(10_000) { drafts.listFiles()?.any { it.extension == "json" } == true }
+
+            val widgetIntent = Intent(app, MainActivity::class.java).apply {
+                action = "org.qinyan.rimoat.OPEN_WIDGET"
+                putExtra("widget_destination", "remote")
+                putExtra("widget_remote_id", profile.id)
+            }
+            val dispatchNewIntent = MainActivity::class.java.getDeclaredMethod("onNewIntent", Intent::class.java)
+                .apply { isAccessible = true }
+            scenario.onActivity { dispatchNewIntent.invoke(it, widgetIntent) }
+            awaitText(R.string.screen_leave_learning_title)
+            compose.onNode(isDialog()).captureRoboImage(
+                "src/test/screenshots/page_lifecycle_wizard_leave_dialog.webp",
+                roborazziOptions = options
+            )
+
+            // Cancelling preserves the draft and stays on the wizard.
+            compose.onNodeWithText(app.getString(R.string.screen_continue_learning)).performClick()
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithText(app.getString(R.string.screen_leave_learning_title)).fetchSemanticsNodes().isEmpty()
+            }
+            compose.onNodeWithText("Living room remote").assertIsDisplayed()
+            assertTrue(drafts.listFiles()?.any { it.extension == "json" } == true)
+            capture("page_lifecycle_wizard_stay_after_cancel")
+
+            // Confirming discards the draft and switches to the widget destination.
+            scenario.onActivity { dispatchNewIntent.invoke(it, widgetIntent) }
+            awaitText(R.string.screen_discard_and_switch)
+            compose.onNodeWithText(app.getString(R.string.screen_discard_and_switch)).performClick()
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithText(profile.name).fetchSemanticsNodes().isNotEmpty() &&
+                    drafts.listFiles().orEmpty().none { it.extension == "json" }
+            }
+            compose.onNodeWithText(profile.name).assertIsDisplayed()
+            capture("page_lifecycle_wizard_switched_after_confirm")
         }
     }
 }

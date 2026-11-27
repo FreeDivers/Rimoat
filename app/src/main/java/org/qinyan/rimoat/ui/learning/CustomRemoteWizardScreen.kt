@@ -592,3 +592,53 @@ internal fun WizardKeyItem.displayLabel(): String {
     val context = LocalContext.current
     return builtinLabel?.let { org.qinyan.rimoat.i18n.localizedLabel(it, context) } ?: label
 }
+
+@Composable
+internal fun LeaveLearningDraftDialog(
+    onConfirmDiscard: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+    MotionAlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.screen_leave_learning_title),
+                modifier = Modifier.semantics { heading() }
+            )
+        },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = stringResource(R.string.screen_leave_learning_message),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                shapes = ButtonDefaults.shapes(),
+                onClick = {
+                    HapticHelper.performRemoteClick(haptic, context)
+                    onConfirmDiscard()
+                },
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
+                Text(stringResource(R.string.screen_discard_and_switch))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                shapes = ButtonDefaults.shapes(),
+                onClick = {
+                    HapticHelper.performSelection(haptic, context)
+                    onDismiss()
+                },
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
+                Text(stringResource(R.string.screen_continue_learning))
+            }
+        }
+    )
+}
