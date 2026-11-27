@@ -4,16 +4,25 @@ import android.app.Activity
 import android.app.Application
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
+import android.content.ComponentName
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Point
 import android.graphics.Rect
 import android.os.Build
 import android.os.Looper
+import android.os.LocaleList
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.ExperimentalGlanceApi
@@ -26,13 +35,20 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Rule
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.data.AcSettings
+import org.qinyan.rimoat.data.AcAction
+import org.qinyan.rimoat.data.AcMode
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.AppColorMode
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.labelRes
+import org.qinyan.rimoat.R
+import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -40,6 +56,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "en-rUS-mdpi", application = Application::class)
@@ -47,13 +64,16 @@ import org.robolectric.annotation.LooperMode
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class, ExperimentalGlanceApi::class, ExperimentalGlanceRemoteViewsApi::class)
 class WidgetExpressiveRoborazziTest {
+    @get:Rule val screenshotDifferences = org.junit.rules.ErrorCollector()
+
+    @get:Rule val compose = createComposeRule()
     private val options = RoborazziOptions(
         recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat())
     )
     private val app get() = RuntimeEnvironment.getApplication()
     private val television = RemoteProfile("television", "Living room TV", room = "Living room",
         category = DeviceCategory.TV, buttons = listOf(
-            RemoteButton("power", "Power", iconName = "power", rawPattern = listOf(9000, 4500, 560)),
+            RemoteButton("power", "Power", iconName = "power", rawPattern = listOf(9000, 4500, 560), key = ButtonKey.POWER),
             RemoteButton("up", "Volume up", iconName = "add", rawPattern = listOf(9000, 4500, 560)),
             RemoteButton("down", "Volume down", iconName = "remove", rawPattern = listOf(9000, 4500, 560))
         ))
@@ -181,6 +201,154 @@ class WidgetExpressiveRoborazziTest {
         }
     }
 
+    @Test fun sharedIconsKeepTheirIdentityAcrossLanguagesAndThemes() = runBlocking {
+        for ((language, tags) in listOf("en" to "en", "hans" to "zh-CN", "hant" to "zh-Hant", "ja" to "ja")) {
+            val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tags))
+            })
+            fun key(id: String, key: ButtonKey?, label: String) = RemoteButton(id, label,
+                rawPattern = listOf(9000, 4500, 560), key = key, isLearned = true)
+            val profile = television.copy(name = context.getString(R.string.widget_category_tv), room = "", buttons = listOf(
+                key("source", ButtonKey.SOURCE, context.getString(ButtonKey.SOURCE.labelRes)),
+                key("confirm", ButtonKey.OK, context.getString(ButtonKey.OK.labelRes)),
+                key("custom", null, context.getString(R.string.control_power)),
+                key("power", ButtonKey.POWER, "Custom key")
+            ))
+            val ac = airConditioner.copy(name = context.getString(R.string.widget_category_ac), room = "",
+                acSettings = AcSettings(mode = AcMode.HEAT))
+            val actions = listOf(AcAction.MODE, AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.AUXILIARY_HEAT,
+                AcAction.VENTILATION, AcAction.DRY, AcAction.QUICK_COOL, AcAction.QUICK_HEAT)
+            val commands = WidgetCommands.choices(profile)
+            val acCommands = actions.map { WidgetCommand(WidgetCommands.PREFIX + it.name, it.name, null) }
+            val configuration = WidgetConfiguration(WidgetKind.PANEL, shortcuts =
+                commands.map { WidgetShortcut(profile.id, it.id) } + acCommands.map { WidgetShortcut(ac.id, it.id) })
+            val initial = WidgetSnapshot(loaded = true, profiles = listOf(profile, ac), localeTags = tags,
+                commands = mapOf(profile.id to commands, ac.id to acCommands))
+            assertFalse(commands[2].isPower(profile))
+            assertTrue(commands[3].isPower(profile))
+            val active = ac.acSettings.apply(AcAction.SWING).apply(AcAction.HORIZONTAL_SWING)
+                .apply(AcAction.AUXILIARY_HEAT).apply(AcAction.VENTILATION).apply(AcAction.DRY)
+            assertTrue(active.isSwingOn && active.horizontalSwingOn && active.auxiliaryHeatOn && active.ventilationOn && active.dryOn)
+            for ((mode, color) in listOf("light" to AppColorMode.LIGHT, "dark" to AppColorMode.DARK)) {
+                val snapshot = initial.copy(colorMode = color)
+                render("shared_icons_${language}_${mode}_before", DpSize(280.dp, 320.dp), configuration, snapshot) {
+                    assertAllConfiguredCommandTargets(it, configuration)
+                }
+                render("shared_icons_${language}_${mode}_after", DpSize(280.dp, 320.dp), configuration,
+                    snapshot.copy(profiles = listOf(profile, ac.copy(acSettings = active)))) {
+                    assertAllConfiguredCommandTargets(it, configuration)
+                }
+            }
+        }
+    }
+
+    @Test fun statusAccessibilityAnnouncesLocalizedPowerChanges() = runBlocking {
+        for ((language, tags) in listOf("en" to "en", "hans" to "zh-CN", "hant" to "zh-Hant", "ja" to "ja")) {
+            val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tags))
+            })
+            val before = airConditioner.copy(name = context.getString(R.string.widget_category_ac), room = "",
+                acSettings = airConditioner.acSettings.copy(powerOn = false))
+            val after = before.copy(acSettings = before.acSettings.apply(AcAction.POWER_ON))
+            assertFalse(before.acSettings.powerOn)
+            assertTrue(after.acSettings.powerOn)
+            assertEquals(before.acSettings.temperature, after.acSettings.temperature)
+            val (configuration, initial) = fixture(WidgetKind.STATUS, profile = before)
+            for ((phase, profile) in listOf("before" to before, "after" to after)) {
+                val snapshot = initial.copy(profiles = listOf(profile), localeTags = tags, colorMode = AppColorMode.LIGHT)
+                render("status_accessibility_${language}_$phase", DpSize(280.dp, 240.dp), configuration, snapshot) { root ->
+                    assertAllConfiguredCommandTargets(root, configuration)
+                    val settings = profile.acSettings
+                    val powerState = context.getString(if (settings.powerOn) R.string.widget_on else R.string.widget_off)
+                    val status = context.getString(R.string.control_ac_status,
+                        context.getString(R.string.control_target_temp), powerState, settings.temperature,
+                        org.qinyan.rimoat.i18n.localizedLabel(settings.mode, context),
+                        org.qinyan.rimoat.i18n.localizedLabel(settings.fanSpeed, context))
+                    val expected = context.getString(R.string.widget_open_remote_status, profile.name, status)
+                    val statusNodes = descendants(root).filter { it.contentDescription?.toString() == expected }
+                    assertEquals("The Glance root exposes the complete localized state", 1, statusNodes.size)
+                    assertTrue("The state belongs to the clickable widget root",
+                        generateSequence(statusNodes.single()) { it.parent as? View }.any { it.isClickable })
+                    val reading = if (settings.powerOn) "${settings.temperature}°" else context.getString(R.string.widget_off)
+                    assertTrue("The visible reading agrees with the spoken power state",
+                        texts(root).any { it.text.toString() == reading })
+                }
+            }
+        }
+    }
+
+    @Test fun sharedIconsStayReachableInNarrowDynamicWidgetsWithLargeText() = runBlocking {
+        RuntimeEnvironment.setFontScale(2f)
+        assertEquals(2f, app.resources.configuration.fontScale, 0f)
+        val keys = listOf(ButtonKey.SOURCE, ButtonKey.OK, ButtonKey.POWER)
+        val profile = television.copy(name = "TV", room = "", buttons = keys.map { key ->
+            RemoteButton(key.name, app.getString(key.labelRes), key = key,
+                rawPattern = listOf(9000, 4500, 560))
+        })
+        val commands = WidgetCommands.choices(profile)
+        val configuration = WidgetConfiguration(WidgetKind.PANEL, shortcuts = commands.map { WidgetShortcut(profile.id, it.id) })
+        val state = WidgetSnapshot(loaded = true, profiles = listOf(profile), commands = mapOf(profile.id to commands),
+            dynamicColor = true, colorMode = AppColorMode.DARK, fontScale = 2f, localeTags = "en")
+        render("shared_icons_narrow_dynamic_large_text_before", DpSize(152.dp, 240.dp), configuration, state) {
+            assertAllConfiguredCommandTargets(it, configuration)
+        }
+        render("shared_icons_narrow_dynamic_large_text_busy", DpSize(152.dp, 240.dp), configuration, state,
+            feedback = WidgetFeedback("", busy = true)) {
+            assertCommandTargets(it, configuration, configuration.shortcuts.size,
+                disabled = configuration.shortcuts.map { shortcut -> shortcut.buttonId }.toSet())
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "en-rUS-w320dp-h891dp-mdpi")
+    fun configurationUsesSharedInputAndConfirmationIconsAfterSelection() = runBlocking {
+        RuntimeEnvironment.setFontScale(2f)
+        assertEquals(2f, app.resources.configuration.fontScale, 0f)
+        AppStrings.initialize(app)
+        val profile = television.copy(name = "TV", room = "", buttons = listOf(
+            RemoteButton("source", "Input", key = ButtonKey.SOURCE, rawPattern = listOf(9000, 4500, 560)),
+            RemoteButton("confirm", "OK", key = ButtonKey.OK, rawPattern = listOf(9000, 4500, 560))
+        ))
+        val commands = WidgetCommands.choices(profile)
+        val snapshot = WidgetSnapshot(loaded = true, profiles = listOf(profile), commands = mapOf(profile.id to commands),
+            fontScale = 2f, localeTags = "en")
+        val source = WidgetConfiguration(WidgetKind.SINGLE, profile.id, listOf(WidgetShortcut(profile.id, "source")))
+        val confirm = source.copy(shortcuts = listOf(WidgetShortcut(profile.id, "confirm")))
+        val size = DpSize(280.dp, 64.dp)
+        val sourcePreview = composeConfigurationPreview(app, source, snapshot, size)
+        val confirmPreview = composeConfigurationPreview(app, confirm, snapshot, size)
+        val component = ComponentName(app, SingleRemoteWidgetReceiver::class.java)
+        val provider = AppWidgetProviderInfo().apply { this.provider = component }
+        ReflectionHelpers.setField(provider, "providerInfo", ActivityInfo().apply {
+            packageName = app.packageName
+            name = component.className
+            applicationInfo = app.applicationInfo
+        })
+        val manager = AppWidgetManager.getInstance(app)
+        shadowOf(manager).addInstalledProvider(provider)
+        shadowOf(manager).bindAppWidgetId(42, component)
+        var draft by mutableStateOf(source)
+        var saves = 0
+        compose.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                WidgetConfigurationContent(42, WidgetKind.SINGLE, snapshot, draft,
+                    WidgetPreview(size, if (draft == source) sourcePreview else confirmPreview),
+                    saving = false, error = null, onChange = { draft = it }, onCancel = {},
+                    onSave = { saves++ }, onRetry = {}, onAddRemote = {})
+            }
+        }
+        compose.onNodeWithText("Input").performScrollTo().assertIsDisplayed()
+        compose.onRoot().captureScreenshot("src/test/screenshots/widget_expressive_configuration_input_before.webp", roborazziOptions = options)
+        compose.onNodeWithContentDescription(app.getString(R.string.widget_change_button)).performClick()
+        compose.onNode(hasText("OK") and hasAnyAncestor(isDialog())).performScrollTo().performClick()
+        compose.onNode(isDialog()).assertDoesNotExist()
+        compose.runOnIdle { assertEquals(confirm, draft) }
+        compose.onNodeWithText("OK").performScrollTo().assertIsDisplayed()
+        compose.onRoot().captureScreenshot("src/test/screenshots/widget_expressive_configuration_confirm_after.webp", roborazziOptions = options)
+        compose.onNodeWithText(app.getString(R.string.widget_done)).performClick()
+        compose.runOnIdle { assertEquals(1, saves) }
+    }
+
     private suspend fun exerciseLayouts(kind: WidgetKind) {
         val (configuration, initial) = fixture(kind)
         val layouts = buildList {
@@ -232,6 +400,7 @@ class WidgetExpressiveRoborazziTest {
         try {
             val activity = controller.get()
             val resourceConfiguration = Configuration(activity.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(snapshot.localeTags))
                 fontScale = snapshot.fontScale
                 uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
                     if (snapshot.colorMode == AppColorMode.DARK) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
@@ -251,7 +420,7 @@ class WidgetExpressiveRoborazziTest {
             parent.layout(0, 0, size.width.value.toInt(), size.height.value.toInt())
             inspect(parent)
             assertRenderedContentIsFullyVisible(parent)
-            parent.captureRoboImage("src/test/screenshots/widget_expressive_$name.webp", roborazziOptions = options)
+            parent.captureScreenshot("src/test/screenshots/widget_expressive_$name.webp", roborazziOptions = options)
         } finally {
             controller.pause().stop().destroy()
         }
@@ -341,4 +510,18 @@ class WidgetExpressiveRoborazziTest {
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
 
     private fun texts(view: View): List<TextView> = descendants(view).filterIsInstance<TextView>()
+
+    private fun androidx.compose.ui.test.SemanticsNodeInteraction.captureScreenshot(
+        path: String, roborazziOptions: RoborazziOptions
+    ) {
+        screenshotDifferences.checkSucceeds {
+            captureRoboImage(path, roborazziOptions = roborazziOptions)
+        }
+    }
+
+    private fun View.captureScreenshot(path: String, roborazziOptions: RoborazziOptions) {
+        screenshotDifferences.checkSucceeds {
+            captureRoboImage(path, roborazziOptions = roborazziOptions)
+        }
+    }
 }

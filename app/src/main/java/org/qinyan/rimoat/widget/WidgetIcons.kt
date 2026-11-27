@@ -20,8 +20,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.glance.ImageProvider
 import org.qinyan.rimoat.data.RemoteProfile
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.ui.components.controlAppearance
-import org.qinyan.rimoat.ui.components.getIconVector
+import org.qinyan.rimoat.ui.components.resolveButtonIcon
+import org.qinyan.rimoat.ui.components.RemoteKeyFallbackIcon
 
 // Reuse the App's vector paths. Only the resulting small bitmap crosses RemoteViews.
 // 96 px is sufficient for a 24 dp icon at xxxhdpi; the bounded cache is at most 3 MB.
@@ -56,14 +58,8 @@ internal fun widgetCommandVector(profile: RemoteProfile?, command: WidgetCommand
     if (profile != null && action != null) {
         return widgetAcSettings(profile, state.records[profile.id], state.simulated).controlAppearance(action).icon
     }
-    return getIconVector(command.iconName) ?: when (command.iconName) {
-        "add" -> Icons.Rounded.Add
-        "remove" -> Icons.Rounded.Remove
-        "fan" -> Icons.Rounded.Air
-        else -> when {
-            command.isPower(profile, context) -> Icons.Rounded.PowerSettingsNew
-            command.label in setOf("OK", "确认", "确定") -> Icons.Rounded.Check
-            else -> Icons.Rounded.Tune
-        }
-    }
+    val button = profile?.buttons?.firstOrNull { it.id == command.id }
+    val icon = if (button != null) resolveButtonIcon(button)
+        else resolveButtonIcon(key = null, iconName = command.iconName)
+    return icon ?: if (button?.key == ButtonKey.OK) Icons.Rounded.Check else RemoteKeyFallbackIcon
 }

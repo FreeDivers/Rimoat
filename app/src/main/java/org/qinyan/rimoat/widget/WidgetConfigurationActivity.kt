@@ -153,7 +153,7 @@ internal fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun WidgetConfigurationContent(
+internal fun WidgetConfigurationContent(
     widgetId: Int,
     kind: WidgetKind,
     snapshot: WidgetSnapshot,

@@ -3,6 +3,10 @@ package org.qinyan.rimoat
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.*
 import org.qinyan.rimoat.widget.*
+import org.qinyan.rimoat.ui.components.RemoteKeyFallbackIcon
+import org.qinyan.rimoat.ui.components.resolveButtonIcon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.*
@@ -16,7 +20,7 @@ import org.junit.rules.TemporaryFolder
 class WidgetCommandsTest {
     @get:Rule val temporary = TemporaryFolder()
     private val power = RemoteButton("power", "电源", "power", rawPattern = listOf(9000, 4500, 560),
-        alternateRawPattern = listOf(8000, 4000, 560))
+        alternateRawPattern = listOf(8000, 4000, 560), key = ButtonKey.POWER)
     private fun tv() = RemoteProfile("tv", "电视", category = DeviceCategory.TV, buttons = listOf(power))
     private fun ac() = RemoteProfile("ac", "空调", category = DeviceCategory.AC, acProtocolId = 27)
     private class Encoder : AcSignalEncoder {
@@ -143,41 +147,52 @@ class WidgetCommandsTest {
         assertEquals(27, rig.profile!!.acSettings.temperature)
     }
     @Test fun defaultPowerPrefersStableMetadataOverNames() {
-        val named = power.copy(id = "named", iconName = null)
-        val candidates = listOf(
-            power.copy(label = "Custom key", builtinLabel = "电源", iconName = null),
-            power.copy(label = "Custom key", builtinLabel = "开关", iconName = null),
-            power.copy(label = "Custom key", builtinLabel = "开机", iconName = null),
-            power.copy(label = "Custom key", builtinLabel = "关机", iconName = null),
-            power.copy(label = "Custom key"),
-            power.copy(label = "Custom key", iconName = "power_settings_new"),
-            power.copy(label = "Custom key", iconName = null, acAction = AcAction.POWER_ON),
-            power.copy(label = "Custom key", iconName = null, acAction = AcAction.POWER_OFF)
-        )
+        val named = power.copy(id = "named", iconName = null, key = null)
+        val candidates = listOf(ButtonKey.POWER, ButtonKey.POWER_ON, ButtonKey.POWER_OFF, ButtonKey.SECOND_POWER)
+            .map { power.copy(label = "Custom key", iconName = null, key = it) }
         for (candidate in candidates) {
             val profile = tv().copy(buttons = listOf(named, candidate))
             assertEquals(candidate.toString(), candidate.id, WidgetCommands.default(profile)?.buttonId)
             assertTrue(WidgetCommands.choices(profile).last().isPower(profile))
         }
     }
-    @Test fun defaultPowerUsesExactLegacyNamesAndOnlyAvailableChoices() {
-        val input = power.copy(id = "input", label = "Input", iconName = null)
-        for (label in listOf("电源", "开关", "开机", "关机")) {
-            val profile = tv().copy(buttons = listOf(input, power.copy(label = label, iconName = null)))
-            assertEquals(label, power.id, WidgetCommands.default(profile)?.buttonId)
-            assertEquals(input.id, WidgetCommands.default(profile, WidgetCommands.choices(profile).take(1))?.buttonId)
-            assertNull(WidgetCommands.default(profile, emptyList()))
-        }
+    @Test fun defaultPowerUsesStableKeysAndOnlyAvailableChoices() {
+        val input = power.copy(id = "input", label = "Input", iconName = null, key = ButtonKey.SOURCE)
+        val renamed = tv().copy(buttons = listOf(input, power.copy(label = "Custom key", iconName = null)))
+        assertEquals(power.id, WidgetCommands.default(renamed)?.buttonId)
+        assertEquals(input.id, WidgetCommands.default(renamed, WidgetCommands.choices(renamed).take(1))?.buttonId)
+        assertNull(WidgetCommands.default(renamed, emptyList()))
         val profile = tv().copy(buttons = listOf(input, power.copy(rawPattern = emptyList())))
         assertEquals(input.id, WidgetCommands.default(profile)?.buttonId)
         for (button in listOf(
-            power.copy(label = "电源设置", iconName = null),
-            power.copy(label = "电源", iconName = null, builtinLabel = "音量+"),
-            power.copy(label = "电源", iconName = null, acAction = AcAction.MODE)
+            power.copy(id = "custom", label = "Power", iconName = null, key = null),
+            power.copy(id = "power_saving", label = "Power", iconName = null, key = ButtonKey.ECO),
+            power.copy(label = "电源", iconName = null, key = ButtonKey.VOLUME_UP),
+            power.copy(label = "开关", iconName = null, key = null),
+            power.copy(label = "Power", iconName = null, acAction = AcAction.MODE, key = ButtonKey.MODE)
         )) {
             val nonPower = tv().copy(buttons = listOf(input, button))
             assertFalse(WidgetCommands.choices(nonPower).last().isPower(nonPower))
             assertEquals(input.id, WidgetCommands.default(nonPower)?.buttonId)
+        }
+    }
+    @Test fun widgetIconsUseStableIdentityAndMatchTheRemotePanel() {
+        val source = power.copy(id = "learned_source", label = "Custom input", iconName = null,
+            key = ButtonKey.SOURCE, isLearned = true)
+        val confirm = power.copy(id = "learned_confirm", label = "My confirmation", iconName = null,
+            key = ButtonKey.OK, isLearned = true)
+        val custom = power.copy(id = "custom", label = "OK", iconName = null, key = null)
+        val profile = tv().copy(buttons = listOf(source, confirm, custom))
+        val commands = WidgetCommands.choices(profile)
+        val state = WidgetSnapshot(profiles = listOf(profile), commands = mapOf(profile.id to commands))
+        assertEquals(resolveButtonIcon(source), widgetCommandVector(profile, commands[0], state))
+        assertEquals(Icons.Rounded.Check, widgetCommandVector(profile, commands[1], state))
+        assertEquals(RemoteKeyFallbackIcon, widgetCommandVector(profile, commands[2], state))
+        for (name in listOf("确认", "确定", "Power", "开关")) {
+            val renamed = profile.copy(buttons = listOf(custom.copy(label = name)))
+            val command = WidgetCommands.choices(renamed).single()
+            assertEquals(RemoteKeyFallbackIcon, widgetCommandVector(renamed, command, state))
+            assertFalse(command.isPower(renamed))
         }
     }
     @Test fun syntheticPowerActionsDoNotDependOnTheirLabels() {

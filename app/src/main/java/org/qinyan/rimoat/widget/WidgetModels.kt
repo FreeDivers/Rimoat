@@ -6,6 +6,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.localizedButtonLabel
+import org.qinyan.rimoat.ui.components.isPowerKey
 
 import org.qinyan.rimoat.data.*
 import kotlinx.serialization.Serializable
@@ -34,27 +35,17 @@ data class WidgetConfiguration(
 
 data class WidgetCommand(val id: String, val label: String, val iconName: String?)
 
-private val powerLabels = setOf("电源", "开关", "开机", "关机")
-
 internal fun widgetAcAction(profile: RemoteProfile?, command: WidgetCommand): AcAction? =
     if (command.id.startsWith(WidgetCommands.PREFIX)) {
         if (command.id == WidgetCommands.POWER) AcAction.POWER_ON
         else AcAction.entries.firstOrNull { it.name == command.id.removePrefix(WidgetCommands.PREFIX) }
     } else profile?.buttons?.firstOrNull { it.id == command.id }?.acAction
 
-private fun WidgetCommand.powerMetadata(profile: RemoteProfile?): Boolean? {
-    widgetAcAction(profile, this)?.let { return it == AcAction.POWER_ON || it == AcAction.POWER_OFF }
-    if (iconName in setOf("power", "power_settings_new")) return true
-    return profile?.buttons?.firstOrNull { it.id == id }?.builtinLabel?.let { it in powerLabels }
-}
-
-internal fun WidgetCommand.isPower(profile: RemoteProfile?, context: Context? = null): Boolean {
-    powerMetadata(profile)?.let { return it }
-    val labels = listOf(label.trim(), displayLabel(profile, context).trim())
-    return powerLabels.any { source ->
-        labels.any { it.equals(source, ignoreCase = true) || it.equals(localizedLabel(source, context), ignoreCase = true) }
-    }
-}
+@Suppress("UNUSED_PARAMETER")
+internal fun WidgetCommand.isPower(profile: RemoteProfile?, context: Context? = null): Boolean =
+    if (id.startsWith(WidgetCommands.PREFIX)) {
+        widgetAcAction(profile, this) in setOf(AcAction.POWER_ON, AcAction.POWER_OFF)
+    } else profile?.buttons?.firstOrNull { it.id == id }?.isPowerKey() == true
 
 /** Translate built-in labels only at presentation; persisted user names stay untouched. */
 fun WidgetCommand.displayLabel(profile: RemoteProfile?, context: Context? = null): String = when {
@@ -80,7 +71,7 @@ object WidgetCommands {
         }.map { WidgetCommand(it.id, it.label, it.iconName) }
         if (!dynamic) return commands
         val preferred = buildList {
-            if (AcAction.POWER_ON in actions && AcAction.POWER_OFF in actions) add(WidgetCommand(POWER, "电源", "power"))
+            if (AcAction.POWER_ON in actions && AcAction.POWER_OFF in actions) add(WidgetCommand(POWER, POWER, "power"))
             for ((action, icon) in listOf(AcAction.TEMP_DOWN to "remove", AcAction.TEMP_UP to "add",
                 AcAction.MODE to "mode", AcAction.FAN to "fan", AcAction.SWING to "swing")) {
                 if (action in actions) add(WidgetCommand(PREFIX + action.name, action.label, icon))
@@ -90,8 +81,7 @@ object WidgetCommands {
     }
 
     fun default(profile: RemoteProfile, choices: List<WidgetCommand> = choices(profile), context: Context? = null): WidgetShortcut? {
-        val command = choices.firstOrNull { it.powerMetadata(profile) == true }
-            ?: choices.firstOrNull { it.isPower(profile, context) }
+        val command = choices.firstOrNull { it.isPower(profile) }
             ?: choices.firstOrNull() ?: return null
         return WidgetShortcut(profile.id, command.id)
     }

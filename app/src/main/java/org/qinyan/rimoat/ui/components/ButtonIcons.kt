@@ -10,6 +10,9 @@ import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.data.*
 import java.util.Locale
 
+/** Glance requires an icon even when the app can display a custom key's text. */
+val RemoteKeyFallbackIcon: ImageVector = Icons.Rounded.RadioButtonUnchecked
+
 private fun quickActionIcon(name: String, badge: ImageVector): ImageVector {
     val builder = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
     fun append(group: VectorGroup) {

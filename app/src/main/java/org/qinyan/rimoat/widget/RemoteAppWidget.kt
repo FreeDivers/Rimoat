@@ -41,7 +41,6 @@ import org.qinyan.rimoat.i18n.AppLanguage
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.ui.components.controlAppearance
-import org.qinyan.rimoat.ui.components.getIconVector
 import org.qinyan.rimoat.ui.components.getCategoryIcon
 
 class SingleRemoteWidget : RemoteAppWidget(WidgetKind.SINGLE)
@@ -121,7 +120,7 @@ internal fun RemoteWidgetContent(kind: WidgetKind, widgetId: Int, snapshot: Widg
             val settings = widgetAcSettings(profile, snapshot.records[profile.id], snapshot.simulated)
             val status = context.getString(R.string.control_ac_status,
                 context.getString(if (snapshot.simulated) R.string.control_simulation_setting else R.string.control_target_temp),
-                localizedLabel(if (settings.powerOn) "开启" else "关闭", context), settings.temperature,
+                context.getString(if (settings.powerOn) R.string.widget_on else R.string.widget_off), settings.temperature,
                 localizedLabel(settings.mode, context), localizedLabel(settings.fanSpeed, context))
             context.getString(R.string.widget_open_remote_status, profile.name, status)
         }
@@ -422,11 +421,9 @@ private fun IndependentReading(profile: RemoteProfile, snapshot: WidgetSnapshot,
             if (command != null) Spacer(GlanceModifier.width(12.dp))
         }
         if (command != null) {
-            val icon = getIconVector(command.iconName)
-            if (icon != null) Image(widgetImage(icon), description, GlanceModifier.size(iconSize),
+            val icon = widgetCommandVector(profile, command, snapshot, context)
+            Image(widgetImage(icon), description, GlanceModifier.size(iconSize),
                 colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant))
-            else Text(command.displayLabel(profile, context), style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp),
-                maxLines = 1, modifier = GlanceModifier.semantics { contentDescription = description })
         }
     }
 }
@@ -497,7 +494,7 @@ private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapsho
         val acAction = widgetAcAction(profile, command)
         val appearance = if (profile != null && acAction != null)
             widgetAcSettings(profile, state.records[profile.id], state.simulated).controlAppearance(acAction) else null
-        val power = command.isPower(profile, context)
+        val power = command.isPower(profile)
         val active = appearance?.active == true
         val failure = LocalWidgetFeedback.current?.takeIf { it.error && it.shortcut == shortcut }
         WidgetActionIcon(widgetImage(if (failure != null) Icons.Rounded.ErrorOutline else widgetCommandVector(profile, command, state, context)),
