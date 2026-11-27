@@ -6,6 +6,8 @@ import org.qinyan.rimoat.i18n.uiTextDetail
 import org.qinyan.rimoat.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import org.qinyan.rimoat.data.withoutVerifiedButtons
+import org.qinyan.rimoat.i18n.labelRes
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
@@ -174,8 +176,10 @@ class RemoteControlViewModel(
                     val buttons = profile.buttons.toMutableList()
                     val idx = buttons.indexOfFirst { it.id == updatedButton.id }
                     if (idx >= 0) buttons[idx] = updatedButton else buttons.add(updatedButton)
-                    _manualProfile.value = profile.copy(buttons = buttons,
-                        verifiedFunctions = profile.verifiedFunctions.filter { it != button.label })
+                    val invalidated = profile.withoutVerifiedButtons(listOf(button))
+                    _manualProfile.value = invalidated.copy(buttons = buttons.map { current ->
+                        if (current.key != null) current else current.copy(key = invalidated.buttons.firstOrNull { it.id == current.id }?.key)
+                    })
                 }
                 if (session == learningSession) dismissLearningDialog()
             } catch (e: CancellationException) { throw e }
@@ -428,7 +432,7 @@ class RemoteControlViewModel(
                     if (!encoder.supportsAction(protocol, next, action)) {
                         throw UiTextException(
                             if (action == AcAction.TEMP_UP || action == AcAction.TEMP_DOWN) {
-                                UiText.resource(R.string.msg_mode_no_temperature, UiText.Resource(next.mode.labelResource()))
+                                UiText.resource(R.string.msg_mode_no_temperature, UiText.Resource(next.mode.labelRes))
                             } else {
                                 UiText.Resource(R.string.msg_action_unsupported)
                             }
@@ -549,14 +553,6 @@ class RemoteControlViewModel(
     private fun Throwable.operationErrorDetail(
         @androidx.annotation.StringRes fallback: Int = R.string.control_unknown_error
     ): UiText = uiTextDetail(fallback)
-
-    private fun AcMode.labelResource(): Int = when (this) {
-        AcMode.COOL -> R.string.control_cool
-        AcMode.HEAT -> R.string.control_heat
-        AcMode.DRY -> R.string.control_dry
-        AcMode.FAN -> R.string.control_fan
-        AcMode.AUTO -> R.string.control_auto
-    }
 
     fun toggleForceMock() {
         val current = transmitterManager?.forceMockMode?.value ?: return

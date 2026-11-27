@@ -9,6 +9,7 @@ import java.util.UUID
 @Serializable
 data class RemoteBackup(
     val format: String = "rimoat.backup",
+    // Version 2 remains readable by older releases; key metadata is additive and optional.
     val version: Int = 2,
     val exportedAt: Long = System.currentTimeMillis(),
     val remotes: List<RemoteProfile>,
@@ -58,7 +59,9 @@ object RemoteBackupCodec {
             }
         } else RemoteBackup(version = 1, remotes = listOf(json.decodeFromJsonElement(RemoteProfile.serializer(), root)))
         validateBackup(backup)
-        return backup.copy(rooms = (backup.rooms + backup.remotes.map { it.room }).filter { it.isNotBlank() }.distinct())
+        return backup.copy(
+            remotes = backup.remotes.map { LegacyRemoteMigration.normalizeKeys(LegacyRemoteMigration.upgradeLegacyAc(it)) },
+            rooms = (backup.rooms + backup.remotes.map { it.room }).filter { it.isNotBlank() }.distinct())
     }
     fun validateBackup(backup: RemoteBackup) {
         require(backup.remotes.size <= MAX_PROFILES) { AppStrings.get(R.string.msg_backup_profile_count, "备份须包含 1–%1\$s 个遥控器", MAX_PROFILES.toString()) }

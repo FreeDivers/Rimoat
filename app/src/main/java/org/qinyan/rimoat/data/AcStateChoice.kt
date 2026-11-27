@@ -1,11 +1,22 @@
 package org.qinyan.rimoat.data
 
+import androidx.annotation.StringRes
+import org.qinyan.rimoat.i18n.labelRes
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 /** Explicit full-state choices; raw/learned toggle keys cannot promise a particular appliance state. */
 data class AcStateChoice(val action: AcAction, val index: Int, val label: String) {
+    val labelRes: Int
+        @StringRes get() = when (action) {
+            AcAction.MODE -> AcMode.entries[index].labelRes
+            AcAction.FAN -> AcFanSpeed.entries[index].labelRes
+            AcAction.WIND_DIRECTION -> AcWindDirection.entries[index].labelRes
+            AcAction.TEMPERATURE_DISPLAY -> AcTemperatureDisplay.entries[index].labelRes
+            else -> error("No state choices for $action")
+        }
+
     fun applyTo(state: AcSettings): AcSettings {
-        require(this in forAction(action))
+        require(forAction(action).any { it.index == index })
         val next = state.apply(action)
         return when (action) {
             AcAction.MODE -> next.copy(mode = AcMode.entries[index])

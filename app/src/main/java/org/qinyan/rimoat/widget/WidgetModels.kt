@@ -61,7 +61,7 @@ fun WidgetCommand.displayLabel(profile: RemoteProfile?, context: Context? = null
     id == WidgetCommands.POWER -> widgetString(context, R.string.widget_power, "电源")
     id.startsWith(WidgetCommands.PREFIX) -> AcAction.entries.firstOrNull {
         it.name == id.removePrefix(WidgetCommands.PREFIX)
-    }?.let { localizedLabel(it.label, context) } ?: label
+    }?.let { localizedLabel(it, context) } ?: label
     else -> profile?.buttons?.firstOrNull { it.id == id }?.let {
         if (profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons)
             org.qinyan.rimoat.i18n.localizedAcRawButtonLabel(it, context)
@@ -126,9 +126,9 @@ fun widgetDeviceStatus(profile: RemoteProfile, record: RemoteCommandRecord?, sim
     if (profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons) {
         val state = widgetAcSettings(profile, record, simulated)
         return WidgetDeviceStatus(if (state.powerOn) "${state.temperature}°" else widgetString(context, R.string.widget_turned_off, "已关闭"),
-            if (state.powerOn) localizedLabel(state.mode.labelCn, context) else "${state.temperature}°  ${localizedLabel(state.mode.labelCn, context)}",
+            if (state.powerOn) localizedLabel(state.mode, context) else "${state.temperature}°  ${localizedLabel(state.mode, context)}",
             buildList {
-                add(widgetString(context, R.string.widget_fan_value, "风速  %1\$s", localizedLabel(state.fanSpeed.labelCn, context)))
+                add(widgetString(context, R.string.widget_fan_value, "风速  %1\$s", localizedLabel(state.fanSpeed, context)))
                 add(widgetString(context, R.string.widget_vertical_swing_value, "上下扫风  %1\$s", if (state.isSwingOn) widgetString(context, R.string.widget_on, "开") else widgetString(context, R.string.widget_off, "关")))
                 if (state.horizontalSwingOn) add(widgetString(context, R.string.widget_horizontal_swing_on, "左右扫风  开"))
                 if (state.timerMinutes > 0) add(widgetString(context, R.string.widget_timer_value, "定时  %1\$d 分钟", state.timerMinutes))

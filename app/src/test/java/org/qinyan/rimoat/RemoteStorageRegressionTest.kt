@@ -169,4 +169,60 @@ class RemoteStorageRegressionTest {
             assertEquals(2, cold.remotes.value.size)
         } finally { scope.cancel(); dir.deleteRecursively() }
     }
+
+    @Test fun loadingLegacyFilesWritesMetadataOnceAndKeepsSignalAndLayoutReferences() = runBlocking {
+        val dir = Files.createTempDirectory("key-migration-test").toFile()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            val repo = RemoteRepository(context(dir), scope)
+            repo.awaitLoaded()
+            val old = RemoteProfile("legacy", "TV", sourceRemoteId = "R_compat_stb_42_1", category = DeviceCategory.TV,
+                updatedAt = 123, buttons = listOf(RemoteButton("direction_上", "上", builtinLabel = "上",
+                    rawPattern = listOf(9000, 4500, 560))), verifiedFunctions = listOf("上"),
+                panelLayout = RemotePanelLayout(hidden = setOf("key:direction_上")))
+            val codec = kotlinx.serialization.json.Json { encodeDefaults = true }
+            val file = File(dir, "remotes/legacy.json")
+            file.writeText(codec.encodeToString(RemoteProfile.serializer(), old))
+            val first = repo.loadAllRemotes().single()
+            assertEquals(LegacyRemoteMigration.normalizeKeys(old), first)
+            assertEquals(ApplianceType.SET_TOP_BOX, first.applianceType)
+            assertEquals(42, first.brandIdx)
+            assertEquals(listOf("UP"), first.verifiedFunctions)
+            assertEquals(first, codec.decodeFromString<RemoteProfile>(file.readText()))
+            val written = file.readBytes()
+            val modified = file.lastModified()
+            assertEquals(first, repo.loadAllRemotes().single())
+            assertArrayEquals(written, file.readBytes())
+            assertEquals(modified, file.lastModified())
+        } finally { scope.coroutineContext[Job]!!.cancelAndJoin(); dir.deleteRecursively() }
+    }
+
+    @Test fun keyMigrationPreservesSavedTimestampsAndFavoriteOrderingAcrossReloads() = runBlocking {
+        val dir = Files.createTempDirectory("key-order-test").toFile()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            val profiles = listOf(
+                RemoteProfile("tv", "TV", category = DeviceCategory.TV, updatedAt = 1_000L),
+                RemoteProfile("fan", "Fan", category = DeviceCategory.FAN, updatedAt = 3_000L),
+                RemoteProfile("ac", "AC", category = DeviceCategory.AC, updatedAt = 2_000L),
+                RemoteProfile("favorite", "Favorite", isFavorite = true, updatedAt = 500L)
+            )
+            val codec = kotlinx.serialization.json.Json { encodeDefaults = true }
+            val directory = File(dir, "remotes").apply { mkdirs() }
+            profiles.forEach { File(directory, "${it.id}.json").writeText(codec.encodeToString(RemoteProfile.serializer(), it)) }
+            val repo = RemoteRepository(context(dir), scope)
+            repo.awaitLoaded()
+            repeat(2) {
+                val loaded = repo.remotes.value
+                assertEquals(listOf("favorite", "fan", "ac", "tv"), loaded.map { it.id })
+                assertEquals(profiles.associate { it.id to it.updatedAt }, loaded.associate { it.id to it.updatedAt })
+                assertTrue(loaded.all { it.keySchemaVersion == LegacyRemoteMigration.KEY_SCHEMA_VERSION })
+                loaded.forEach { profile ->
+                    assertEquals(profile.updatedAt, codec.decodeFromString<RemoteProfile>(File(directory, "${profile.id}.json").readText()).updatedAt)
+                }
+                repo.loadAllRemotes()
+            }
+        } finally { scope.coroutineContext[Job]!!.cancelAndJoin(); dir.deleteRecursively() }
+    }
+
 }

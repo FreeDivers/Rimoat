@@ -88,23 +88,23 @@ fun AcSettings.controlAppearance(action: AcAction): AcControlAppearance {
         AcAction.TEMP_DOWN -> Icons.Rounded.Remove
     }
     val label = when (action) {
-        AcAction.MODE -> localizedLabel(mode.labelCn)
-        AcAction.FAN -> AppStrings.get(R.string.control_fan_label, "%1\$s风", localizedLabel(fanSpeed.labelCn))
+        AcAction.MODE -> localizedLabel(mode)
+        AcAction.FAN -> AppStrings.get(R.string.control_fan_label, "%1\$s风", localizedLabel(fanSpeed))
         AcAction.WIND_DIRECTION -> when (windDirection) {
             AcWindDirection.AUTO -> AppStrings.get(R.string.control_auto_direction, "自动风向")
             AcWindDirection.UP -> AppStrings.get(R.string.control_air_up, "向上送风")
             AcWindDirection.MIDDLE -> AppStrings.get(R.string.control_air_horizontal, "水平送风")
             AcWindDirection.DOWN -> AppStrings.get(R.string.control_air_down, "向下送风")
         }
-        AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes) else localizedLabel(action.label)
-        AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay.labelCn)
-        else -> localizedLabel(action.label)
+        AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes) else localizedLabel(action)
+        AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay)
+        else -> localizedLabel(action)
     }
     val state = when (action) {
-        AcAction.MODE -> localizedLabel(mode.labelCn)
-        AcAction.FAN -> localizedLabel(fanSpeed.labelCn)
-        AcAction.WIND_DIRECTION -> localizedLabel(windDirection.labelCn)
-        AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay.labelCn)
+        AcAction.MODE -> localizedLabel(mode)
+        AcAction.FAN -> localizedLabel(fanSpeed)
+        AcAction.WIND_DIRECTION -> localizedLabel(windDirection)
+        AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay)
         AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes) else AppStrings.get(R.string.control_disabled, "关闭")
         else -> active?.let { if (it) AppStrings.get(R.string.control_enabled, "开启") else AppStrings.get(R.string.control_disabled, "关闭") }
     }

@@ -2,6 +2,7 @@
 
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.i18n.AppStrings
 import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -58,6 +59,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.localizedButtonLabel
+import org.qinyan.rimoat.i18n.labelRes
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.motion.AppMotion
@@ -114,7 +116,7 @@ fun RemotePanelEditor(
             val main = setOf(AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.WIND_DIRECTION)
             val actions = acPanelActions(profile.copy(panelLayout = RemotePanelLayout()), available, false)
             val defaults = AcSettings()
-            fun actionEntry(action: AcAction) = PanelEntry(panelAction(action), localizedLabel(action.label), defaults.controlAppearance(action).icon)
+            fun actionEntry(action: AcAction) = PanelEntry(panelAction(action), context.getString(action.labelRes), defaults.controlAppearance(action).icon)
             add(PanelGroup(R.string.panel_group_controls, actions.filter { it in main }.map(::actionEntry)))
             add(PanelGroup(R.string.panel_group_ac_actions, actions.filter { it !in main }.map(::actionEntry)))
             add(PanelGroup(R.string.panel_group_raw_keys, acRawExtensionButtons(profile).map { buttonEntry(it, org.qinyan.rimoat.i18n.localizedAcRawButtonLabel(it)) }))

@@ -9,6 +9,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.IrSignal
+import org.qinyan.rimoat.i18n.labelRes
+import org.qinyan.rimoat.i18n.localizedBrand
+import org.qinyan.rimoat.ui.components.icon
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.i18n.localizedCatalogKeyLabel
 import org.qinyan.rimoat.i18n.localizedLabel
@@ -99,4 +102,35 @@ class LocalizedButtonMetadataTest {
         assertEquals(button.id, WidgetCommands.default(restored)?.buttonId)
         assertEquals(button, restored.buttons.last())
     }
+
+    @Test fun stableKeyAndAcResourcesResolveInEverySupportedLanguageWithoutMutatingProfiles() {
+        val app = RuntimeEnvironment.getApplication()
+        val button = RemoteButton("renamed", "My volume", builtinLabel = "音量+", key = ButtonKey.VOLUME_UP)
+        val profile = RemoteProfile("stable", "Stable", buttons = listOf(button), keySchemaVersion = 1, brandIdx = 42, brand = "品牌")
+        val original = Json.encodeToString(RemoteProfile.serializer(), profile)
+        for (tag in listOf("en", "zh-CN", "zh-Hant", "ja")) {
+            val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tag))
+            })
+            for (key in ButtonKey.entries) assertTrue("$tag: $key", context.getString(key.labelRes).isNotBlank())
+            for (mode in AcMode.entries) assertEquals(localizedLabel(mode.labelCn, context), context.getString(mode.labelRes))
+            for (speed in AcFanSpeed.entries) assertEquals(localizedLabel(speed.labelCn, context), context.getString(speed.labelRes))
+            for (direction in AcWindDirection.entries) assertEquals(localizedLabel(direction.labelCn, context), context.getString(direction.labelRes))
+            for (display in AcTemperatureDisplay.entries) assertEquals(localizedLabel(display.labelCn, context), context.getString(display.labelRes))
+            for (action in AcAction.entries) assertEquals(localizedLabel(action.label, context), context.getString(action.labelRes))
+            val brand = org.qinyan.rimoat.data.db.IrBrand(42, "品牌", "Brand", "b", 1)
+            assertEquals(if (tag.startsWith("zh")) "品牌" else "Brand", profile.localizedBrand(brand, context))
+            assertEquals("User brand", profile.copy(brand = "User brand").localizedBrand(brand, context))
+            assertEquals("品牌", profile.copy(brandIdx = null).localizedBrand(brand, context))
+        }
+        val learned = button.withLearnedSignal(IrSignal.Raw(38000, intArrayOf(9000, 4500, 560)))
+        assertEquals(button.key, learned.key)
+        assertEquals(button.label, learned.label)
+        assertEquals(button.builtinLabel, learned.builtinLabel)
+        assertEquals(original, Json.encodeToString(RemoteProfile.serializer(), profile))
+        assertNotNull(ButtonKey.VOLUME_UP.icon)
+        assertNull(ButtonKey.DIGIT_0.icon)
+        assertNull(ButtonKey.OK.icon)
+    }
+
 }

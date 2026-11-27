@@ -38,7 +38,9 @@ data class RemoteProfile(
     val verifiedFunctions: List<String> = emptyList(),
     val catalogVersion: Int = 0,
     val panelLayout: RemotePanelLayout = RemotePanelLayout(),
-    val applianceType: ApplianceType? = null
+    val applianceType: ApplianceType? = null,
+    val keySchemaVersion: Int = 0,
+    val brandIdx: Int? = null
 )
 
 @Serializable
@@ -63,7 +65,8 @@ data class RemoteButton(
     /** Stable source label only for app-created default keys; user-entered labels leave this null. */
     val builtinLabel: String? = null,
     /** Missing flags preserve the address convention used by existing saved remotes. */
-    val necExtended: Boolean = ((necAddress ?: 0) and 0xFF00) != 0
+    val necExtended: Boolean = ((necAddress ?: 0) and 0xFF00) != 0,
+    val key: ButtonKey? = null
 ) {
     val hasSignal: Boolean
         get() = when (signalType) {

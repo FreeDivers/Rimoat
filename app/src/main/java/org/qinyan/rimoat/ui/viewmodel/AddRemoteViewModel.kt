@@ -10,6 +10,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import org.qinyan.rimoat.data.LegacyRemoteMigration
+import org.qinyan.rimoat.data.verifiedFunctionId
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.RemoteRepository
@@ -509,8 +511,9 @@ class AddRemoteViewModel(
         _uiState.update { it.copy(isLoading = true, isSaving = true, error = null) }
         saveJob = viewModelScope.launch {
             try {
-                val profile = irDbRepository.buildRemoteProfile(model, state.customRemoteName)
-                    .copy(verifiedFunctions = state.verifiedFunctions.toList())
+                val built = LegacyRemoteMigration.normalizeKeys(irDbRepository.buildRemoteProfile(model, state.customRemoteName))
+                val profile = built.copy(verifiedFunctions = built.buttons
+                    .filter { it.label in state.verifiedFunctions }.map { it.verifiedFunctionId }.distinct())
                 if (epoch != saveEpoch) return@launch
                 remoteRepository.saveRemote(profile)
                 if (epoch != saveEpoch) return@launch

@@ -13,8 +13,8 @@ import java.lang.reflect.Proxy
 import java.nio.file.Files
 
 class MigrationRegressionTest {
-    private val remote = RemoteProfile("migration_original", "Migration original", room = "Occupied",
-        buttons = listOf(RemoteButton("power", "Power", rawPattern = listOf(9000, 4500, 560))))
+    private val remote = LegacyRemoteMigration.normalizeKeys(RemoteProfile("migration_original", "Migration original", room = "Occupied", updatedAt = 1L,
+        buttons = listOf(RemoteButton("power", "Power", rawPattern = listOf(9000, 4500, 560)))))
 
     @Test fun versionOneAndSingleProfileRemainCompatibleAndVersionTwoKeepsEmptyRooms() {
         val legacy = RemoteBackupCodec.decodeBackup("""{"format":"rimoat.backup","version":1,"remotes":[{"id":"old","name":"Old"}]}""")
@@ -250,4 +250,19 @@ class MigrationRegressionTest {
         assertEquals(PortablePreferences(true, false), repo.readRecoverySnapshot().preferences)
         assertEquals(PortablePreferences(true, false), repo.portablePreferences())
     }
+
+    @Test fun directBackupImportNormalizesBeforeWritingAndKeepsVersionTwo() = storage { repo, dir, _ ->
+        val button = RemoteButton("direction_上", "上", builtinLabel = "上", rawPattern = listOf(9000, 4500, 560))
+        val incoming = RemoteProfile("legacy_keys", "Legacy TV", category = DeviceCategory.TV,
+            buttons = listOf(button), verifiedFunctions = listOf("上"),
+            panelLayout = RemotePanelLayout(hidden = setOf("key:direction_上")))
+        repo.importBackup(RemoteBackup(remotes = listOf(incoming)), emptyMap())
+        val saved = checkNotNull(repo.getRemote(incoming.id))
+        assertEquals(LegacyRemoteMigration.normalizeKeys(incoming), saved)
+        assertEquals(saved, Json.decodeFromString<RemoteProfile>(File(dir, "remotes/legacy_keys.json").readText()))
+        val exported = RemoteBackupCodec.decodeBackup(repo.exportRemotes())
+        assertEquals(2, exported.version)
+        assertEquals(saved, exported.remotes.single())
+    }
+
 }

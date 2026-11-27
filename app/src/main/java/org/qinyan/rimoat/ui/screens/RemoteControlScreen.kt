@@ -7,6 +7,7 @@ import androidx.compose.material3.IconButtonDefaults
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import org.qinyan.rimoat.i18n.labelRes
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.R
@@ -467,7 +468,7 @@ private fun RemoteControlContent(
                 val extras = if (dynamicAc) profile.buttons.filter { it.acAction !in mainAc } else remoteExtraButtons(profile)
                 val acMainActions = if (dynamicAc) acPanelActions(profile, availableAcActions, isLearningMode).filter { it in mainAc } else emptyList()
                 val acExtraLabels = if (dynamicAc) acPanelActions(profile, availableAcActions, isLearningMode)
-                    .filter { it !in mainAc }.map { localizedLabel(it.label) } +
+                    .filter { it !in mainAc }.map { stringResource(it.labelRes) } +
                     acRawExtensionButtons(profile).map { localizedAcRawButtonLabel(it) } else emptyList()
                 val acPresetLabels = if (dynamicAc && !isLearningMode) listOf(stringResource(R.string.screen_resend), stringResource(R.string.screen_cool_preset), stringResource(R.string.screen_heat_preset)).filterIndexed { index, _ -> "preset:$index" !in profile.panelLayout.hidden } else emptyList()
                 val extraLabels = if (dynamicAc) acExtraLabels + acPresetLabels else extras.map { localizedButtonLabel(it) }
@@ -1026,7 +1027,7 @@ fun AcRemoteLayout(
             "%1\$s：%2\$s，%3\$d 摄氏度，模式 %4\$s，风速 %5\$s",
             AppStrings.get(if (isDemonstrating) R.string.control_simulation_setting else R.string.control_target_temp),
             localizedLabel(if (acState.powerOn) "开启" else "关闭"), acState.temperature,
-            localizedLabel(acState.mode.labelCn), localizedLabel(acState.fanSpeed.labelCn))
+            stringResource(acState.mode.labelRes), stringResource(acState.fanSpeed.labelRes))
     )
     }
     val actions = acPanelActions(profile, availableActions, isLearningMode)
@@ -1041,9 +1042,9 @@ fun AcRemoteLayout(
                 val canSelect = !isLearningMode && available && org.qinyan.rimoat.data.AcStateChoice.forAction(action).isNotEmpty()
                 Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
                 RemoteButtonView(
-                    label = if (isLearningMode || !available) localizedLabel(action.label) else appearance.label,
+                    label = if (isLearningMode || !available) stringResource(action.labelRes) else appearance.label,
                     icon = appearance.icon,
-                    accessibilityLabel = localizedLabel(action.label),
+                    accessibilityLabel = stringResource(action.labelRes),
                     currentState = when {
                         isLearningMode -> null
                         !available -> AppStrings.get((unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE).messageResource())
@@ -1083,7 +1084,7 @@ fun AcRemoteLayout(
                         ExpressiveSelectableMenuItem(
                             selected = isSelected,
                             onClick = { showChoices = false; onSelectChoice(choice) },
-                            text = { Text(localizedLabel(choice.label)) },
+                            text = { Text(stringResource(choice.labelRes)) },
                             index = index,
                             count = choices.size
                         )

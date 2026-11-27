@@ -94,7 +94,7 @@ class RemoteRepository(
                             val content = file.readText()
                             val profile = json.decodeFromString(RemoteProfile.serializer(), content)
                             require(profile.id == file.nameWithoutExtension) { AppStrings.get(R.string.msg_remote_file_id_mismatch, "遥控器标识与文件名不一致") }
-                            var upgraded = LegacyRemoteMigration.upgradeLegacyAc(profile)
+                            var upgraded = LegacyRemoteMigration.normalizeKeys(LegacyRemoteMigration.upgradeLegacyAc(profile))
                             RemoteBackupCodec.validate(upgraded)
                             try {
                                 val candidate = upgradeCatalog?.invoke(upgraded) ?: upgraded
@@ -151,7 +151,7 @@ class RemoteRepository(
             .filter { it.isNotBlank() }.distinct().sorted()
         AtomicLocalFile.write(roomsFile, json.encodeToString(names))
         val file = File(storageDir, "${profile.id}.json")
-        val updated = profile.copy(updatedAt = System.currentTimeMillis())
+        val updated = LegacyRemoteMigration.normalizeKeys(profile).copy(updatedAt = System.currentTimeMillis())
         AtomicLocalFile.write(file, json.encodeToString(RemoteProfile.serializer(), updated))
 
         val current = _remotes.value.filter { it.id != profile.id }.toMutableList()
@@ -191,9 +191,10 @@ class RemoteRepository(
             } else {
                 updatedButtons.add(updatedButton)
             }
-            val changedLabels = setOf(updatedButton.label, current.buttons.firstOrNull { it.id == updatedButton.id }?.label)
-            saveRemoteLocked(current.copy(buttons = updatedButtons,
-                verifiedFunctions = current.verifiedFunctions.filter { it !in changedLabels }))
+            val invalidated = current.withoutVerifiedButtons(listOf(updatedButton))
+            saveRemoteLocked(invalidated.copy(buttons = updatedButtons.map { button ->
+                if (button.key != null) button else button.copy(key = invalidated.buttons.firstOrNull { it.id == button.id }?.key)
+            }))
         }
     }
 
@@ -377,7 +378,10 @@ class RemoteRepository(
             recoverPendingImport()
             val existing = storageDir.listFiles().orEmpty().filter { it.extension == "json" }.map { it.nameWithoutExtension }.toSet()
             val planned = (if (copyAll) RemoteBackupCodec.plan(backup.remotes, existing, ImportMode.COPIES)
-                else RemoteBackupCodec.plan(backup, existing, choices)).map { upgradeCatalog?.invoke(it) ?: it }
+                else RemoteBackupCodec.plan(backup, existing, choices)).map {
+                val normalized = LegacyRemoteMigration.normalizeKeys(LegacyRemoteMigration.upgradeLegacyAc(it))
+                upgradeCatalog?.invoke(normalized) ?: normalized
+            }
             planned.forEach(RemoteBackupCodec::validate)
             val rooms = (savedRooms() + _remotes.value.map { it.room } + backup.rooms + planned.map { it.room })
                 .filter { it.isNotBlank() }.distinct().sorted()

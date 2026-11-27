@@ -122,7 +122,7 @@ internal fun RemoteWidgetContent(kind: WidgetKind, widgetId: Int, snapshot: Widg
             val status = context.getString(R.string.control_ac_status,
                 context.getString(if (snapshot.simulated) R.string.control_simulation_setting else R.string.control_target_temp),
                 localizedLabel(if (settings.powerOn) "开启" else "关闭", context), settings.temperature,
-                localizedLabel(settings.mode.labelCn, context), localizedLabel(settings.fanSpeed.labelCn, context))
+                localizedLabel(settings.mode, context), localizedLabel(settings.fanSpeed, context))
             context.getString(R.string.widget_open_remote_status, profile.name, status)
         }
         else -> context.getString(R.string.widget_open_remote, profile?.name ?: context.getString(R.string.widget_category_remote))
@@ -446,7 +446,7 @@ private fun AcReading(profile: RemoteProfile, snapshot: WidgetSnapshot, compact:
                 })
             if (showMode) {
                 Spacer(GlanceModifier.width(8.dp))
-                Image(widgetImage(settings.controlAppearance(AcAction.MODE).icon), localizedLabel(settings.mode.labelCn, context),
+                Image(widgetImage(settings.controlAppearance(AcAction.MODE).icon), localizedLabel(settings.mode, context),
                     GlanceModifier.size(20.dp), colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant))
             }
         }
@@ -454,7 +454,7 @@ private fun AcReading(profile: RemoteProfile, snapshot: WidgetSnapshot, compact:
             listOf(AcAction.FAN, AcAction.SWING).forEachIndexed { index, action ->
                 if (index > 0) Spacer(GlanceModifier.width(12.dp))
                 val appearance = settings.controlAppearance(action)
-                Image(widgetImage(appearance.icon), "${localizedLabel(action.label, context)} ${appearance.state?.let { localizedLabel(it, context) }.orEmpty()}",
+                Image(widgetImage(appearance.icon), "${localizedLabel(action, context)} ${appearance.state?.let { localizedLabel(it, context) }.orEmpty()}",
                     GlanceModifier.size(24.dp), colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant))
             }
             if (settings.timerMinutes > 0) {

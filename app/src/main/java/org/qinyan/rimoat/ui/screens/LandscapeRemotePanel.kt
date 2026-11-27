@@ -2,6 +2,7 @@
 
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.i18n.AppStrings
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.ScrollState
@@ -35,6 +36,7 @@ import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.TransmitterType
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.i18n.localizedAcRawButtonLabel
+import org.qinyan.rimoat.i18n.labelRes
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.viewmodel.AcControlState
@@ -155,7 +157,7 @@ internal fun LandscapeRemotePanel(
                         acContent(AcLayoutPart.FUNCTIONS)
                     }
                     val main = setOf(AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.WIND_DIRECTION)
-                    val labels = acPanelActions(profile, availableAcActions, isLearningMode).filter { it !in main }.map { localizedLabel(it.label) } +
+                    val labels = acPanelActions(profile, availableAcActions, isLearningMode).filter { it !in main }.map { stringResource(it.labelRes) } +
                         acRawExtensionButtons(profile).map { localizedAcRawButtonLabel(it) }
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         val inline = compactExtensionsFit(listOf(labels), maxWidth, (availableHeight - commonHeight - 16.dp).coerceAtLeast(0.dp))

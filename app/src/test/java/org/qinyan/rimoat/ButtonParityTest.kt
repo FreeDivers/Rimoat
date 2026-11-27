@@ -8,6 +8,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
 import org.junit.Assert.*
 import org.junit.Test
+import androidx.lifecycle.ViewModelStore
 
 class ButtonParityTest {
     private fun stock(id: String = "old", key: Int = 834, label: String = "左右扫风") =
@@ -93,5 +94,25 @@ class ButtonParityTest {
             repeat(4) { vm.sendButton(button) };dispatcher.scheduler.advanceUntilIdle()
             assertEquals(listOf(button.toIrSignal(0),button.toIrSignal(1),button.toIrSignal(0)),sent)
         } finally { org.qinyan.rimoat.clearViewModelsAndAwait(stores, dispatcher); Dispatchers.resetMain() }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun relearningRenamedButtonClearsItsStableVerificationInManualController() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val stores = ViewModelStore()
+        try {
+            val power = RemoteButton("power", "Custom power", key = ButtonKey.POWER, builtinLabel = "电源")
+            val profile = RemoteProfile("remote", "Remote", buttons = listOf(power), keySchemaVersion = 1,
+                verifiedFunctions = listOf("POWER", "VOLUME_UP"))
+            val vm = RemoteControlViewModel(profile.id, initialProfile = profile)
+            stores.put("manual", vm)
+            vm.saveLearnedButton(power.copy(label = "New name"), IrSignal.Raw(38000, intArrayOf(9000, 4500, 560)))
+            dispatcher.scheduler.advanceUntilIdle()
+            val saved = checkNotNull(vm.remoteProfile.value)
+            assertEquals(listOf("VOLUME_UP"), saved.verifiedFunctions)
+            assertEquals(ButtonKey.POWER, saved.buttons.single().key)
+            assertEquals("New name", saved.buttons.single().label)
+        } finally { clearViewModelsAndAwait(stores, dispatcher); Dispatchers.resetMain() }
     }
 }

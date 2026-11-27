@@ -2,6 +2,49 @@ package org.qinyan.rimoat.data
 
 object LegacyRemoteMigration {
 
+    const val KEY_SCHEMA_VERSION = 1
+
+    /** Add semantic metadata without changing signal IDs, labels, or panel references. */
+    fun normalizeKeys(profile: RemoteProfile): RemoteProfile {
+        if (profile.keySchemaVersion >= KEY_SCHEMA_VERSION) return profile
+        val buttons = profile.buttons.map { button ->
+            val key = button.key ?: button.acAction?.buttonKey ?: if (button.builtinLabel != null) {
+                LegacyLabelMap.key(button.builtinLabel) ?: LegacyLabelMap.id(button.id)
+                    ?: LegacyLabelMap.icon(button.iconName)
+            } else {
+                LegacyLabelMap.key(button.label) ?: LegacyLabelMap.catalogAlias(button)
+            }
+            button.copy(key = key)
+        }
+        val verified = profile.verifiedFunctions.flatMap { value ->
+            val matches = buttons.filter { it.id == value || it.label == value || it.builtinLabel == value }
+            when {
+                matches.isNotEmpty() -> matches.map { it.verifiedFunctionId }
+                profile.category == DeviceCategory.AC -> listOf(
+                    AcAction.entries.firstOrNull { it.label == value }?.name
+                        ?: LegacyLabelMap.key(value)?.name ?: value)
+                else -> listOf(LegacyLabelMap.key(value)?.name ?: value)
+            }
+        }.distinct()
+        val source = legacyCatalogIdentity(profile.sourceRemoteId)
+        return profile.copy(
+            buttons = buttons,
+            verifiedFunctions = verified,
+            applianceType = profile.applianceType ?: source?.first ?: ApplianceType.fromCategory(profile.category),
+            brandIdx = profile.brandIdx ?: source?.second,
+            keySchemaVersion = KEY_SCHEMA_VERSION
+        )
+    }
+
+    /** The catalog ID syntax is a legacy storage concern, never a UI fallback. */
+    private fun legacyCatalogIdentity(source: String?): Pair<ApplianceType, Int>? {
+        val match = Regex("^R_(?:(?:compat|spec)_)?([a-z]+)_(\\d+)_.+$")
+            .matchEntire(source ?: return null) ?: return null
+        val type = ApplianceType.entries.firstOrNull { it.catalogCode == match.groupValues[1] } ?: return null
+        val brand = match.groupValues[2].toIntOrNull() ?: return null
+        return type to brand
+    }
+
     // Common standard NEC raw pulses sample (Power signal)
     private val standardNecPowerPattern = listOf(
         9000, 4500,

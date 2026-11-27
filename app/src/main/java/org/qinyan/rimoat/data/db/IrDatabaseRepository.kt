@@ -273,17 +273,18 @@ class IrDatabaseRepository(
         val displayName = customName?.takeIf { it.isNotBlank() }
             ?: "${model.brandCn} ${model.categoryName}"
 
-        RemoteProfile(
+        org.qinyan.rimoat.data.LegacyRemoteMigration.normalizeKeys(RemoteProfile(
             id = UUID.randomUUID().toString(),
             name = displayName,
             brand = model.brandCn,
+            brandIdx = model.brandIdx,
             category = category,
             sourceRemoteId = model.remoteId,
             catalogVersion = CatalogUpgrade.VERSION,
             acProtocolId = protocol,
             buttons = buttons,
             updatedAt = System.currentTimeMillis()
-        )
+        ))
     }
 
     private fun parseButton(remoteId: String, detail: IrKeyDetail, legacy: Boolean = false): RemoteButton {

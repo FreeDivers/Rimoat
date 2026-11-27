@@ -164,4 +164,18 @@ class PanelPolicyTest {
         assertTrue(up1.id in fixed)
         assertFalse(up2.id in fixed)
     }
+
+    @Test fun stablePolicyUsesOnlyKeyAndLeavesCustomNamesUnclassified() {
+        val power = RemoteButton("custom_id", "Not a power label", key = ButtonKey.POWER)
+        assertTrue(power.isPowerKey())
+        assertFalse(RemoteButton("power", "电源", iconName = "power", builtinLabel = "电源").isPowerKey())
+        assertEquals(FunctionGroup.SOUND, ButtonKey.VOLUME_UP.group)
+        assertEquals(FunctionGroup.NAVIGATION, ButtonKey.LEFT.group)
+        assertEquals(FunctionGroup.PLAYBACK, ButtonKey.PAUSE.group)
+        for (direction in DpadDirection.entries) assertEquals(direction, DpadDirection.from(direction.key))
+        assertNull(DpadDirection.from(null))
+        assertNull(DpadDirection.from(ButtonKey.POWER))
+        assertEquals(listOf(ButtonKey.UP, ButtonKey.DOWN, ButtonKey.LEFT, ButtonKey.RIGHT, ButtonKey.OK), DpadDirection.entries.map { it.key })
+    }
+
 }

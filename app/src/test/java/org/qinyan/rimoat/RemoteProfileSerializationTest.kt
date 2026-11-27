@@ -125,5 +125,17 @@ class RemoteProfileSerializationTest {
             assertEquals(preset.buttons.size, deserialized.buttons.size)
         }
     }
+
+    @Test fun absentKeyMetadataDefaultsAndNewMetadataRoundTrips() {
+        val old = json.decodeFromString<RemoteProfile>("""{"id":"old","name":"Old","buttons":[{"id":"p","label":"电源","builtinLabel":"电源"}]}""")
+        assertEquals(0, old.keySchemaVersion)
+        assertEquals(null, old.brandIdx)
+        assertEquals(null, old.buttons.single().key)
+        val updated = old.copy(keySchemaVersion = 1, brandIdx = 42,
+            buttons = listOf(old.buttons.single().copy(key = org.qinyan.rimoat.data.ButtonKey.POWER)))
+        assertEquals(updated, json.decodeFromString<RemoteProfile>(json.encodeToString(RemoteProfile.serializer(), updated)))
+        assertEquals("电源", updated.buttons.single().builtinLabel)
+    }
+
 }
 

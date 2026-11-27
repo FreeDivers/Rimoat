@@ -1,5 +1,7 @@
 package org.qinyan.rimoat.ui.components
 
+import androidx.annotation.StringRes
+import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.ui.screens.genericDirectionButtons
 
@@ -62,3 +64,56 @@ fun acButtonForAction(profile: RemoteProfile, action: AcAction): RemoteButton? =
 
 fun acRawExtensionButtons(profile: RemoteProfile): List<RemoteButton> =
     profile.buttons.filter { button -> button.isLearned || AcAction.entries.none { acButtonMatchesAction(button, it) } }
+
+/** Policy for migrated buttons; a custom name alone never assigns a function. */
+fun RemoteButton.isPowerKey(): Boolean = key in setOf(
+    ButtonKey.POWER, ButtonKey.POWER_ON, ButtonKey.POWER_OFF, ButtonKey.SECOND_POWER)
+
+enum class FunctionGroup(@StringRes val labelRes: Int) {
+    SOUND(R.string.control_sound_group),
+    PLAYBACK(R.string.control_play),
+    CHANNELS(R.string.control_channel_group),
+    PICTURE(R.string.control_picture_group),
+    CLIMATE(R.string.control_climate_group),
+    NAVIGATION(R.string.control_navigation_group),
+    DISPLAY(R.string.control_display_group),
+    OPERATING_MODE(R.string.control_mode_group),
+    TIMER(R.string.control_timer),
+    AIR(R.string.control_air_group),
+    OTHER(R.string.control_other_group)
+}
+
+val ButtonKey.group: FunctionGroup
+    get() = when (this) {
+        ButtonKey.VOLUME_UP, ButtonKey.VOLUME_DOWN, ButtonKey.MUTE, ButtonKey.AUDIO_CHANNEL -> FunctionGroup.SOUND
+        ButtonKey.PLAY, ButtonKey.PAUSE, ButtonKey.PLAY_PAUSE, ButtonKey.STOP, ButtonKey.FAST_FORWARD,
+        ButtonKey.REWIND, ButtonKey.PREVIOUS, ButtonKey.NEXT, ButtonKey.RECORD, ButtonKey.SLOW_PLAY,
+        ButtonKey.EJECT -> FunctionGroup.PLAYBACK
+        ButtonKey.CHANNEL_UP, ButtonKey.CHANNEL_DOWN, ButtonKey.RECALL, ButtonKey.FAVORITE,
+        ButtonKey.DIGITS, ButtonKey.NUMBERS, ButtonKey.PLUS_TEN,
+        ButtonKey.DIGIT_0, ButtonKey.DIGIT_1, ButtonKey.DIGIT_2, ButtonKey.DIGIT_3, ButtonKey.DIGIT_4,
+        ButtonKey.DIGIT_5, ButtonKey.DIGIT_6, ButtonKey.DIGIT_7, ButtonKey.DIGIT_8, ButtonKey.DIGIT_9 -> FunctionGroup.CHANNELS
+        ButtonKey.FOCUS_PLUS, ButtonKey.FOCUS_MINUS, ButtonKey.ZOOM_IN, ButtonKey.ZOOM_OUT,
+        ButtonKey.BRIGHTNESS, ButtonKey.SUBTITLES, ButtonKey.PICTURE_IN_PICTURE, ButtonKey.FREEZE,
+        ButtonKey.OSD, ButtonKey.VIDEO, ButtonKey.STANDARD -> FunctionGroup.PICTURE
+        ButtonKey.FAN_SPEED, ButtonKey.AIRFLOW, ButtonKey.SWING, ButtonKey.HORIZONTAL_SWING,
+        ButtonKey.VERTICAL_SWING, ButtonKey.OSCILLATION, ButtonKey.WIND_TYPE, ButtonKey.WIND_DIRECTION,
+        ButtonKey.MODE, ButtonKey.TEMPERATURE_UP, ButtonKey.TEMPERATURE_DOWN, ButtonKey.COOL_WIND -> FunctionGroup.CLIMATE
+        ButtonKey.UP, ButtonKey.DOWN, ButtonKey.LEFT, ButtonKey.RIGHT, ButtonKey.OK, ButtonKey.BACK,
+        ButtonKey.HOME, ButtonKey.MENU, ButtonKey.POPUP_MENU, ButtonKey.TOP_MENU, ButtonKey.SOURCE,
+        ButtonKey.SETTINGS, ButtonKey.EXIT -> FunctionGroup.NAVIGATION
+        ButtonKey.LIGHT, ButtonKey.TEMPERATURE_DISPLAY -> FunctionGroup.DISPLAY
+        ButtonKey.SLEEP, ButtonKey.ECO, ButtonKey.COMFORT, ButtonKey.TURBO -> FunctionGroup.OPERATING_MODE
+        ButtonKey.TIMER, ButtonKey.BATH_TIMER -> FunctionGroup.TIMER
+        ButtonKey.VENTILATION, ButtonKey.ION, ButtonKey.CLEAN, ButtonKey.DRY, ButtonKey.AUXILIARY_HEAT,
+        ButtonKey.QUICK_COOL, ButtonKey.QUICK_HEAT, ButtonKey.HUMIDIFY, ButtonKey.KEEP_WARM -> FunctionGroup.AIR
+        else -> FunctionGroup.OTHER
+    }
+
+enum class DpadDirection(val key: ButtonKey) {
+    UP(ButtonKey.UP), DOWN(ButtonKey.DOWN), LEFT(ButtonKey.LEFT), RIGHT(ButtonKey.RIGHT), OK(ButtonKey.OK);
+
+    companion object {
+        fun from(key: ButtonKey?): DpadDirection? = entries.firstOrNull { it.key == key }
+    }
+}

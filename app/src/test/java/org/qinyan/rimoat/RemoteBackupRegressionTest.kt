@@ -11,10 +11,10 @@ import java.nio.file.Files
 import java.lang.reflect.Proxy
 
 class RemoteBackupRegressionTest {
-    private val profile = RemoteProfile("personal", "卧室美的空调", brand = "美的", category = DeviceCategory.AC,
+    private val profile = LegacyRemoteMigration.normalizeKeys(RemoteProfile("personal", "卧室美的空调", brand = "美的", category = DeviceCategory.AC,
         room = "卧室", sourceRemoteId = "R_air_40_1", acProtocolId = 27,
-        verifiedFunctions = listOf("开机", "升温"), lastUsedAt = 123,
-        buttons = listOf(RemoteButton("learned", "自学按键", frequencyHz = 39500, rawPattern = listOf(9000, -4500, 560))))
+        verifiedFunctions = listOf("开机", "升温"), lastUsedAt = 123, updatedAt = 1L,
+        buttons = listOf(RemoteButton("learned", "自学按键", frequencyHz = 39500, rawPattern = listOf(9000, -4500, 560)))))
 
     @Test fun backupKeepsLearningMetadataAndOriginalCarrier() {
         assertEquals(profile, RemoteBackupCodec.decode(RemoteBackupCodec.encode(listOf(profile))).single())
@@ -101,10 +101,10 @@ class RemoteBackupRegressionTest {
     }
 
     @Test fun relearningInvalidatesOnlyTheChangedFunctionsConfirmation() = storage { repo, _, _ ->
-        repo.saveRemote(profile.copy(verifiedFunctions = listOf("自学按键", "开机")))
+        repo.saveRemote(profile.copy(verifiedFunctions = listOf("learned", "POWER_ON")))
         repo.updateButton(profile.id, profile.buttons.single().copy(rawPattern = listOf(1200, 600, 600)))
         val saved = repo.getRemote(profile.id)!!
-        assertEquals(listOf("开机"), saved.verifiedFunctions)
+        assertEquals(listOf("POWER_ON"), saved.verifiedFunctions)
         assertFalse(saved.useStaticAcButtons)
     }
 
