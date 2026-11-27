@@ -10,14 +10,13 @@
     <string name="msg_categories_load_failed">加载品类失败: %1$s</string>
     <string name="msg_brands_load_failed">加载品牌失败: %1$s</string>
     <string name="msg_brand_no_codes">未在码库中找到【%1$s】的遥控器方案</string>
-    <string name="msg_codes_load_failed">加载方案失败: %1$s</string>
+    <string name="msg_codes_load_failed">加载方案失败：%1$s</string>
     <string name="msg_code_set_closed">方案已关闭</string>
     <string name="msg_simulated_send">模拟发送</string>
     <string name="msg_button_sent">「%1$s」已发送</string>
     <string name="msg_test_failed">测试失败：%1$s</string>
     <string name="msg_response_recorded">已记录「%1$s」有响应</string>
     <string name="msg_no_response_recorded">已记录「%1$s」无响应</string>
-    <string name="msg_codes_load_failed_localized">加载方案失败：%1$s</string>
     <string name="msg_remote_save_failed">保存遥控器失败: %1$s</string>
     <string name="msg_captured_save_failed">保存失败，已保留本次捕获信号：%1$s</string>
     <string name="msg_recent_history_save_failed">最近使用记录保存失败</string>
@@ -208,4 +207,10 @@
     <string name="msg_tiqiaa_closed">遥控精灵 USB 设备不可用或已关闭</string>
     <string name="msg_tiqiaa_learn_start_failed">无法向遥控精灵 USB 发送学习命令</string>
     <string name="msg_mock_failure">模拟硬件失败</string>
+    <string name="error_storage_full">存储空间不足</string>
+    <string name="error_permission_denied">没有权限</string>
+    <string name="error_action_learn">去学习</string>
+    <string name="error_action_reload">重新加载</string>
+    <string name="error_action_open_transmitter">切换通道</string>
+    <string name="error_action_storage_settings">存储设置</string>
 </resources>

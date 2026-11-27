@@ -389,7 +389,7 @@ class CustomRemoteWizardViewModelTest {
         val state = viewModel.uiState.value
         assertFalse(state.isTestingTransmit)
         assertEquals(
-            UiText.resource(R.string.screen_send_error_t, UiText.Dynamic("Carrier frequency unsupported")),
+            UiText.resource(R.string.screen_send_error_t, UiText.Resource(R.string.screen_hardware_error)),
             state.testFeedbackMessage
         )
     }
@@ -793,6 +793,21 @@ class CustomRemoteWizardViewModelTest {
         assertEquals(null, button.builtinLabel)
         assertEquals(AcAction.TEMP_UP, button.acAction)
         assertEquals(ButtonKey.TEMPERATURE_UP, button.key)
+    }
+
+    @Test fun learningFailureDetectsTimeoutByTypeInsteadOfMessageString() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.TV))
+        vm.setRemoteName("Timeout Test")
+        assertTrue(vm.proceedToLearning())
+        learnerManager.mockLearner.setSimulationMode(org.qinyan.rimoat.hardware.learning.MockIrLearner.SimulationMode.TIMEOUT)
+        learnerManager.mockLearner.setSimulatedDelayMs(10L)
+        vm.startLearningCurrentKey()
+        assertTrue(awaitCondition {
+            val state = vm.uiState.value
+            state.currentKey?.status != KeyLearnStatus.LEARNING && state.errorMessage != null
+        })
+        assertEquals(UiText.Resource(R.string.screen_learn_timeout), vm.uiState.value.errorMessage)
+        assertTrue(vm.uiState.value.errorMessage !is UiText.Dynamic)
     }
 
     private fun learnCurrentKey(vm: CustomRemoteWizardViewModel): IrSignal.Raw {

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 
@@ -39,12 +40,21 @@ private fun List<Any>.resolveArguments(context: Context): Array<Any> =
     map { if (it is UiText) it.resolve(context) else it }.toTypedArray()
 
 /** Exception carrying a [UiText] so layers below ViewModel avoid pre-translating messages. */
-class UiTextException(val uiText: UiText, cause: Throwable? = null) : IllegalStateException(cause)
+class UiTextException(
+    val uiText: UiText,
+    cause: Throwable? = null,
+    val action: ErrorAction? = null
+) : IllegalStateException(cause)
 
 fun Throwable.uiTextDetail(@StringRes fallback: Int): UiText = when (this) {
     is UiTextException -> uiText
-    else -> localizedMessage?.takeIf { it.isNotBlank() }?.let { UiText.Dynamic(it) } ?: UiText.Resource(fallback)
+    else -> UiText.Resource(fallback)
 }
+
+val UiTextStateSaver = Saver<UiText?, Int>(
+    save = { (it as? UiText.Resource)?.takeIf { res -> res.arguments.isEmpty() }?.id ?: 0 },
+    restore = { id -> id.takeIf { it != 0 }?.let { UiText.Resource(it) } }
+)
 
 @Composable
 fun UiText.asString(): String {

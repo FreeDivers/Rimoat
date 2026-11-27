@@ -1,9 +1,12 @@
 package org.qinyan.rimoat.ui.viewmodel
 
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.i18n.AppError
+import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.UiText
-import org.qinyan.rimoat.i18n.uiTextDetail
 import org.qinyan.rimoat.i18n.localizedLabel
+import org.qinyan.rimoat.i18n.toAppError
+import org.qinyan.rimoat.i18n.wrapped
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.qinyan.rimoat.data.*
@@ -104,19 +107,37 @@ class RemoteListViewModel(
         _selectedCategory.value = category
     }
 
+    private val _operationAppError = MutableStateFlow<AppError?>(null)
     private val _operationError = MutableStateFlow<UiText?>(null)
     val errorMessage = combine(_operationError, repository.errorMessage) { operation, storage ->
         operation ?: storage
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val errorAppMessage: StateFlow<AppError?> = combine(_operationAppError, repository.errorMessage) { operation, storage ->
+        operation ?: storage?.let { AppError.Resource(it) }
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    fun clearError() { _operationError.value = null; repository.clearError() }
+    private fun setOperationError(error: AppError?) {
+        _operationAppError.value = error
+        _operationError.value = error?.message
+    }
+
+    fun clearError() {
+        _operationAppError.value = null
+        _operationError.value = null
+        repository.clearError()
+    }
 
     private fun performStorageOperation(block: suspend () -> Unit) {
         viewModelScope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_operation_failed, e.uiTextDetail(R.string.msg_storage_unavailable)) }
+            catch (e: Exception) {
+                setOperationError(
+                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_operation_failed)
+                )
+            }
         }
     }
 
@@ -142,7 +163,11 @@ class RemoteListViewModel(
                 _deletedIds.update { current -> current.filterNot { it == id } }
                 if (_trash.value != null) _trash.value = repository.deletedEntries()
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_operation_failed, e.uiTextDetail(R.string.msg_storage_unavailable)) }
+            catch (e: Exception) {
+                setOperationError(
+                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_operation_failed)
+                )
+            }
             finally { _trashBusy.value = false }
         }
     }
@@ -157,7 +182,11 @@ class RemoteListViewModel(
                 }
                 if (_trash.value != null) _trash.value = repository.deletedEntries()
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_operation_failed, e.uiTextDetail(R.string.msg_storage_unavailable)) }
+            catch (e: Exception) {
+                setOperationError(
+                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_operation_failed)
+                )
+            }
             finally {
                 if (restored.isNotEmpty()) {
                     _deletedIds.update { current -> current.filterNot(restored::contains) }
@@ -174,7 +203,11 @@ class RemoteListViewModel(
                 _trash.value = repository.deletedEntries()
                 onDeleted()
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_permanent_delete_failed, e.uiTextDetail(R.string.msg_storage_unavailable)) }
+            catch (e: Exception) {
+                setOperationError(
+                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_permanent_delete_failed)
+                )
+            }
             finally { _trashBusy.value = false }
         }
     }
@@ -191,7 +224,9 @@ class RemoteListViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _operationError.value = UiText.resource(R.string.msg_operation_failed, e.uiTextDetail(R.string.msg_storage_unavailable))
+            setOperationError(
+                e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_operation_failed)
+            )
             false
         }
     }
@@ -202,18 +237,26 @@ class RemoteListViewModel(
     val transferBusy = _transferBusy.asStateFlow()
     private val _transferMessage = MutableStateFlow<UiText?>(null)
     val transferMessage = _transferMessage.asStateFlow()
-    fun reportTransferError(message: UiText) { _operationError.value = message }
+    fun reportTransferError(error: AppError) { setOperationError(error) }
+    fun reportTransferError(message: UiText) { reportTransferError(AppError.Resource(message)) }
     fun reportTransferError(message: String) { reportTransferError(UiText.Dynamic(message)) }
     fun clearTransferMessage() { _transferMessage.value = null }
     fun cancelImport() { if (!_transferBusy.value) _pendingImport.value = null }
-    private fun transfer(block: suspend () -> Unit) {
+    private fun transfer(defaultAction: ErrorAction? = null, block: suspend () -> Unit) {
         if (_transferBusy.value) return
         _transferBusy.value = true
         viewModelScope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
-            catch (_: BackupWriteException) { _operationError.value = UiText.resource(R.string.backup_export_write_failed) }
-            catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_file_operation_failed, e.uiTextDetail(R.string.msg_file_unavailable)) }
+            catch (_: BackupWriteException) {
+                setOperationError(AppError.Resource(UiText.Resource(R.string.backup_export_write_failed), defaultAction))
+            }
+            catch (e: Exception) {
+                setOperationError(
+                    e.toAppError(R.string.msg_file_unavailable, defaultAction)
+                        .wrapped(R.string.msg_file_operation_failed, defaultAction)
+                )
+            }
             finally { _transferBusy.value = false }
         }
     }
@@ -238,10 +281,21 @@ class RemoteListViewModel(
         _pendingImport.value = null
         _transferMessage.value = UiText.plural(R.plurals.msg_import_finished, count, count)
     }
-    fun export(uri: android.net.Uri, id: String?, preferences: PortablePreferences? = null, onSaved: () -> Unit) = transfer {
-        val text = repository.exportRemotes(id, preferences)
-        checkNotNull(backupFiles).write(uri, text)
-        onSaved()
+    private var lastExportAction: (() -> Unit)? = null
+    fun retryLastExport(): Boolean {
+        val action = lastExportAction ?: return false
+        action()
+        return true
+    }
+
+    fun export(uri: android.net.Uri, id: String?, preferences: PortablePreferences? = null, onSaved: () -> Unit) {
+        lastExportAction = { export(uri, id, preferences, onSaved) }
+        transfer(defaultAction = ErrorAction.Retry) {
+            val text = repository.exportRemotes(id, preferences)
+            checkNotNull(backupFiles).write(uri, text)
+            lastExportAction = null
+            onSaved()
+        }
     }
 
     fun setUseDynamicColor(useDynamic: Boolean) {

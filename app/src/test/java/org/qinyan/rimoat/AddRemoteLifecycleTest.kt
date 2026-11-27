@@ -136,16 +136,22 @@ class AddRemoteLifecycleTest {
         catalog.brands.getValue("").completeExceptionally(java.io.IOException("first external detail"))
         runCurrent()
         val first = checkNotNull(vm.uiState.value.error)
-        assertEquals(UiText.Resource(R.string.msg_brands_load_failed, listOf("first external detail")), first)
+        assertEquals(
+            UiText.resource(R.string.msg_brands_load_failed, UiText.Resource(R.string.control_unknown_error)),
+            first
+        )
         vm.onScreenStopped()
         assertSame(first, vm.uiState.value.error)
 
         vm.searchBrand("retry")
         runCurrent()
-        catalog.brands.getValue("retry").completeExceptionally(java.io.IOException("second external detail"))
+        catalog.brands.getValue("retry").completeExceptionally(SecurityException("second external detail"))
         runCurrent()
         val second = checkNotNull(vm.uiState.value.error)
-        assertEquals(UiText.Resource(R.string.msg_brands_load_failed, listOf("second external detail")), second)
+        assertEquals(
+            UiText.resource(R.string.msg_brands_load_failed, UiText.Resource(R.string.error_permission_denied)),
+            second
+        )
         vm.dismissError(first)
         assertSame(second, vm.uiState.value.error)
         vm.dismissError(second)

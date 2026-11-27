@@ -17,7 +17,11 @@ import androidx.compose.ui.semantics.Role
 import org.qinyan.rimoat.ui.components.getCategoryIcon
 import androidx.compose.material3.LinearWavyProgressIndicator
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.asString
+import org.qinyan.rimoat.ui.components.openStorageSettings
+import org.qinyan.rimoat.ui.components.showAppError
+import org.qinyan.rimoat.ui.screens.settings.BackupSavedDialog
 import org.qinyan.rimoat.ui.theme.Spacing
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.ExpandSection
@@ -224,12 +228,30 @@ fun RemoteListScreen(
     val isForceMock by viewModel.isForceMock.collectAsStateWithLifecycle()
     var showTransmitterSheet by rememberSaveable { mutableStateOf(false) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val errorAppMessage by viewModel.errorAppMessage.collectAsStateWithLifecycle()
     val displayedError = errorMessage?.asString()
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(screenActive, errorMessage, displayedError) {
-        if (screenActive) errorMessage?.let {
-            snackbar.showSnackbar(checkNotNull(displayedError), duration = SnackbarDuration.Long)
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var exportId by rememberSaveable { mutableStateOf<String?>(null) }
+    var exportedUri by rememberSaveable { mutableStateOf<String?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) viewModel.export(uri, exportId) { exportedUri = uri.toString() }
+    }
+    val activeError = errorAppMessage ?: errorMessage?.let { org.qinyan.rimoat.i18n.AppError.Resource(it) }
+    LaunchedEffect(screenActive, activeError) {
+        if (screenActive) activeError?.let { appError ->
+            val result = snackbar.showAppError(context, appError)
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                when (appError.action) {
+                    is ErrorAction.Retry -> if (!viewModel.retryLastExport()) {
+                        exportLauncher.launch("Rimoat-remote.json")
+                    }
+                    is ErrorAction.OpenStorageSettings -> openStorageSettings(context)
+                    else -> Unit
+                }
+            }
             viewModel.clearError()
         }
     }
@@ -247,12 +269,6 @@ fun RemoteListScreen(
     val transferBusy by viewModel.transferBusy.collectAsStateWithLifecycle()
     val transferMessage by viewModel.transferMessage.collectAsStateWithLifecycle()
     val displayedTransfer = transferMessage?.asString()
-    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
-    var exportId by rememberSaveable { mutableStateOf<String?>(null) }
-    var exportedUri by rememberSaveable { mutableStateOf<String?>(null) }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) viewModel.export(uri, exportId) { exportedUri = uri.toString() }
-    }
     LaunchedEffect(screenActive, deletedIds) {
         if (screenActive && deletedIds.isNotEmpty()) {
             val ids = deletedIds

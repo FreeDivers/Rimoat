@@ -2,7 +2,11 @@
 
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.i18n.AppError
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.ErrorAction
+import org.qinyan.rimoat.ui.components.openStorageSettings
+import org.qinyan.rimoat.ui.components.showAppError
 import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -87,6 +91,8 @@ fun RemotePanelEditor(
     onSave: (RemotePanelLayout) -> Unit,
     onBack: () -> Unit,
     saveError: UiText? = null,
+    saveAppError: AppError? = null,
+    onRetrySave: () -> Unit = {},
     onDismissSaveError: () -> Unit = {}
 ) {
     val motion = AppMotion.current
@@ -98,9 +104,17 @@ fun RemotePanelEditor(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val screenActive = LocalMotionActive.current
-    LaunchedEffect(screenActive, saveError) {
-        if (screenActive) saveError?.let {
-            snackbarHostState.showSnackbar(it.resolve(context), duration = SnackbarDuration.Long)
+    val activeSaveError = saveAppError ?: saveError?.let { AppError.Resource(it) }
+    LaunchedEffect(screenActive, activeSaveError) {
+        if (screenActive) activeSaveError?.let { appError ->
+            val result = snackbarHostState.showAppError(context, appError)
+            if (result == SnackbarResult.ActionPerformed) {
+                when (appError.action) {
+                    is ErrorAction.Retry -> onRetrySave()
+                    is ErrorAction.OpenStorageSettings -> openStorageSettings(context)
+                    else -> Unit
+                }
+            }
             onDismissSaveError()
         }
     }

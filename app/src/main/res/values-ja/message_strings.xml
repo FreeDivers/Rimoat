@@ -17,7 +17,6 @@
     <string name="msg_test_failed">テストに失敗しました：%1$s</string>
     <string name="msg_response_recorded">「%1$s」への応答を記録しました</string>
     <string name="msg_no_response_recorded">「%1$s」に応答がないことを記録しました</string>
-    <string name="msg_codes_load_failed_localized">コードセットを読み込めません：%1$s</string>
     <string name="msg_remote_save_failed">リモコンを保存できません：%1$s</string>
     <string name="msg_captured_save_failed">保存に失敗しました。取得した信号は保持されています：%1$s</string>
     <string name="msg_recent_history_save_failed">最近の使用履歴を保存できません</string>
@@ -208,4 +207,10 @@
     <string name="msg_tiqiaa_closed">Tiqiaa USB 機器が利用できないか、接続が閉じています</string>
     <string name="msg_tiqiaa_learn_start_failed">Tiqiaa USB に学習コマンドを送信できません</string>
     <string name="msg_mock_failure">ハードウェアのシミュレーションに失敗しました</string>
+    <string name="error_storage_full">ストレージの空き容量が不足しています</string>
+    <string name="error_permission_denied">権限がありません</string>
+    <string name="error_action_learn">学習する</string>
+    <string name="error_action_reload">再読み込み</string>
+    <string name="error_action_open_transmitter">送信機設定</string>
+    <string name="error_action_storage_settings">ストレージ設定</string>
 </resources>

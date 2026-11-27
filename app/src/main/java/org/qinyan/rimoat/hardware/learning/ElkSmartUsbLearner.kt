@@ -179,7 +179,7 @@ class ElkSmartUsbLearner private constructor(
             }
 
             _state.value = LearningState.Timeout
-            return@withContext Result.failure(Exception("IR learning timed out after $totalSec seconds"))
+            return@withContext Result.failure(LearningTimeoutException("IR learning timed out after $totalSec seconds"))
         } finally {
             // Restore hardware only when connection is still open: Send STOP_LEARN command (0xFD 0xFD 0xFD 0xFD)
             if (!closed.get()) {

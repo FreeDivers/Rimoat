@@ -118,9 +118,10 @@ class RemoteControlViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(26, vm.acState.value.temperature)
         assertEquals(
-            UiText.resource(R.string.msg_send_incomplete, UiText.Dynamic("USB detached")),
+            UiText.resource(R.string.msg_send_incomplete, UiText.Resource(R.string.control_unknown_error)),
             vm.operationError.value
         )
+        assertTrue(vm.operationError.value !is UiText.Dynamic)
         assertFalse(vm.isTransmitting.value)
     }
 
@@ -347,6 +348,32 @@ class RemoteControlViewModelTest {
             repoScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
             dir.deleteRecursively()
         }
+    }
+
+    @Test fun missingSignalEmitsLearnActionAndMissingAcEncoderEmitsReloadAction() {
+        val emptyButton = RemoteButton("power", "电源")
+        val remoteWithEmpty = RemoteProfile("tv_empty", "电视", category = DeviceCategory.TV, buttons = listOf(emptyButton))
+        val tvVm = tracked(RemoteControlViewModel(remoteWithEmpty.id, initialProfile = remoteWithEmpty))
+        tvVm.sendButton(emptyButton)
+        val learnErr = tvVm.operationAppError.value
+        assertNotNull(learnErr)
+        assertEquals(UiText.Resource(R.string.msg_button_learn_first), learnErr!!.message)
+        assertEquals(org.qinyan.rimoat.i18n.ErrorAction.Learn("power"), learnErr.action)
+        assertTrue(tvVm.operationError.value !is UiText.Dynamic)
+        tvVm.learnButtonById("power")
+        assertEquals(emptyButton, tvVm.learningDialogButton.value)
+
+        val acVm = tracked(RemoteControlViewModel("ac", initialProfile = profile(), acSignalEncoder = null))
+        acVm.toggleAcPower()
+        dispatcher.scheduler.advanceUntilIdle()
+        val acErr = acVm.operationAppError.value
+        assertNotNull(acErr)
+        assertEquals(
+            UiText.resource(R.string.msg_send_incomplete, UiText.Resource(R.string.msg_ac_state_library_unavailable)),
+            acErr!!.message
+        )
+        assertEquals(org.qinyan.rimoat.i18n.ErrorAction.Reload, acErr.action)
+        assertTrue(acVm.operationError.value !is UiText.Dynamic)
     }
 
 }

@@ -504,7 +504,7 @@ private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapsho
                     val minutes = widgetAcSettings(profile, state.records[profile.id], state.simulated).timerMinutes
                     if (minutes > 0) context.getString(R.string.widget_minutes_short, minutes) else context.getString(R.string.widget_off)
                 } else appearance?.state?.let { localizedLabel(it, context) },
-                failure?.let { context.getString(R.string.widget_failure_retry, it.text) }).joinToString(" "),
+                failure?.let { context.getString(R.string.widget_failure_retry, it.text.resolve(context)) }).joinToString(" "),
             shortcutAction(shortcut), enabled = enabled,
             primary = primary || power, size = size,
             backgroundColor = when { !enabled -> LocalWidgetSurfaces.current.container; failure != null -> GlanceTheme.colors.errorContainer; primary || power -> GlanceTheme.colors.primary; active -> GlanceTheme.colors.primaryContainer; else -> LocalWidgetSurfaces.current.container },

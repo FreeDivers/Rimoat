@@ -1,10 +1,13 @@
 package org.qinyan.rimoat.ui.viewmodel
 
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.i18n.AppError
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.localizedLabel
-import org.qinyan.rimoat.i18n.uiTextDetail
+import org.qinyan.rimoat.i18n.toAppError
+import org.qinyan.rimoat.i18n.wrapped
 import androidx.lifecycle.SavedStateHandle
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -64,6 +67,7 @@ data class AddRemoteUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val error: UiText? = null,
+    val errorAction: ErrorAction? = null,
     val testedButton: RemoteButton? = null,
     val canConfirmTest: Boolean = false,
     val verifiedFunctions: Set<String> = emptySet(),
@@ -188,6 +192,7 @@ class AddRemoteViewModel(
     private var loadEpoch = 0
     private var saveJob: Job? = null
     private var saveEpoch = 0
+    private var retryAction: (() -> Unit)? = null
     private val saving: Boolean get() = _uiState.value.isSaving
     private fun cancelLoad(): Int {
         loadJob?.cancel()
@@ -201,7 +206,8 @@ class AddRemoteViewModel(
     val lastTransmitLog = _feedback.asStateFlow()
     fun dismissFeedback(log: org.qinyan.rimoat.hardware.TransmitLog) { _feedback.compareAndSet(log, null) }
     fun clearFeedback() { _feedback.value = null }
-    fun dismissError(message: UiText) { _uiState.update { if (it.error == message) it.copy(error = null) else it } }
+    fun dismissError(message: UiText) { _uiState.update { if (it.error == message) it.copy(error = null, errorAction = null) else it } }
+    fun retryLastAction() { retryAction?.invoke() }
 
 
     init {
@@ -231,7 +237,7 @@ class AddRemoteViewModel(
     private fun loadCategories() {
         val epoch = cancelLoad()
         loadJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(isLoading = true, error = null, errorAction = null) }
             try {
                 val categories = irDbRepository.getCategories()
                 if (epoch != loadEpoch) return@launch
@@ -258,10 +264,14 @@ class AddRemoteViewModel(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (epoch == loadEpoch) {
+                    retryAction = ::loadCategories
+                    val mapped = e.toAppError(R.string.control_unknown_error, ErrorAction.Retry)
+                        .wrapped(R.string.msg_categories_load_failed, ErrorAction.Retry)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = UiText.resource(R.string.msg_categories_load_failed, e.message ?: e.javaClass.simpleName)
+                            error = mapped.message,
+                            errorAction = mapped.action
                         )
                     }
                 }
@@ -288,7 +298,7 @@ class AddRemoteViewModel(
         val categoryId = state.selectedCategory?.id ?: return
         restoring = false
         val epoch = cancelLoad()
-        _uiState.update { it.copy(brandSearchQuery = query, isLoading = true, error = null) }
+        _uiState.update { it.copy(brandSearchQuery = query, isLoading = true, error = null, errorAction = null) }
         loadJob = viewModelScope.launch { loadBrands(categoryId, query, epoch) }
     }
 
@@ -310,7 +320,18 @@ class AddRemoteViewModel(
             }
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
-            if (epoch == loadEpoch) _uiState.update { it.copy(isLoading = false, error = UiText.resource(R.string.msg_brands_load_failed, e.message ?: e.javaClass.simpleName)) }
+            if (epoch == loadEpoch) {
+                retryAction = { searchBrand(query) }
+                val mapped = e.toAppError(R.string.control_unknown_error, ErrorAction.Retry)
+                    .wrapped(R.string.msg_brands_load_failed, ErrorAction.Retry)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = mapped.message,
+                        errorAction = mapped.action
+                    )
+                }
+            }
         }
     }
 
@@ -328,7 +349,8 @@ class AddRemoteViewModel(
                     selectedBrand = brand, remotes = emptyList(),
                     verifiedFunctions = emptySet(), observations = emptyMap(), distinguishingKeys = emptySet(), testedButton = null, canConfirmTest = false, testMessage = null,
                     isLoading = true,
-                    error = null
+                    error = null,
+                    errorAction = null
                 )
             }
             try {
@@ -338,7 +360,8 @@ class AddRemoteViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = UiText.resource(R.string.msg_brand_no_codes, brand.displayText())
+                            error = UiText.resource(R.string.msg_brand_no_codes, brand.displayText()),
+                            errorAction = null
                         )
                     }
                     return@launch
@@ -370,10 +393,14 @@ class AddRemoteViewModel(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (epoch == loadEpoch) {
+                    retryAction = { selectBrand(brand, restoredStep) }
+                    val mapped = e.toAppError(R.string.control_unknown_error, ErrorAction.Retry)
+                        .wrapped(R.string.msg_codes_load_failed, ErrorAction.Retry)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = UiText.resource(R.string.msg_codes_load_failed, e.message ?: e.javaClass.simpleName)
+                            error = mapped.message,
+                            errorAction = mapped.action
                         )
                     }
                 }
@@ -419,7 +446,11 @@ class AddRemoteViewModel(
             catch (e: Exception) {
                 if (epoch == testEpoch) {
                     _uiState.update {
-                        it.copy(testMessage = UiText.resource(R.string.msg_test_failed, e.uiTextDetail(R.string.control_unknown_error)))
+                        it.copy(
+                            testMessage = e.toAppError(R.string.control_unknown_error)
+                                .wrapped(R.string.msg_test_failed)
+                                .message
+                        )
                     }
                 }
             }
@@ -470,7 +501,7 @@ class AddRemoteViewModel(
         val model = remotes.getOrNull(newIndex) ?: return
 
         val epoch = cancelLoad()
-        _uiState.update { it.copy(isLoading = true, error = null) }
+        _uiState.update { it.copy(isLoading = true, error = null, errorAction = null) }
         loadJob = viewModelScope.launch {
             try {
                 val (primaryKey, secondaryKey) = irDbRepository.getTestKeysForRemote(model.remoteId)
@@ -486,10 +517,14 @@ class AddRemoteViewModel(
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (e: Exception) {
                 if (epoch == loadEpoch) {
+                    retryAction = { updateModelIndex(newIndex) }
+                    val mapped = e.toAppError(R.string.control_unknown_error, ErrorAction.Retry)
+                        .wrapped(R.string.msg_codes_load_failed, ErrorAction.Retry)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = UiText.resource(R.string.msg_codes_load_failed_localized, e.localizedMessage ?: e.javaClass.simpleName)
+                            error = mapped.message,
+                            errorAction = mapped.action
                         )
                     }
                 }
@@ -499,11 +534,11 @@ class AddRemoteViewModel(
 
     fun proceedToConfirm() {
         if (_uiState.value.isSendingTest || _uiState.value.isLoading) return
-        _uiState.update { it.copy(step = AddRemoteStep.CONFIRM, error = null) }
+        _uiState.update { it.copy(step = AddRemoteStep.CONFIRM, error = null, errorAction = null) }
     }
 
     fun updateCustomName(name: String) {
-        _uiState.update { it.copy(customRemoteName = name.take(100), error = null) }
+        _uiState.update { it.copy(customRemoteName = name.take(100), error = null, errorAction = null) }
     }
 
     fun saveRemote(onSaved: (RemoteProfile) -> Unit) {
@@ -511,7 +546,7 @@ class AddRemoteViewModel(
         val model = state.currentRemote ?: return
         if (state.isSaving || state.isLoading) return
         val epoch = ++saveEpoch
-        _uiState.update { it.copy(isLoading = true, isSaving = true, error = null) }
+        _uiState.update { it.copy(isLoading = true, isSaving = true, error = null, errorAction = null) }
         saveJob = viewModelScope.launch {
             try {
                 val built = LegacyRemoteMigration.normalizeKeys(irDbRepository.buildRemoteProfile(model, state.customRemoteName))
@@ -531,10 +566,14 @@ class AddRemoteViewModel(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (epoch != saveEpoch) return@launch
+                retryAction = { saveRemote(onSaved) }
+                val mapped = e.toAppError(R.string.control_unknown_error, ErrorAction.Retry)
+                    .wrapped(R.string.msg_remote_save_failed, ErrorAction.Retry)
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = UiText.resource(R.string.msg_remote_save_failed, e.message ?: e.javaClass.simpleName)
+                        error = mapped.message,
+                        errorAction = mapped.action
                     )
                 }
             } finally {

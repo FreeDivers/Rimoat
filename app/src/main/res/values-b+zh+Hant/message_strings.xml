@@ -10,14 +10,13 @@
     <string name="msg_categories_load_failed">載入類別失敗: %1$s</string>
     <string name="msg_brands_load_failed">載入品牌失敗: %1$s</string>
     <string name="msg_brand_no_codes">未在碼庫中找到【%1$s】的遙控器方案</string>
-    <string name="msg_codes_load_failed">載入方案失敗: %1$s</string>
+    <string name="msg_codes_load_failed">載入方案失敗：%1$s</string>
     <string name="msg_code_set_closed">方案已關閉</string>
     <string name="msg_simulated_send">模擬傳送</string>
     <string name="msg_button_sent">「%1$s」已傳送</string>
     <string name="msg_test_failed">測試失敗：%1$s</string>
     <string name="msg_response_recorded">已記錄「%1$s」有反應</string>
     <string name="msg_no_response_recorded">已記錄「%1$s」無反應</string>
-    <string name="msg_codes_load_failed_localized">載入方案失敗：%1$s</string>
     <string name="msg_remote_save_failed">儲存遙控器失敗: %1$s</string>
     <string name="msg_captured_save_failed">儲存失敗，已保留本次擷取訊號：%1$s</string>
     <string name="msg_recent_history_save_failed">最近使用記錄儲存失敗</string>
@@ -208,4 +207,10 @@
     <string name="msg_tiqiaa_closed">遙控精靈 USB 裝置不可用或已關閉</string>
     <string name="msg_tiqiaa_learn_start_failed">無法向遙控精靈 USB 傳送學習命令</string>
     <string name="msg_mock_failure">模擬硬體失敗</string>
+    <string name="error_storage_full">儲存空間不足</string>
+    <string name="error_permission_denied">沒有權限</string>
+    <string name="error_action_learn">去學習</string>
+    <string name="error_action_reload">重新載入</string>
+    <string name="error_action_open_transmitter">切換通道</string>
+    <string name="error_action_storage_settings">儲存設定</string>
 </resources>

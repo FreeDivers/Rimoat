@@ -1,18 +1,31 @@
 package org.qinyan.rimoat.ui.components
 
+import androidx.annotation.StringRes
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
-import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.hardware.TransmitterType
 import org.qinyan.rimoat.hardware.UsbAccessState
 import org.qinyan.rimoat.hardware.serial.SerialIrModule
 import org.qinyan.rimoat.hardware.serial.SerialIrSettings
 
+internal enum class ChannelStatus(@param:StringRes val labelRes: Int) {
+    AUDIO_CONNECTED(R.string.control_audio_connected),
+    AVAILABLE(R.string.control_available),
+    WAITING_PERMISSION(R.string.control_waiting_system_permission),
+    PERMISSION_DENIED(R.string.control_permission_denied),
+    USB_PERMISSION_REQUIRED(R.string.control_usb_permission_required),
+    NO_BUILTIN_IR(R.string.control_no_builtin_ir),
+    DEVICE_DISCONNECTED(R.string.control_device_disconnected),
+    NOT_CONNECTED(R.string.control_not_connected),
+    LOADING_CONFIG(R.string.control_loading_config),
+    MODULE_CONFIG_REQUIRED(R.string.control_module_config_required),
+    DEVICE_NOT_READY(R.string.control_device_not_ready)
+}
+
 internal data class TransmitterChannelState(
     val type: TransmitterType,
     val available: Boolean,
     val selected: Boolean,
-    val status: String,
+    val status: ChannelStatus,
     val devices: List<UsbAccessState>
 ) {
     // An unplugged manual selection must remain visible so the user can recover.
@@ -36,26 +49,46 @@ internal fun transmitterChannels(
     val selected = type == selectedType
     val devices = usbDevices.filter { it.transmitterType == type }
     val status = when {
-        available && type == TransmitterType.AUDIO -> AppStrings.get(R.string.control_audio_connected, "音频已连接")
-        available -> AppStrings.get(R.string.control_available, "可用")
-        devices.any { it.pending } -> AppStrings.get(R.string.control_waiting_system_permission, "等待系统授权")
-        devices.any { it.denied } -> AppStrings.get(R.string.control_permission_denied, "授权未通过")
-        devices.any { !it.granted } -> AppStrings.get(R.string.control_usb_permission_required, "需要 USB 授权")
-        type == TransmitterType.BUILT_IN -> AppStrings.get(R.string.control_no_builtin_ir, "此设备无内置红外")
-        devices.isEmpty() -> if (selected) AppStrings.get(R.string.control_device_disconnected, "设备已断开") else AppStrings.get(R.string.control_not_connected, "未连接")
-        type == TransmitterType.USB_SERIAL && !serialSettingsLoaded -> AppStrings.get(R.string.control_loading_config, "正在读取配置")
+        available && type == TransmitterType.AUDIO -> ChannelStatus.AUDIO_CONNECTED
+        available -> ChannelStatus.AVAILABLE
+        devices.any { it.pending } -> ChannelStatus.WAITING_PERMISSION
+        devices.any { it.denied } -> ChannelStatus.PERMISSION_DENIED
+        devices.any { !it.granted } -> ChannelStatus.USB_PERMISSION_REQUIRED
+        type == TransmitterType.BUILT_IN -> ChannelStatus.NO_BUILTIN_IR
+        devices.isEmpty() -> if (selected) ChannelStatus.DEVICE_DISCONNECTED else ChannelStatus.NOT_CONNECTED
+        type == TransmitterType.USB_SERIAL && !serialSettingsLoaded -> ChannelStatus.LOADING_CONFIG
         type == TransmitterType.USB_SERIAL &&
-            (serialSettings.module == SerialIrModule.UNCONFIGURED || serialSettings.vendorId == null) -> AppStrings.get(R.string.control_module_config_required, "需要配置模块")
-        else -> AppStrings.get(R.string.control_device_not_ready, "设备未就绪")
+            (serialSettings.module == SerialIrModule.UNCONFIGURED || serialSettings.vendorId == null) -> ChannelStatus.MODULE_CONFIG_REQUIRED
+        else -> ChannelStatus.DEVICE_NOT_READY
     }
     TransmitterChannelState(type, available, selected, status, devices)
 }
 
-internal fun channelTitle(type: TransmitterType): String = when (type) {
-    TransmitterType.USB_TIQIAA -> AppStrings.get(R.string.control_tiqiaa_accessory, "遥控精灵 USB 配件")
-    TransmitterType.USB_ELKSMART -> AppStrings.get(R.string.control_elksmart_accessory, "小蛮腰 USB 配件")
-    TransmitterType.USB_SERIAL -> AppStrings.get(R.string.control_serial_accessory, "USB 串口红外模块")
-    TransmitterType.AUDIO -> AppStrings.get(R.string.control_audio_accessory, "3.5 mm 音频发射头")
-    TransmitterType.BUILT_IN -> AppStrings.get(R.string.control_builtin_accessory, "手机内置红外")
-    else -> type.displayName
+@StringRes
+internal fun channelTitleRes(type: TransmitterType): Int = when (type) {
+    TransmitterType.USB_TIQIAA -> R.string.control_tiqiaa_accessory
+    TransmitterType.USB_ELKSMART -> R.string.control_elksmart_accessory
+    TransmitterType.USB_SERIAL -> R.string.control_serial_accessory
+    TransmitterType.AUDIO -> R.string.control_audio_accessory
+    TransmitterType.BUILT_IN -> R.string.control_builtin_accessory
+    TransmitterType.USB -> R.string.control_usb
+    TransmitterType.MOCK -> R.string.control_demo_mode
+    TransmitterType.NONE -> R.string.control_no_hardware
+}
+
+@StringRes
+internal fun transmitterShortLabelRes(
+    type: TransmitterType?,
+    isReady: Boolean = true,
+    forceMock: Boolean = false
+): Int = when {
+    forceMock || type == TransmitterType.MOCK -> R.string.control_demo_mode
+    type == TransmitterType.USB_TIQIAA -> R.string.control_tiqiaa
+    type == TransmitterType.USB_ELKSMART -> R.string.control_elksmart
+    type == TransmitterType.USB_SERIAL -> R.string.control_serial_ir
+    type == TransmitterType.USB -> R.string.control_usb
+    type == TransmitterType.AUDIO -> R.string.control_audio_ir
+    type == TransmitterType.BUILT_IN && isReady -> R.string.control_builtin_ir
+    type == TransmitterType.BUILT_IN -> R.string.control_no_ir
+    else -> R.string.control_no_hardware
 }

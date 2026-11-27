@@ -11,7 +11,11 @@ import org.qinyan.rimoat.ui.components.contentWidth
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
 import org.qinyan.rimoat.ui.components.rememberWideLayout
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.i18n.AppError
+import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.asString
+import org.qinyan.rimoat.ui.components.openStorageSettings
+import org.qinyan.rimoat.ui.components.showAppError
 import org.qinyan.rimoat.ui.theme.Spacing
 import androidx.activity.compose.BackHandler
 import org.qinyan.rimoat.ui.motion.MotionContent
@@ -137,17 +141,23 @@ fun AddRemoteScreen(
     ) {
 
     val errorSnackbar = remember { androidx.compose.material3.SnackbarHostState() }
-    val displayedError = uiState.error?.asString()
-    val showErrorInSnackbar = uiState.step != AddRemoteStep.CONFIRM
-    org.qinyan.rimoat.ui.CancelOperationsOnStop(viewModel::onScreenStopped)
-    androidx.compose.runtime.LaunchedEffect(screenActive, showErrorInSnackbar, uiState.error, displayedError) {
-        if (screenActive && showErrorInSnackbar) uiState.error?.let {
-            errorSnackbar.showSnackbar(checkNotNull(displayedError), duration = androidx.compose.material3.SnackbarDuration.Long)
-            viewModel.dismissError(it)
-        }
-    }
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
+    val showErrorInSnackbar = uiState.step != AddRemoteStep.CONFIRM
+    org.qinyan.rimoat.ui.CancelOperationsOnStop(viewModel::onScreenStopped)
+    androidx.compose.runtime.LaunchedEffect(screenActive, showErrorInSnackbar, uiState.error, uiState.errorAction) {
+        if (screenActive && showErrorInSnackbar) uiState.error?.let { error ->
+            val result = errorSnackbar.showAppError(context, AppError.Resource(error, uiState.errorAction))
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                when (uiState.errorAction) {
+                    is ErrorAction.Retry, is ErrorAction.Reload -> viewModel.retryLastAction()
+                    is ErrorAction.OpenStorageSettings -> openStorageSettings(context)
+                    else -> Unit
+                }
+            }
+            viewModel.dismissError(error)
+        }
+    }
     var showTransmitterSheet by rememberSaveable { mutableStateOf(false) }
 
     var showRestart by rememberSaveable { mutableStateOf(false) }

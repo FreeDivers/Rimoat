@@ -188,7 +188,7 @@ class WidgetRuntimeConcurrencyTest {
                 assertNotNull(interrupted)
                 assertTrue(interrupted!!.error)
                 assertFalse(interrupted.busy)
-                assertEquals(app.getString(R.string.widget_interrupted), interrupted.text)
+                assertEquals(org.qinyan.rimoat.i18n.UiText.Resource(R.string.widget_interrupted), interrupted.text)
                 assertFalse(app.widgets.state.value.sending)
 
                 // Verify the mutex was unlocked and a follow-up command succeeds cleanly.

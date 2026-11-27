@@ -1,10 +1,10 @@
 package org.qinyan.rimoat.widget
 
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.AppLanguage
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.UiTextException
+import org.qinyan.rimoat.i18n.toAppError
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-data class WidgetFeedback(val text: String, val error: Boolean = false, val busy: Boolean = false,
+data class WidgetFeedback(val text: UiText, val error: Boolean = false, val busy: Boolean = false,
                           val shortcut: WidgetShortcut? = null)
 data class WidgetSnapshot(
     val loaded: Boolean = false,
@@ -242,14 +242,22 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
         try {
             sending.value = true
             _state.update { it.copy(sending = true) }
-            val configuration = store.configurations.value[widgetId] ?: error(AppStrings.get(R.string.widget_select_remote_first, "请先选择遥控器"))
-            check(shortcut in configuration.shortcuts) { AppStrings.get(R.string.widget_shortcut_changed, "快捷键已改变，请重新操作") }
-            val profile = app.repository.getRemote(shortcut.remoteId) ?: error(AppStrings.get(R.string.widget_remote_removed, "遥控器已移除"))
-            check(state.value.commands[profile.id].orEmpty().any { it.id == shortcut.buttonId }) { AppStrings.get(R.string.widget_button_unavailable, "按键不可用，请重新选择") }
-            _feedback.update { it + (widgetId to WidgetFeedback(AppStrings.get(R.string.widget_sending, "发送中"), busy = true)) }
+            val configuration = store.configurations.value[widgetId]
+                ?: throw UiTextException(UiText.Resource(R.string.widget_select_remote_first))
+            if (shortcut !in configuration.shortcuts) {
+                throw UiTextException(UiText.Resource(R.string.widget_shortcut_changed))
+            }
+            val profile = app.repository.getRemote(shortcut.remoteId)
+                ?: throw UiTextException(UiText.Resource(R.string.widget_remote_removed))
+            if (state.value.commands[profile.id].orEmpty().none { it.id == shortcut.buttonId }) {
+                throw UiTextException(UiText.Resource(R.string.widget_button_unavailable))
+            }
+            _feedback.update { it + (widgetId to WidgetFeedback(UiText.Resource(R.string.widget_sending), busy = true)) }
             updateWidget(widgetId)
             val validateBinding: suspend () -> Unit = {
-                check(shortcut in store.configurations.value[widgetId]?.shortcuts.orEmpty()) { AppStrings.get(R.string.widget_shortcut_changed, "快捷键已改变，请重新操作") }
+                if (shortcut !in store.configurations.value[widgetId]?.shortcuts.orEmpty()) {
+                    throw UiTextException(UiText.Resource(R.string.widget_shortcut_changed))
+                }
             }
             val result = if (shortcut.buttonId.startsWith(WidgetCommands.PREFIX)) {
                 app.commands.changeAc(profile.id, owner = "widget:$widgetId", rejectIfBusy = true,
@@ -263,7 +271,7 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
                             (action == AcAction.TEMP_DOWN && base.temperature <= 16)) return@changeAc null
                         val next = if (action == AcAction.MODE) {
                             val modes = app.acSignals.supportedModes(protocol)
-                            check(modes.isNotEmpty()) { AppStrings.get(R.string.widget_no_modes, "没有可用模式") }
+                            if (modes.isEmpty()) throw UiTextException(UiText.Resource(R.string.widget_no_modes))
                             base.copy(mode = modes[(modes.indexOf(base.mode) + 1) % modes.size], powerOn = true)
                         } else base.apply(action)
                         next to action
@@ -272,17 +280,15 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
             } else app.commands.executeButton(profile.id, shortcut.buttonId, "widget:$widgetId", rejectIfBusy = true,
                 beforeTransmission = validateBinding)
             _feedback.update {
-                if (result?.warning != null) it + (widgetId to WidgetFeedback(result.warning.resolve(AppLanguage.wrap(app)), error = true, shortcut = shortcut))
+                if (result?.warning != null) it + (widgetId to WidgetFeedback(result.warning, error = true, shortcut = shortcut))
                 else it - widgetId
             }
         } catch (e: CancellationException) {
-            _feedback.update { it + (widgetId to WidgetFeedback(AppStrings.get(R.string.widget_interrupted, "操作已中断"), error = true, shortcut = shortcut)) }
+            _feedback.update { it + (widgetId to WidgetFeedback(UiText.Resource(R.string.widget_interrupted), error = true, shortcut = shortcut)) }
             throw e
         }
         catch (e: Exception) {
-            val detail = (e as? UiTextException)?.uiText?.resolve(AppLanguage.wrap(app))
-                ?: e.message
-                ?: AppStrings.get(R.string.widget_send_failed, "发送失败，请重试")
+            val detail = e.toAppError(R.string.widget_send_failed).message
             _feedback.update { it + (widgetId to WidgetFeedback(detail, error = true, shortcut = shortcut)) }
         } finally {
             sending.value = false

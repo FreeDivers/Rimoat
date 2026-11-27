@@ -164,7 +164,9 @@
     <string name="screen_room_expansion">%1$s, %2$s</string>
     <string name="screen_trash_question">Move “%1$s” to trash?</string>
     <string name="screen_manage_name">Manage %1$s</string>
-    <string name="screen_share_failed">Could not open sharing. Your backup is still saved at the selected location: %1$s</string>
+    <string name="screen_backup_saved_file">File: %1$s</string>
+    <string name="screen_share_unavailable">No app available to share this backup</string>
+    <string name="screen_share_failed">Could not open sharing. Your backup is still saved at the selected location.</string>
     <string name="screen_move_name">Move %1$s</string>
     <string name="screen_remote_count">Remotes: %1$d</string>
     <string name="screen_remove_room_question">Remove %1$s?</string>

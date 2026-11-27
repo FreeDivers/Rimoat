@@ -24,6 +24,7 @@ import org.qinyan.rimoat.ui.viewmodel.UpdatePhase
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.IrRemoteApplication
 import org.qinyan.rimoat.i18n.AppLanguage
+import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.asString
 import kotlinx.coroutines.launch
 import org.qinyan.rimoat.ui.components.ActionIconButton
@@ -31,6 +32,10 @@ import org.qinyan.rimoat.ui.components.ExpressiveDropdownMenu
 import org.qinyan.rimoat.ui.components.ExpressiveSelectableMenuItem
 import androidx.compose.material3.LinearWavyProgressIndicator
 import org.qinyan.rimoat.ui.components.AppSnackbarHost
+import org.qinyan.rimoat.ui.components.openStorageSettings
+import org.qinyan.rimoat.ui.components.showAppError
+import org.qinyan.rimoat.ui.components.transmitterShortLabelRes
+import org.qinyan.rimoat.ui.screens.settings.BackupSavedDialog
 import androidx.compose.material3.Switch
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -109,8 +114,8 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
     val rotationCondition by viewModel.rotationCondition.collectAsStateWithLifecycle()
     val rotationScope by viewModel.rotationScope.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val errorAppMessage by viewModel.errorAppMessage.collectAsStateWithLifecycle()
     val transferMessage by viewModel.transferMessage.collectAsStateWithLifecycle()
-    val displayedError = errorMessage?.asString()
     val displayedTransfer = transferMessage?.asString()
     val transferBusy by viewModel.transferBusy.collectAsStateWithLifecycle()
     val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
@@ -133,9 +138,19 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
 
     // The home page also observes this ViewModel during transitions/back previews.
     // Only the interactive page may display or consume operation feedback.
-    LaunchedEffect(screenActive, errorMessage, displayedError) {
-        if (screenActive) errorMessage?.let {
-            snackbar.showSnackbar(checkNotNull(displayedError), duration = SnackbarDuration.Long)
+    val activeError = errorAppMessage ?: errorMessage?.let { org.qinyan.rimoat.i18n.AppError.Resource(it) }
+    LaunchedEffect(screenActive, activeError) {
+        if (screenActive) activeError?.let { appError ->
+            val result = snackbar.showAppError(context, appError)
+            if (result == SnackbarResult.ActionPerformed) {
+                when (appError.action) {
+                    is ErrorAction.Retry -> if (!viewModel.retryLastExport()) {
+                        exportLauncher.launch("Rimoat-backup.json")
+                    }
+                    is ErrorAction.OpenStorageSettings -> openStorageSettings(context)
+                    else -> Unit
+                }
+            }
             viewModel.clearError()
         }
     }
@@ -473,17 +488,10 @@ private fun currentTransmitterLabel(
     forceMock: Boolean
 ): String = if (forceMock) {
     stringResource(R.string.control_demo_mode)
+} else if (selectedType == null) {
+    stringResource(R.string.control_auto_select)
 } else {
-    when (selectedType) {
-        null -> stringResource(R.string.control_auto_select)
-        TransmitterType.MOCK, TransmitterType.NONE -> stringResource(R.string.control_demo_mode)
-        TransmitterType.USB_TIQIAA -> stringResource(R.string.control_tiqiaa)
-        TransmitterType.USB_ELKSMART -> stringResource(R.string.control_elksmart)
-        TransmitterType.USB_SERIAL -> stringResource(R.string.control_serial_ir)
-        TransmitterType.USB -> stringResource(R.string.control_usb)
-        TransmitterType.AUDIO -> stringResource(R.string.control_audio_ir)
-        TransmitterType.BUILT_IN -> stringResource(R.string.control_builtin_ir)
-    }
+    stringResource(transmitterShortLabelRes(selectedType))
 }
 
 

@@ -259,8 +259,16 @@ class IrLearnerManager(
             learningJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
             try {
                 logI(TAG, "Starting learning session via backend: ${learner.type}")
-                learner.startLearning(timeoutSeconds).also { result ->
-                    if (result.isSuccess && learner.type in setOf(LearnerType.USB_TIQIAA, LearnerType.USB_ELKSMART) && _usbLearner.value === learner) {
+                val rawResult = learner.startLearning(timeoutSeconds)
+                val result = if (rawResult.isFailure && learner.state.value is LearningState.Timeout &&
+                    rawResult.exceptionOrNull() !is LearningTimeoutException
+                ) {
+                    Result.failure(LearningTimeoutException())
+                } else {
+                    rawResult
+                }
+                result.also {
+                    if (it.isSuccess && learner.type in setOf(LearnerType.USB_TIQIAA, LearnerType.USB_ELKSMART) && _usbLearner.value === learner) {
                         _receiveConfirmed.value = true
                     }
                 }

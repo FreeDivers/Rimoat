@@ -2,6 +2,10 @@ package org.qinyan.rimoat.hardware.learning
 
 import org.qinyan.rimoat.hardware.IrSignal
 import kotlinx.coroutines.flow.StateFlow
+import java.util.concurrent.TimeoutException
+
+/** Typed exception thrown when an IR learning session times out without capturing a signal. */
+class LearningTimeoutException(message: String = "IR learning timed out") : TimeoutException(message)
 
 /**
  * Types of supported IR hardware learning backends.

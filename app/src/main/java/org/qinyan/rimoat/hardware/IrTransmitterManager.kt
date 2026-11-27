@@ -2,6 +2,7 @@ package org.qinyan.rimoat.hardware
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
+import androidx.annotation.StringRes
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -32,13 +33,23 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.qinyan.rimoat.ui.HapticHelper
 
+enum class TransmitFailureReason(@param:StringRes val labelRes: Int) {
+    TRANSMITTER_CHANGED(R.string.msg_transmitter_changed),
+    NO_SIGNALS(R.string.msg_no_signals),
+    USB_LEARNING_ACTIVE(R.string.msg_usb_learning_active),
+    PERMISSION_DENIED(R.string.error_permission_denied),
+    HARDWARE_ERROR(R.string.screen_hardware_error),
+    UNKNOWN(R.string.control_unknown_error)
+}
+
 data class TransmitLog(
     val timestamp: Long = System.currentTimeMillis(),
     val transmitterType: TransmitterType,
     val signal: IrSignal,
     val isSuccess: Boolean,
     val errorMessage: String? = null,
-    val ownerId: String? = null
+    val ownerId: String? = null,
+    val failureReason: TransmitFailureReason? = null
 )
 
 data class TransmissionReceipt(val simulated: Boolean)
@@ -302,7 +313,8 @@ class IrTransmitterManager(
                 val error = IllegalStateException(AppStrings.get(R.string.msg_transmitter_changed, "发射通道已变化，请重新操作"))
                 signals.firstOrNull()?.let { _lastTransmitLog.value = TransmitLog(
                     transmitterType = transmitter.type, signal = it, isSuccess = false,
-                    errorMessage = error.message, ownerId = ownerId) }
+                    errorMessage = error.message, ownerId = ownerId,
+                    failureReason = TransmitFailureReason.TRANSMITTER_CHANGED) }
                 return@withLock Result.failure(error)
             }
             if (signals.isEmpty()) return@withLock Result.failure(IllegalArgumentException(AppStrings.get(R.string.msg_no_signals, "没有可发送的信号")))
@@ -312,7 +324,9 @@ class IrTransmitterManager(
             if (usesUsb && !UsbSessionAccess.mutex.tryLock()) {
                 val error = IllegalStateException(AppStrings.get(R.string.msg_usb_learning_active, "USB 正在学习，请完成或取消后再发射"))
                 signals.firstOrNull()?.let { _lastTransmitLog.value = TransmitLog(
-                    transmitterType = transmitter.type, signal = it, isSuccess = false, errorMessage = error.message, ownerId = ownerId) }
+                    transmitterType = transmitter.type, signal = it, isSuccess = false,
+                    errorMessage = error.message, ownerId = ownerId,
+                    failureReason = TransmitFailureReason.USB_LEARNING_ACTIVE) }
                 return@withLock Result.failure(error)
             }
             try {
@@ -354,7 +368,13 @@ class IrTransmitterManager(
             signal = signal,
             isSuccess = result.isSuccess,
             errorMessage = result.exceptionOrNull()?.message,
-            ownerId = ownerId
+            ownerId = ownerId,
+            failureReason = result.exceptionOrNull()?.let { error ->
+                when (error) {
+                    is SecurityException -> TransmitFailureReason.PERMISSION_DENIED
+                    else -> TransmitFailureReason.HARDWARE_ERROR
+                }
+            }
         )
 
 

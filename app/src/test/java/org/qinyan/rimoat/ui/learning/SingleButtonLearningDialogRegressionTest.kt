@@ -36,6 +36,7 @@ import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.hardware.learning.LearningState
 import org.qinyan.rimoat.hardware.learning.MockIrLearner
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -298,6 +299,7 @@ class SingleButtonLearningDialogRegressionTest {
     @Test
     fun timeoutDetectionDoesNotDependOnMessageText() {
         assertTrue(isLearningTimeout(java.util.concurrent.TimeoutException("custom reason"), LearningState.Idle))
+        assertTrue(isLearningTimeout(org.qinyan.rimoat.hardware.learning.LearningTimeoutException("timed out"), LearningState.Idle))
         assertTrue(isLearningTimeout(Exception("custom localized text"), LearningState.Timeout))
         assertFalse(
             isLearningTimeout(
@@ -308,15 +310,48 @@ class SingleButtonLearningDialogRegressionTest {
     }
 
     @Test
-    fun errorFormattingUsesResourceWrapperAndFallbackForBlankMessages() {
+    fun errorFormattingUsesResourceInsteadOfDynamicExceptionText() {
         AppStrings.initialize(app)
         val blankError = formatSingleButtonLearningError(IllegalStateException("   "))
+        assertEquals(UiText.Resource(R.string.screen_learn_failed), blankError)
         assertEquals(app.getString(R.string.screen_learn_failed), blankError.resolve(app))
 
         val detailedError = formatSingleButtonLearningError(IllegalStateException("Device disconnected"))
+        assertEquals(UiText.Resource(R.string.screen_learn_failed), detailedError)
+        assertFalse(detailedError.resolve(app).contains("Device disconnected"))
+
+        val typedError = formatSingleButtonLearningError(SecurityException("Permission missing"))
         assertEquals(
-            app.getString(R.string.screen_learning_error_e, "Device disconnected"),
-            detailedError.resolve(app)
+            UiText.resource(R.string.screen_learning_error_e, UiText.Resource(R.string.error_permission_denied)),
+            typedError
         )
+    }
+
+    @Test
+    fun saveErrorAcceptsUiTextResourceAndRendersWithoutLeakingRawText() {
+        AppStrings.initialize(app)
+        val saveError = org.qinyan.rimoat.i18n.UiText.resource(
+            R.string.msg_captured_save_failed,
+            org.qinyan.rimoat.i18n.UiText.Resource(R.string.error_storage_full)
+        )
+        compose.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                SingleButtonLearningDialogContent(
+                    button = button,
+                    state = LearningState.Captured(originalSignal),
+                    isTesting = false,
+                    learnerType = org.qinyan.rimoat.hardware.learning.LearnerType.MOCK,
+                    isHardwareAvailable = true,
+                    onStartLearning = {},
+                    onCancelLearning = {},
+                    onTestEmit = {},
+                    onSave = {},
+                    onDismiss = {},
+                    saveError = saveError
+                )
+            }
+        }
+        compose.onNodeWithText(saveError.resolve(app)).assertIsDisplayed()
+        capture("save_error")
     }
 }

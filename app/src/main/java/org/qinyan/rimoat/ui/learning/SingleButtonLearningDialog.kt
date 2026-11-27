@@ -3,7 +3,8 @@ package org.qinyan.rimoat.ui.learning
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.asString
-import org.qinyan.rimoat.i18n.uiTextDetail
+import org.qinyan.rimoat.i18n.toAppError
+import org.qinyan.rimoat.i18n.wrapped
 
 import org.qinyan.rimoat.R
 
@@ -65,6 +66,7 @@ import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.hardware.learning.LearningState
+import org.qinyan.rimoat.hardware.learning.LearningTimeoutException
 import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.components.ActionIconButton
 import kotlinx.coroutines.launch
@@ -85,7 +87,7 @@ fun SingleButtonLearningDialog(
     onSaveLearnedButton: (button: RemoteButton, signal: IrSignal.Raw) -> Unit,
     autoStart: Boolean = false,
     isSaving: Boolean = false,
-    saveError: String? = null,
+    saveError: UiText? = null,
     initialCapturedSignal: IrSignal.Raw? = null,
     onCaptureChanged: (IrSignal.Raw?) -> Unit = {}
 ) {
@@ -266,7 +268,8 @@ fun SingleButtonLearningDialog(
                 } catch (e: kotlinx.coroutines.CancellationException) { throw e }
                 catch (t: Exception) {
                     testFeedbackError = true
-                    testFeedbackMessage = UiText.resource(R.string.screen_send_error_t, t.uiTextDetail(R.string.screen_hardware_error))
+                    testFeedbackMessage = t.toAppError(R.string.screen_hardware_error)
+                        .wrapped(R.string.screen_send_error_t).message
                 } finally {
                     isTestingEmit = false
                 }
@@ -299,7 +302,7 @@ fun SingleButtonLearningDialogContent(
     onSave: (IrSignal.Raw) -> Unit,
     onDismiss: () -> Unit,
     isSaving: Boolean = false,
-    saveError: String? = null,
+    saveError: UiText? = null,
     receiveConfirmed: Boolean = false,
     testFeedbackError: Boolean = false,
     learningErrorMessage: UiText? = null
@@ -326,7 +329,7 @@ fun SingleButtonLearningDialogContent(
             val captureDetails: @Composable () -> Unit = {
                 saveError?.let {
                     Text(
-                        it,
+                        it.asString(),
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                     )
@@ -413,13 +416,11 @@ fun SingleButtonLearningDialogContent(
                                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                             )
                             is LearningState.Error -> {
-                                val errorText = learningErrorMessage?.asString()?.takeIf { it.isNotBlank() }
-                                    ?: visibleState.message.takeIf { it.isNotBlank() }?.let {
-                                        stringResource(R.string.screen_learning_error_e, it)
-                                    }
+                                val resolvedError = learningErrorMessage?.asString()?.takeIf { it.isNotBlank() }
+                                    ?: visibleState.cause?.let { formatSingleButtonLearningError(it).asString() }
                                     ?: stringResource(R.string.screen_learn_failed)
                                 Text(
-                                    errorText,
+                                    resolvedError,
                                     color = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                                 )
@@ -482,16 +483,16 @@ internal fun isLearningTimeout(
     error: Throwable,
     vararg observedStates: LearningState
 ): Boolean =
-    error is java.util.concurrent.TimeoutException ||
+    error is LearningTimeoutException ||
+        error is java.util.concurrent.TimeoutException ||
         error is kotlinx.coroutines.TimeoutCancellationException ||
         observedStates.any { it is LearningState.Timeout }
 
-internal fun formatSingleButtonLearningError(error: Throwable): UiText =
-    if (error.localizedMessage.isNullOrBlank()) {
-        UiText.Resource(R.string.screen_learn_failed)
+internal fun formatSingleButtonLearningError(error: Throwable): UiText {
+    val mapped = error.toAppError(R.string.screen_learn_failed)
+    return if (mapped.message == UiText.Resource(R.string.screen_learn_failed)) {
+        mapped.message
     } else {
-        UiText.resource(
-            R.string.screen_learning_error_e,
-            error.uiTextDetail(R.string.screen_learn_failed)
-        )
+        mapped.wrapped(R.string.screen_learning_error_e).message
     }
+}

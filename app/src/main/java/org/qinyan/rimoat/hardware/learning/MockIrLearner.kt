@@ -2,6 +2,8 @@ package org.qinyan.rimoat.hardware.learning
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.UiText
+import org.qinyan.rimoat.i18n.UiTextException
 import org.qinyan.rimoat.hardware.IrProtocolEncoder
 import org.qinyan.rimoat.hardware.IrSignal
 import kotlinx.coroutines.CancellationException
@@ -115,11 +117,11 @@ class MockIrLearner : IrLearner {
                                     SimulationMode.ERROR -> {
                                         val err = AppStrings.get(R.string.msg_mock_failure, "Mock hardware simulation failure")
                                         _state.value = LearningState.Error(err)
-                                        Result.failure(IllegalStateException(err))
+                                        Result.failure(UiTextException(UiText.Resource(R.string.msg_mock_failure)))
                                     }
                                     SimulationMode.TIMEOUT -> {
                                         _state.value = LearningState.Timeout
-                                        Result.failure(Exception("Mock learning timed out after $totalSec seconds"))
+                                        Result.failure(LearningTimeoutException("Mock learning timed out after $totalSec seconds"))
                                     }
                                 }
                             }
@@ -137,7 +139,7 @@ class MockIrLearner : IrLearner {
                         Result.failure(CancellationException("Mock learning cancelled by user"))
                     } else {
                         _state.value = LearningState.Timeout
-                        Result.failure(Exception("Mock learning timed out after $totalSec seconds"))
+                        Result.failure(LearningTimeoutException("Mock learning timed out after $totalSec seconds"))
                     }
                 }
             } catch (e: CancellationException) {

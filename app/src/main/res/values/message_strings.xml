@@ -18,7 +18,6 @@
     <string name="msg_test_failed">Test failed: %1$s</string>
     <string name="msg_response_recorded">Recorded a response to “%1$s”</string>
     <string name="msg_no_response_recorded">Recorded no response to “%1$s”</string>
-    <string name="msg_codes_load_failed_localized">Unable to load code sets: %1$s</string>
     <string name="msg_remote_save_failed">Unable to save the remote: %1$s</string>
     <string name="msg_captured_save_failed">Saving failed. The captured signal was kept: %1$s</string>
     <string name="msg_recent_history_save_failed">Unable to save recent usage history</string>
@@ -209,4 +208,10 @@
     <string name="msg_tiqiaa_closed">Tiqiaa USB device is not available or closed</string>
     <string name="msg_tiqiaa_learn_start_failed">Failed to send learn mode command to Tiqiaa USB</string>
     <string name="msg_mock_failure">Mock hardware simulation failure</string>
+    <string name="error_storage_full">Not enough storage space</string>
+    <string name="error_permission_denied">Permission denied</string>
+    <string name="error_action_learn">Learn</string>
+    <string name="error_action_reload">Reload</string>
+    <string name="error_action_open_transmitter">Transmitter</string>
+    <string name="error_action_storage_settings">Storage settings</string>
 </resources>

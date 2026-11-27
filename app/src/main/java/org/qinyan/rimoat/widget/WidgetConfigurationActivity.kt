@@ -2,8 +2,11 @@ package org.qinyan.rimoat.widget
 
 import android.app.Activity
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.UiText
+import org.qinyan.rimoat.i18n.UiTextException
+import org.qinyan.rimoat.i18n.UiTextStateSaver
 import org.qinyan.rimoat.i18n.asString
+import org.qinyan.rimoat.i18n.toAppError
 import androidx.compose.ui.res.stringResource
 import android.appwidget.AppWidgetManager
 import android.content.Intent
@@ -118,7 +121,7 @@ internal fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, 
         restore = { it.takeIf(String::isNotBlank)?.let { value -> Json.decodeFromString<WidgetConfiguration>(value) } }
     )) { mutableStateOf<WidgetConfiguration?>(null) }
     fun change(value: WidgetConfiguration) { draft = value }
-    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var error by rememberSaveable(stateSaver = UiTextStateSaver) { mutableStateOf<UiText?>(null) }
     var saving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(widgetId) {
@@ -137,14 +140,18 @@ internal fun WidgetConfigurationScreen(app: IrRemoteApplication, widgetId: Int, 
                 scope.launch {
                     try {
                         currentDraft.validate()
-                        check(currentDraft.shortcuts.isNotEmpty()) { AppStrings.get(R.string.widget_select_shortcut, "请选择一个快捷键") }
+                        if (currentDraft.shortcuts.isEmpty()) {
+                            throw UiTextException(UiText.Resource(R.string.widget_select_shortcut))
+                        }
                         currentDraft.shortcuts.forEach { shortcut ->
-                            check(app.widgets.state.value.commands[shortcut.remoteId].orEmpty().any { it.id == shortcut.buttonId }) { AppStrings.get(R.string.widget_selected_button_changed, "所选按键已改变，请重新选择") }
+                            if (app.widgets.state.value.commands[shortcut.remoteId].orEmpty().none { it.id == shortcut.buttonId }) {
+                                throw UiTextException(UiText.Resource(R.string.widget_selected_button_changed))
+                            }
                         }
                         app.widgets.save(widgetId, currentDraft)
                         onSaved()
                     } catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { error = e.message ?: AppStrings.get(R.string.widget_save_failed, "保存失败") }
+                    catch (e: Exception) { error = e.toAppError(R.string.widget_save_failed).message }
                     finally { saving = false }
                 }
             }
@@ -160,7 +167,7 @@ internal fun WidgetConfigurationContent(
     currentDraft: WidgetConfiguration?,
     preview: WidgetPreview,
     saving: Boolean,
-    error: String?,
+    error: UiText?,
     onChange: (WidgetConfiguration) -> Unit,
     onCancel: () -> Unit,
     onSave: () -> Unit,
@@ -210,7 +217,7 @@ internal fun WidgetConfigurationContent(
             if (currentDraft != null) {
                 val draft = currentDraft
                 item(key = "preview") { ConfigurationPreview(widgetId, preview) }
-                if (error != null) item { Text(error!!, color = MaterialTheme.colorScheme.error) }
+                if (error != null) item { Text(error.asString(), color = MaterialTheme.colorScheme.error) }
                 if (snapshot.profiles.isEmpty()) item {
                     Text(stringResource(R.string.widget_no_remotes), style = MaterialTheme.typography.titleMedium)
                     TextButton(onClick = onAddRemote, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.widget_add_remote)) }

@@ -229,7 +229,7 @@ class HuaweiIrLearner internal constructor(
             }
 
             _state.value = LearningState.Timeout
-            return@withContext Result.failure(Exception("IR learning timed out after $totalSec seconds"))
+            return@withContext Result.failure(LearningTimeoutException("IR learning timed out after $totalSec seconds"))
         } finally {
             try {
                 stopLearning.invoke(manager)

@@ -2,7 +2,7 @@ package org.qinyan.rimoat.ui.components
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
-import org.qinyan.rimoat.i18n.localizedLabel
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -217,13 +217,13 @@ private fun ActiveChannelSummary(active: TransmitterType, ready: Boolean) {
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(if (unavailable) AppStrings.get(R.string.control_current_not_ready, "当前通道未就绪") else AppStrings.get(R.string.control_current_output, "当前发射"),
+                Text(stringResource(if (unavailable) R.string.control_current_not_ready else R.string.control_current_output),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (unavailable) colors.onErrorContainer else colors.onSurfaceVariant)
                 Text(when {
-                    unavailable -> channelTitle(active)
-                    simulated -> AppStrings.get(R.string.control_demo_mode, "演示模式")
-                    else -> channelTitle(active)
+                    unavailable -> stringResource(channelTitleRes(active))
+                    simulated -> stringResource(R.string.control_demo_mode)
+                    else -> stringResource(channelTitleRes(active))
                 }, style = MaterialTheme.typography.titleMedium)
             }
         }
@@ -249,8 +249,8 @@ private fun HardwareChannelItem(
 ) {
     Column {
         if (channel.available) {
-            ChannelChoice(channelTitle(channel.type), channelIcon(channel.type), channel.selected,
-                description = channel.status, index = index, count = count, onClick = onSelect)
+            ChannelChoice(stringResource(channelTitleRes(channel.type)), channelIcon(channel.type), channel.selected,
+                description = stringResource(channel.status.labelRes), index = index, count = count, onClick = onSelect)
         } else {
             UnavailableChannel(channel, index, count)
         }
@@ -266,14 +266,14 @@ private fun HardwareChannelItem(
                     OutlinedButton(onClick = { onPermission(device.deviceName) },
                         enabled = !permissionPending, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
                         Text(when {
-                            device.pending -> AppStrings.get(R.string.control_waiting_permission, "等待授权")
-                            device.denied -> AppStrings.get(R.string.control_reauthorize, "重新授权")
-                            else -> AppStrings.get(R.string.control_authorize_device, "授权设备")
+                            device.pending -> stringResource(R.string.control_waiting_permission)
+                            device.denied -> stringResource(R.string.control_reauthorize)
+                            else -> stringResource(R.string.control_authorize_device)
                         })
                     }
                 }
                 if (onConfigure != null) OutlinedButton(onClick = onConfigure, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
-                    Text(AppStrings.get(R.string.control_configure_module, "配置模块"))
+                    Text(stringResource(R.string.control_configure_module))
                 }
             }
         }
@@ -283,6 +283,8 @@ private fun HardwareChannelItem(
 @Composable
 private fun UnavailableChannel(channel: TransmitterChannelState, index: Int = 0, count: Int = 1) {
     val colors = MaterialTheme.colorScheme
+    val statusText = stringResource(channel.status.labelRes)
+    val unavailableStateText = stringResource(if (channel.selected) R.string.control_selected_unavailable else R.string.control_unavailable)
     ExpressiveSegmentedSurface(
         index = index,
         count = count,
@@ -291,10 +293,10 @@ private fun UnavailableChannel(channel: TransmitterChannelState, index: Int = 0,
         ListItem(
             modifier = Modifier.semantics(mergeDescendants = true) {
                 disabled()
-                stateDescription = if (channel.selected) AppStrings.get(R.string.control_selected_unavailable, "已选通道，不可用") else AppStrings.get(R.string.control_unavailable, "不可用")
+                stateDescription = unavailableStateText
             },
-            headlineContent = { Text(channelTitle(channel.type)) },
-            supportingContent = { Text(if (channel.selected) AppStrings.get(R.string.control_selected_status, "已选 · %1\$s", channel.status) else channel.status) },
+            headlineContent = { Text(stringResource(channelTitleRes(channel.type))) },
+            supportingContent = { Text(if (channel.selected) stringResource(R.string.control_selected_status, statusText) else statusText) },
             leadingContent = { Icon(channelIcon(channel.type), null, Modifier.size(24.dp)) },
             colors = ListItemDefaults.colors(
                 containerColor = Color.Transparent,

@@ -194,7 +194,7 @@ class WidgetExpressiveRoborazziTest {
             assertEquals(3, targets.size)
         }
         render("status_busy", size, configuration, snapshot,
-            feedback = WidgetFeedback(text = "", busy = true)) { root ->
+            feedback = WidgetFeedback(text = org.qinyan.rimoat.i18n.UiText.Resource(R.string.widget_sending), busy = true)) { root ->
             assertCommandTargets(root, configuration, expectedMinimum = 3,
                 disabled = configuration.shortcuts.map { it.buttonId }.toSet())
             assertTrue(texts(root).any { it.text.toString() == "30°" })
@@ -293,7 +293,7 @@ class WidgetExpressiveRoborazziTest {
             assertAllConfiguredCommandTargets(it, configuration)
         }
         render("shared_icons_narrow_dynamic_large_text_busy", DpSize(152.dp, 240.dp), configuration, state,
-            feedback = WidgetFeedback("", busy = true)) {
+            feedback = WidgetFeedback(org.qinyan.rimoat.i18n.UiText.Resource(R.string.widget_sending), busy = true)) {
             assertCommandTargets(it, configuration, configuration.shortcuts.size,
                 disabled = configuration.shortcuts.map { shortcut -> shortcut.buttonId }.toSet())
         }

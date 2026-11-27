@@ -13,8 +13,12 @@ import org.qinyan.rimoat.i18n.labelRes
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.i18n.AppError
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.asString
+import org.qinyan.rimoat.ui.components.openStorageSettings
+import org.qinyan.rimoat.ui.components.showAppError
 import org.qinyan.rimoat.ui.components.withPanelPresentation
 import org.qinyan.rimoat.ui.components.panelAction
 import org.qinyan.rimoat.ui.components.acButtonForAction
@@ -185,6 +189,8 @@ fun RemoteControlScreen(
                         onSave = viewModel::savePanelLayout,
                         onBack = { showEditor = false },
                         saveError = panelSaveError,
+                        saveAppError = viewModel.panelSaveAppError.collectAsStateWithLifecycle().value,
+                        onRetrySave = viewModel::retrySavePanelLayout,
                         onDismissSaveError = viewModel::clearPanelSaveError
                     )
                 }
@@ -264,11 +270,14 @@ private fun RemoteControlContent(
     val learningDialogButton by viewModel.learningDialogButton.collectAsStateWithLifecycle()
     val capturedLearningSignal by viewModel.capturedLearningSignal.collectAsStateWithLifecycle()
     val operationError by viewModel.operationError.collectAsStateWithLifecycle()
+    val operationAppError by viewModel.operationAppError.collectAsStateWithLifecycle()
     val panelSaveError by viewModel.panelSaveError.collectAsStateWithLifecycle()
+    val panelSaveAppError by viewModel.panelSaveAppError.collectAsStateWithLifecycle()
     val learningError by viewModel.learningError.collectAsStateWithLifecycle()
     val isSavingButton by viewModel.isSavingButton.collectAsStateWithLifecycle()
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
     val feedbackScope = rememberCoroutineScope()
+    var showTransmitterSheet by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var unavailableDetail by remember { mutableStateOf<UnavailableControl?>(null) }
     val explainUnavailable: (RemoteButton, AcUnavailableReason) -> Unit = { button, reason ->
         feedbackScope.launch {
@@ -322,20 +331,38 @@ private fun RemoteControlContent(
                 }
             })
     }
-    val displayedOperationError = operationError?.asString()
-    androidx.compose.runtime.LaunchedEffect(screenActive, operationError, displayedOperationError, learningDialogButton) {
-        if (screenActive && learningDialogButton == null) operationError?.let { error ->
-            snackbarHostState.showSnackbar(checkNotNull(displayedOperationError), duration = androidx.compose.material3.SnackbarDuration.Long)
-            viewModel.clearOperationError(error)
+    val activeOperationError = operationAppError ?: operationError?.let { AppError.Resource(it) }
+    androidx.compose.runtime.LaunchedEffect(screenActive, activeOperationError, learningDialogButton) {
+        if (screenActive && learningDialogButton == null) activeOperationError?.let { appError ->
+            val result = snackbarHostState.showAppError(context, appError)
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                when (val action = appError.action) {
+                    is ErrorAction.Learn -> viewModel.learnButtonById(action.buttonId)
+                    is ErrorAction.Reload -> viewModel.reloadAcCapabilities()
+                    is ErrorAction.Retry -> viewModel.retrySaveAcSettings()
+                    is ErrorAction.OpenTransmitter -> showTransmitterSheet = true
+                    is ErrorAction.OpenStorageSettings -> openStorageSettings(context)
+                    null -> Unit
+                }
+            }
+            viewModel.clearOperationAppError(operationAppError)
+            viewModel.clearOperationError(operationError)
         }
     }
-    androidx.compose.runtime.LaunchedEffect(screenActive, panelSaveError, learningDialogButton) {
-        if (screenActive && learningDialogButton == null) panelSaveError?.let {
-            snackbarHostState.showSnackbar(it.resolve(context), duration = androidx.compose.material3.SnackbarDuration.Long)
+    val activePanelSaveError = panelSaveAppError ?: panelSaveError?.let { AppError.Resource(it) }
+    androidx.compose.runtime.LaunchedEffect(screenActive, activePanelSaveError, learningDialogButton) {
+        if (screenActive && learningDialogButton == null) activePanelSaveError?.let { appError ->
+            val result = snackbarHostState.showAppError(context, appError)
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                when (appError.action) {
+                    is ErrorAction.Retry -> viewModel.retrySavePanelLayout()
+                    is ErrorAction.OpenStorageSettings -> openStorageSettings(context)
+                    else -> Unit
+                }
+            }
             viewModel.clearPanelSaveError()
         }
     }
-    var showTransmitterSheet by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
     ProvideExpressiveCanvas {
     Scaffold(
@@ -436,7 +463,7 @@ private fun RemoteControlContent(
                         learnerManager = learnerMgr,
                         transmitterManager = transmitterMgr,
                         isSaving = isSavingButton,
-                        saveError = learningError?.resolve(context),
+                        saveError = learningError,
                         initialCapturedSignal = capturedLearningSignal?.takeIf { it.first == buttonToLearn.id }?.second,
                         onCaptureChanged = { signal -> viewModel.updateLearningCapture(buttonToLearn.id, signal) },
                         onDismissRequest = { viewModel.dismissLearningDialog() },

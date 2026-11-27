@@ -4,7 +4,8 @@ import android.util.Log
 import org.qinyan.rimoat.R
 
 import org.qinyan.rimoat.i18n.UiText
-import org.qinyan.rimoat.i18n.uiTextDetail
+import org.qinyan.rimoat.i18n.toAppError
+import org.qinyan.rimoat.i18n.wrapped
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -258,7 +259,14 @@ class CustomRemoteWizardViewModel(
                     _uiState.update { current -> resumable ?: current.copy(isRestoring = false) }
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
-                    _uiState.update { it.copy(isRestoring = false, errorMessage = UiText.resource(R.string.screen_restore_draft_failed, e.uiTextDetail(R.string.control_unknown_error))) }
+                    _uiState.update {
+                        it.copy(
+                            isRestoring = false,
+                            errorMessage = e.toAppError(R.string.control_unknown_error)
+                                .wrapped(R.string.screen_restore_draft_failed)
+                                .message
+                        )
+                    }
                     // Keep an unreadable draft intact for recovery.
                     return@launch
                 }
@@ -298,10 +306,9 @@ class CustomRemoteWizardViewModel(
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
-                    errorMessage = UiText.resource(
-                        R.string.screen_save_draft_failed,
-                        e.uiTextDetail(R.string.control_unknown_error)
-                    )
+                    errorMessage = e.toAppError(R.string.control_unknown_error)
+                        .wrapped(R.string.screen_save_draft_failed)
+                        .message
                 )
             }
         }
@@ -448,17 +455,42 @@ class CustomRemoteWizardViewModel(
                     current.copy(keyQueue = current.keyQueue.map { if (it.id == item.id) item else it },
                         errorMessage = result.exceptionOrNull()?.let {
                             when {
+                                it is kotlinx.coroutines.TimeoutCancellationException ||
+                                    isLearningTimeout(it, lm.state.value, lm.activeLearner.value.state.value) ->
+                                    UiText.Resource(R.string.screen_learn_timeout)
                                 it is CancellationException -> null
-                                it.message?.contains("timed out", ignoreCase = true) == true -> UiText.Resource(R.string.screen_learn_timeout)
-                                else -> UiText.resource(R.string.screen_learning_error_e, it.uiTextDetail(R.string.screen_learn_failed))
+                                else -> it.toAppError(R.string.screen_learn_failed)
+                                    .wrapped(R.string.screen_learning_error_e)
+                                    .message
                             }
                         })
+                }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                if (epoch == learningEpoch) _uiState.update { current ->
+                    current.copy(
+                        keyQueue = current.keyQueue.map { if (it.id == currentKey.id) currentKey else it },
+                        errorMessage = UiText.Resource(R.string.screen_learn_timeout)
+                    )
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (epoch == learningEpoch) _uiState.update { current ->
-                    current.copy(keyQueue = current.keyQueue.map { if (it.id == currentKey.id) currentKey else it },
-                        errorMessage = UiText.resource(R.string.screen_learning_error_e, e.uiTextDetail(R.string.screen_learn_failed)))
+                    val mapped = if (isLearningTimeout(
+                            e,
+                            learnerManager?.state?.value ?: LearningState.Idle,
+                            learnerManager?.activeLearner?.value?.state?.value ?: LearningState.Idle
+                        )
+                    ) {
+                        UiText.Resource(R.string.screen_learn_timeout)
+                    } else {
+                        e.toAppError(R.string.screen_learn_failed)
+                            .wrapped(R.string.screen_learning_error_e)
+                            .message
+                    }
+                    current.copy(
+                        keyQueue = current.keyQueue.map { if (it.id == currentKey.id) currentKey else it },
+                        errorMessage = mapped
+                    )
                 }
             } finally {
                 if (epoch == learningEpoch) { activeLearningJob = null; keyBeforeLearning = null }
@@ -529,7 +561,13 @@ class CustomRemoteWizardViewModel(
                     if (receipt.simulated) UiText.Resource(R.string.screen_simulated_send) else UiText.Resource(R.string.screen_test_sent)) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                if (epoch == testEpoch) _uiState.update { it.copy(testFeedbackMessage = UiText.resource(R.string.screen_send_error_t, e.uiTextDetail(R.string.screen_hardware_error))) }
+                if (epoch == testEpoch) _uiState.update {
+                    it.copy(
+                        testFeedbackMessage = e.toAppError(R.string.screen_hardware_error)
+                            .wrapped(R.string.screen_send_error_t)
+                            .message
+                    )
+                }
             } finally {
                 if (epoch == testEpoch) _uiState.update { it.copy(isTestingTransmit = false) }
             }
@@ -695,7 +733,12 @@ class CustomRemoteWizardViewModel(
                 onSaved(profile)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                _uiState.update { it.copy(errorMessage = UiText.resource(R.string.screen_save_learning_failed, e.uiTextDetail(R.string.control_unknown_error))) }
+                _uiState.update {
+                    it.copy(
+                        errorMessage = e.toAppError(R.string.control_unknown_error)
+                            .wrapped(R.string.screen_save_learning_failed).message
+                    )
+                }
             } finally { _uiState.update { it.copy(isSaving = false) } }
         }
     }

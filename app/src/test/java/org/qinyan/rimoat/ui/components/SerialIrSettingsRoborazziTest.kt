@@ -210,4 +210,39 @@ class SerialIrSettingsRoborazziTest {
         composeRule.onNodeWithText(app.getString(R.string.control_save)).performClick()
         composeRule.runOnIdle { assertEquals("conn-1", savedConnection) }
     }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w320dp-h640dp-mdpi")
+    fun invalidAddressAndSaveFailureRenderResourceMessagesWithoutRawExceptionText() {
+        RuntimeEnvironment.setFontScale(1f)
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                SerialIrSettingsForm(
+                    saved = SerialIrSettings(module = SerialIrModule.YS_IRTM, portIndex = 0, baudRate = 9600, moduleAddress = 0xA1),
+                    devices = emptyList(),
+                    onRequestPermission = {},
+                    onSave = { _, _ -> Result.failure(java.io.IOException("ENOSPC disk full")) },
+                    onDismiss = {}
+                )
+            }
+        }
+        val addressField = composeRule.onNode(
+            hasText(app.getString(R.string.control_module_address)) and hasSetTextAction()
+        )
+        addressField.performScrollTo().performTextReplacement("FA")
+        composeRule.onNodeWithText(app.getString(R.string.control_save)).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(app.getString(R.string.msg_module_address_range)).performScrollTo().assertIsDisplayed()
+
+        addressField.performScrollTo().performTextReplacement("A1")
+        composeRule.onNodeWithText(app.getString(R.string.control_save)).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(app.getString(R.string.error_storage_full)).performScrollTo().assertIsDisplayed()
+        composeRule.onNode(hasText("ENOSPC disk full", substring = true)).assertDoesNotExist()
+        composeRule.onNode(isDialog()).captureRoboImage(
+            "src/test/screenshots/serial_dialog_error_state.webp", roborazziOptions = options
+        )
+    }
 }

@@ -1,8 +1,11 @@
 package org.qinyan.rimoat.ui.viewmodel
 
+import org.qinyan.rimoat.i18n.AppError
+import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.UiTextException
-import org.qinyan.rimoat.i18n.uiTextDetail
+import org.qinyan.rimoat.i18n.toAppError
+import org.qinyan.rimoat.i18n.wrapped
 import org.qinyan.rimoat.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -82,9 +85,19 @@ class RemoteControlViewModel(
 
     private val _panelSaveError = MutableStateFlow<UiText?>(null)
     val panelSaveError: StateFlow<UiText?> = _panelSaveError.asStateFlow()
-    fun clearPanelSaveError() { _panelSaveError.value = null }
+    private val _panelSaveAppError = MutableStateFlow<AppError?>(null)
+    val panelSaveAppError: StateFlow<AppError?> = _panelSaveAppError.asStateFlow()
+    private var lastPanelLayout: org.qinyan.rimoat.data.RemotePanelLayout? = null
+    fun clearPanelSaveError() {
+        _panelSaveError.value = null
+        _panelSaveAppError.value = null
+    }
+    fun retrySavePanelLayout() {
+        lastPanelLayout?.let(::savePanelLayout)
+    }
 
     fun savePanelLayout(layout: org.qinyan.rimoat.data.RemotePanelLayout) {
+        lastPanelLayout = layout
         val shouldLaunch = synchronized(panelSaveLock) {
             if (!operationLifetime.isActive) return
             pendingPanelLayout = layout
@@ -107,14 +120,14 @@ class RemoteControlViewModel(
                     try {
                         repository?.updatePanelLayout(remoteId, next)
                         _manualProfile.value = _manualProfile.value?.copy(panelLayout = next)
-                        _panelSaveError.value = null
+                        clearPanelSaveError()
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        _panelSaveError.value = UiText.resource(
-                            R.string.msg_remote_save_failed,
-                            e.uiTextDetail(R.string.msg_storage_unavailable)
-                        )
+                        val appError = e.toAppError(R.string.msg_storage_unavailable, ErrorAction.Retry)
+                            .wrapped(R.string.msg_remote_save_failed, ErrorAction.Retry)
+                        _panelSaveAppError.value = appError
+                        _panelSaveError.value = appError.message
                     }
                 }
             } finally {
@@ -128,11 +141,15 @@ class RemoteControlViewModel(
     private var learningSession = 0
     private val _learningError = MutableStateFlow<UiText?>(null)
     val learningError = _learningError.asStateFlow()
+    private val _learningAppError = MutableStateFlow<AppError?>(null)
+    val learningAppError = _learningAppError.asStateFlow()
+    private var lastLearnedSave: Pair<RemoteButton, IrSignal.Raw>? = null
 
     fun startLearningButton(button: RemoteButton) {
         learningSession++
         _learningError.value = null
-        _operationError.value = null
+        _learningAppError.value = null
+        clearOperationError()
         _capturedLearningSignal.value = null
         _learningDialogButton.value = button
     }
@@ -147,25 +164,47 @@ class RemoteControlViewModel(
         learnerManager?.cancel()
         learningSession++
         _learningError.value = null
-        _operationError.value = null
+        _learningAppError.value = null
+        clearOperationError()
         _capturedLearningSignal.value = null
         _learningDialogButton.value = null
     }
 
+    private val _operationAppError = MutableStateFlow<AppError?>(null)
+    val operationAppError: StateFlow<AppError?> = _operationAppError.asStateFlow()
     private val _operationError = MutableStateFlow<UiText?>(null)
     val operationError: StateFlow<UiText?> = _operationError.asStateFlow()
+    private fun setOperationError(error: AppError?) {
+        _operationAppError.value = error
+        _operationError.value = error?.message
+    }
     fun clearOperationError(expected: UiText? = null) {
-        if (expected == null || _operationError.value == expected) _operationError.value = null
+        if (expected == null || _operationError.value == expected) {
+            _operationError.value = null
+            _operationAppError.value = null
+        }
+    }
+    fun clearOperationAppError(expected: AppError? = null) {
+        if (expected == null || _operationAppError.value == expected) {
+            _operationAppError.value = null
+            _operationError.value = null
+        }
     }
     private val _isSavingButton = MutableStateFlow(false)
     val isSavingButton = _isSavingButton.asStateFlow()
 
+    fun retrySaveLearnedButton() {
+        lastLearnedSave?.let { (button, signal) -> saveLearnedButton(button, signal) }
+    }
+
     fun saveLearnedButton(button: RemoteButton, signal: IrSignal.Raw) {
         if (_isSavingButton.value || !operationLifetime.isActive) return
+        lastLearnedSave = button to signal
         _isSavingButton.value = true
         val session = learningSession
         _learningError.value = null
-        _operationError.value = null
+        _learningAppError.value = null
+        clearOperationError()
         operationScope.launch {
             try {
                 val updatedButton = button.withLearnedSignal(signal)
@@ -184,8 +223,12 @@ class RemoteControlViewModel(
                 if (session == learningSession) dismissLearningDialog()
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                if (session == learningSession) _learningError.value = UiText.resource(
-                    R.string.msg_captured_save_failed, e.uiTextDetail(R.string.control_unknown_error))
+                if (session == learningSession) {
+                    val appError = e.toAppError(R.string.control_unknown_error, ErrorAction.Retry)
+                        .wrapped(R.string.msg_captured_save_failed, ErrorAction.Retry)
+                    _learningAppError.value = appError
+                    _learningError.value = appError.message
+                }
             }
             finally { _isSavingButton.value = false }
         }
@@ -225,11 +268,11 @@ class RemoteControlViewModel(
     fun clearFeedback() { _feedback.value = null }
     fun onVisible() {
         clearFeedback()
-        _operationError.value = null
+        clearOperationError()
         viewModelScope.launch {
             try { repository?.markUsed(remoteId) }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _operationError.value = UiText.Resource(R.string.msg_recent_history_save_failed) }
+            catch (e: Exception) { setOperationError(AppError.Resource(UiText.Resource(R.string.msg_recent_history_save_failed))) }
         }
     }
 
@@ -314,7 +357,50 @@ class RemoteControlViewModel(
     val availableAcActions = _availableAcActions.asStateFlow()
     private val _acUnavailableReasons = MutableStateFlow<Map<AcAction, org.qinyan.rimoat.data.AcUnavailableReason>>(emptyMap())
     val acUnavailableReasons = _acUnavailableReasons.asStateFlow()
+    private val acReloadTrigger = MutableStateFlow(0)
     private var loadedSettings = initialProfile?.acSettings
+    private var lastAttemptedButton: RemoteButton? = null
+    private var lastFailedAcSettings: AcSettings? = null
+
+    fun reloadAcCapabilities() {
+        acReloadTrigger.value += 1
+        viewModelScope.launch {
+            try {
+                repository?.loadAllRemotes()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                setOperationError(
+                    e.toAppError(R.string.msg_storage_unavailable, ErrorAction.Reload)
+                        .wrapped(R.string.msg_ac_functions_load_failed, ErrorAction.Reload)
+                )
+            }
+        }
+    }
+
+    fun learnButtonById(buttonId: String) {
+        val target = remoteProfile.value?.buttons?.firstOrNull { it.id == buttonId }
+            ?: lastAttemptedButton?.takeIf { it.id == buttonId }
+            ?: return
+        startLearningButton(target)
+    }
+
+    fun retrySaveAcSettings() {
+        val committed = lastFailedAcSettings ?: return
+        operationScope.launch {
+            try {
+                repository?.updateAcSettings(remoteId, committed)
+                lastFailedAcSettings = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                setOperationError(
+                    e.toAppError(R.string.msg_storage_unavailable, ErrorAction.Retry)
+                        .wrapped(R.string.msg_sent_settings_save_failed, ErrorAction.Retry)
+                )
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -339,9 +425,10 @@ class RemoteControlViewModel(
             }
         }
         viewModelScope.launch {
-            kotlinx.coroutines.flow.combine(remoteProfile, acState, isHardwareReady) { profile, state, ready ->
-                Triple(profile?.takeUnless { it.useStaticAcButtons }?.acProtocolId, state, ready)
-            }.distinctUntilChanged().collect { (protocol, state, ready) ->
+            kotlinx.coroutines.flow.combine(remoteProfile, acState, isHardwareReady, acReloadTrigger) { profile, state, ready, reload ->
+                Triple(profile?.takeUnless { it.useStaticAcButtons }?.acProtocolId, state, ready) to reload
+            }.distinctUntilChanged().collect { (triple, _) ->
+                val (protocol, state, ready) = triple
                 if (protocol != null && acSignalEncoder != null) {
                     try {
                         val reasons = AcAction.entries.mapNotNull { action ->
@@ -356,9 +443,9 @@ class RemoteControlViewModel(
                     catch (e: Exception) {
                         _availableAcActions.value = emptySet()
                         _acUnavailableReasons.value = AcAction.entries.associateWith { org.qinyan.rimoat.data.AcUnavailableReason.CAPABILITY_UNAVAILABLE }
-                        _operationError.value = UiText.resource(
-                            R.string.msg_ac_functions_load_failed,
-                            e.operationErrorDetail()
+                        setOperationError(
+                            e.toAppError(R.string.control_unknown_error, ErrorAction.Reload)
+                                .wrapped(R.string.msg_ac_functions_load_failed, ErrorAction.Reload)
                         )
                     }
                 } else {
@@ -374,11 +461,15 @@ class RemoteControlViewModel(
     }
 
     fun sendButton(button: RemoteButton) {
+        lastAttemptedButton = button
         if (_isLearningMode.value) { startLearningButton(button); return }
         if (button.acAction != null && !button.isLearned && remoteProfile.value?.useStaticAcButtons == false) {
             performAcAction(button.acAction); return
         }
-        if (!button.hasSignal) { _operationError.value = UiText.Resource(R.string.msg_button_learn_first); return }
+        if (!button.hasSignal) {
+            setOperationError(AppError.Resource(UiText.Resource(R.string.msg_button_learn_first), ErrorAction.Learn(button.id)))
+            return
+        }
         launchSend { beginTransmission ->
             sendMutex.withLock {
                 _lastSentButton.value = button
@@ -387,7 +478,7 @@ class RemoteControlViewModel(
                     if (commandExecutor != null) {
                         val result = commandExecutor.executeButton(remoteId, button.id, feedbackOwner,
                             beforeTransmission = { beginTransmission() })
-                        result?.warning?.let { _operationError.value = it }
+                        result?.warning?.let { setOperationError(AppError.Resource(it)) }
                         return@withLock
                     }
                     val countKey = "${if (transmitterManager?.currentTransmitterTypeAfterCheck() == TransmitterType.MOCK) "demo" else "real"}:${button.id}"
@@ -400,7 +491,9 @@ class RemoteControlViewModel(
                     pressCounts[countKey] = (index + 1) and 1
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
-                    _operationError.value = UiText.resource(R.string.msg_send_failed, e.operationErrorDetail())
+                    setOperationError(
+                        e.toAppError(R.string.control_unknown_error).wrapped(R.string.msg_send_failed)
+                    )
                 }
                 finally { _isTransmitting.value = false }
             }
@@ -408,7 +501,7 @@ class RemoteControlViewModel(
     }
 
     private fun changeAc(transform: suspend (AcControlState, Int) -> Pair<AcControlState, AcAction>?) {
-        if (_isLearningMode.value) { _operationError.value = UiText.Resource(R.string.msg_tap_button_to_learn); return }
+        if (_isLearningMode.value) { setOperationError(AppError.Resource(UiText.Resource(R.string.msg_tap_button_to_learn))); return }
         launchSend { beginTransmission ->
             sendMutex.withLock {
                 _isTransmitting.value = true
@@ -418,11 +511,14 @@ class RemoteControlViewModel(
                             beforeTransmission = { beginTransmission() },
                             transform = transform)
                         result?.settings?.let { if (result.simulated) _demoState.value = it else _acState.value = it }
-                        result?.warning?.let { _operationError.value = it }
+                        result?.warning?.let { setOperationError(AppError.Resource(it)) }
                         return@withLock
                     }
                     val profile = remoteProfile.value ?: throw UiTextException(UiText.Resource(R.string.msg_remote_not_loaded))
-                    val encoder = acSignalEncoder ?: throw UiTextException(UiText.Resource(R.string.msg_ac_state_library_unavailable))
+                    val encoder = acSignalEncoder ?: throw UiTextException(
+                        UiText.Resource(R.string.msg_ac_state_library_unavailable),
+                        action = ErrorAction.Reload
+                    )
                     if (profile.useStaticAcButtons) throw UiTextException(UiText.Resource(R.string.msg_learned_ac_use_panel))
                     val protocol = profile.acProtocolId ?: throw UiTextException(UiText.Resource(R.string.msg_independent_codes_no_state))
                     val route = transmitterManager?.currentTransmitterTypeAfterCheck()
@@ -455,15 +551,18 @@ class RemoteControlViewModel(
                         try { repository?.updateAcSettings(remoteId, committed) }
                         catch (e: CancellationException) { throw e }
                         catch (e: Exception) {
-                            _operationError.value = UiText.resource(
-                                R.string.msg_sent_settings_save_failed,
-                                e.operationErrorDetail(R.string.msg_storage_unavailable)
+                            lastFailedAcSettings = committed
+                            setOperationError(
+                                e.toAppError(R.string.msg_storage_unavailable, ErrorAction.Retry)
+                                    .wrapped(R.string.msg_sent_settings_save_failed, ErrorAction.Retry)
                             )
                         }
                     }
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
-                    _operationError.value = UiText.resource(R.string.msg_send_incomplete, e.operationErrorDetail())
+                    setOperationError(
+                        e.toAppError(R.string.control_unknown_error).wrapped(R.string.msg_send_incomplete)
+                    )
                 }
                 finally { _isTransmitting.value = false }
             }
@@ -529,7 +628,10 @@ class RemoteControlViewModel(
         }
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
-            _operationError.value = UiText.resource(R.string.msg_states_load_failed, e.operationErrorDetail())
+            setOperationError(
+                e.toAppError(R.string.control_unknown_error, ErrorAction.Reload)
+                    .wrapped(R.string.msg_states_load_failed, ErrorAction.Reload)
+            )
             return emptyList()
         }
     }
@@ -553,10 +655,6 @@ class RemoteControlViewModel(
         }
         next to action
     }
-
-    private fun Throwable.operationErrorDetail(
-        @androidx.annotation.StringRes fallback: Int = R.string.control_unknown_error
-    ): UiText = uiTextDetail(fallback)
 
     fun toggleForceMock() {
         val current = transmitterManager?.forceMockMode?.value ?: return

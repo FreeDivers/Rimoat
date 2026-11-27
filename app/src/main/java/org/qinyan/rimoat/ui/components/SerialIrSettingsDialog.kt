@@ -2,6 +2,11 @@ package org.qinyan.rimoat.ui.components
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.UiText
+import org.qinyan.rimoat.i18n.UiTextStateSaver
+import org.qinyan.rimoat.i18n.asString
+import org.qinyan.rimoat.i18n.toAppError
+import androidx.annotation.StringRes
 import org.qinyan.rimoat.ui.motion.AppMotion
 import org.qinyan.rimoat.ui.motion.ExpandSection
 import org.qinyan.rimoat.ui.motion.StateFade
@@ -83,7 +88,7 @@ internal fun SerialIrSettingsForm(
     val selectionMissing = selectedConnectionId != null && selectedDevice == null
     var deviceMenu by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
-    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var error by rememberSaveable(stateSaver = UiTextStateSaver) { mutableStateOf<UiText?>(null) }
     val scope = rememberCoroutineScope()
     val wide = rememberWideLayout()
     val configuration = LocalConfiguration.current
@@ -266,7 +271,7 @@ internal fun SerialIrSettingsForm(
                         (fadeIn(motion.defaultEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()))
                             .using(SizeTransform { _, _ -> motion.defaultSpatialSpec() })
                     }, label = "SerialFormError") { message ->
-                        if (message != null) Text(message, modifier = Modifier.padding(top = 12.dp),
+                        if (message != null) Text(message.asString(), modifier = Modifier.padding(top = 12.dp),
                             color = MaterialTheme.colorScheme.error)
                     }
                 }
@@ -309,8 +314,11 @@ internal fun SerialIrSettingsForm(
             TextButton(enabled = !saving && (module == SerialIrModule.UNCONFIGURED || !selectionMissing), onClick = {
                 val config = try {
                     serialSettingsFromDraft(saved, module, port, baud, address)
-                } catch (invalid: IllegalArgumentException) {
-                    error = invalid.message
+                } catch (invalid: SerialValidationException) {
+                    error = UiText.Resource(invalid.messageRes)
+                    return@TextButton
+                } catch (_: IllegalArgumentException) {
+                    error = UiText.Resource(R.string.control_config_save_failed)
                     return@TextButton
                 }
                 saving = true
@@ -318,7 +326,7 @@ internal fun SerialIrSettingsForm(
                     try {
                         onSave(config, selectedConnectionId.takeUnless { module == SerialIrModule.UNCONFIGURED })
                             .onSuccess { onDismiss() }
-                            .onFailure { error = it.message ?: AppStrings.get(R.string.control_config_save_failed, "配置保存失败") }
+                            .onFailure { error = it.toAppError(R.string.control_config_save_failed).message }
                     } finally { saving = false }
                 }
             }, shapes = ButtonDefaults.shapes()) {
@@ -343,6 +351,8 @@ private fun SerialFormSection(
     }
 }
 
+internal class SerialValidationException(@param:StringRes val messageRes: Int) : IllegalArgumentException()
+
 /** Only validate the inputs used by the selected module; hidden drafts remain editable. */
 internal fun serialSettingsFromDraft(
     saved: SerialIrSettings,
@@ -352,11 +362,34 @@ internal fun serialSettingsFromDraft(
     address: String
 ): SerialIrSettings {
     if (module == SerialIrModule.UNCONFIGURED) return SerialIrSettings()
-    val portValue = requireNotNull(port.toIntOrNull()) { AppStrings.get(R.string.control_invalid_port, "请输入有效的串口序号") }
-    val baudValue = if (module == SerialIrModule.IR_TOY) 115200
-        else requireNotNull(baud.toIntOrNull()) { AppStrings.get(R.string.control_invalid_baud, "请输入有效的波特率") }
-    val addressValue = if (module == SerialIrModule.IR_TOY) saved.moduleAddress else
-        requireNotNull(address.removePrefix("0x").removePrefix("0X").toIntOrNull(16)) { AppStrings.get(R.string.control_invalid_address, "请输入有效的十六进制地址") }
+    val portValue = port.toIntOrNull()
+        ?: throw SerialValidationException(R.string.control_invalid_port)
+    if (portValue !in 0..31) {
+        throw SerialValidationException(R.string.msg_serial_port_range)
+    }
+    val baudValue = if (module == SerialIrModule.IR_TOY) {
+        115200
+    } else {
+        baud.toIntOrNull() ?: throw SerialValidationException(R.string.control_invalid_baud)
+    }
+    if (module != SerialIrModule.IR_TOY && baudValue !in listOf(4800, 9600, 19200, 57600)) {
+        throw SerialValidationException(R.string.msg_serial_baud_rates)
+    }
+    val addressValue = if (module == SerialIrModule.IR_TOY) {
+        saved.moduleAddress
+    } else {
+        address.removePrefix("0x").removePrefix("0X").toIntOrNull(16)
+            ?: throw SerialValidationException(R.string.control_invalid_address)
+    }
+    if (addressValue !in 0..255 || addressValue == 0xFA) {
+        throw SerialValidationException(R.string.msg_module_address_range)
+    }
+    if ((saved.vendorId == null) != (saved.productId == null)) {
+        throw SerialValidationException(R.string.msg_usb_ids_incomplete)
+    }
+    if (saved.vendorId != null && (saved.vendorId !in 0..65535 || saved.productId!! !in 0..65535)) {
+        throw SerialValidationException(R.string.msg_usb_ids_invalid)
+    }
     return saved.copy(module = module, portIndex = portValue, baudRate = baudValue, moduleAddress = addressValue)
         .also { it.validate() }
 }
