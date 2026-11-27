@@ -486,14 +486,18 @@ class RemoteControlViewModel(
         state.copy(powerOn = on) to if (on) AcAction.POWER_ON else AcAction.POWER_OFF
     }
 
-    fun increaseTemp() = changeAc { state, _ ->
-        if (state.temperature >= 30) null
-        else state.copy(temperature = state.temperature + 1, powerOn = true) to AcAction.TEMP_UP
-    }
+    fun increaseTemp() = changeTemperature(AcAction.TEMP_UP)
 
-    fun decreaseTemp() = changeAc { state, _ ->
-        if (state.temperature <= 16) null
-        else state.copy(temperature = state.temperature - 1, powerOn = true) to AcAction.TEMP_DOWN
+    fun decreaseTemp() = changeTemperature(AcAction.TEMP_DOWN)
+
+    private fun changeTemperature(action: AcAction) = changeAc { state, _ ->
+        state.temperatureBoundaryReason(action)?.let { reason ->
+            throw UiTextException(UiText.Resource(when (reason) {
+                org.qinyan.rimoat.data.AcUnavailableReason.TEMPERATURE_MINIMUM -> R.string.control_reason_temperature_minimum
+                else -> R.string.control_reason_temperature_maximum
+            }))
+        }
+        state.apply(action) to action
     }
 
     fun cycleAcMode() = changeAc { state, protocol ->

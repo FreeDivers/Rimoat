@@ -11,6 +11,7 @@ import org.junit.Test
 import kotlinx.coroutines.*
 import org.qinyan.rimoat.data.db.*
 import org.qinyan.rimoat.ui.viewmodel.AddRemoteViewModel
+import org.qinyan.rimoat.i18n.UiText
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.lifecycle.ViewModelStore
@@ -161,6 +162,45 @@ class ButtonParityTest {
             stores.clear(); runCurrent(); scope.coroutineContext[Job]!!.cancelAndJoin()
             Dispatchers.resetMain(); dir.deleteRecursively()
         }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun temperatureCommandsShareStateBoundariesAndReportLimitsWithoutSending() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val stores = ViewModelStore()
+        try {
+            val sent = mutableListOf<AcSettings>()
+            val encoder = object : AcSignalEncoder {
+                override suspend fun protocolFor(sourceRemoteId: String) = 1
+                override suspend fun supportedModes(protocol: Int) = AcMode.entries.toList()
+                override suspend fun encode(protocol: Int, settings: AcSettings, action: AcAction): List<IrSignal.Raw> {
+                    sent += settings
+                    return listOf(IrSignal.Raw(38000, intArrayOf(9000, 4500, 560)))
+                }
+            }
+            for ((limit, action, resource) in listOf(
+                Triple(16, AcAction.TEMP_DOWN, R.string.control_reason_temperature_minimum),
+                Triple(30, AcAction.TEMP_UP, R.string.control_reason_temperature_maximum))) {
+                val profile = RemoteProfile("ac", "AC", category = DeviceCategory.AC, acProtocolId = 1,
+                    acSettings = AcSettings(temperature = limit))
+                val vm = RemoteControlViewModel("ac", initialProfile = profile, acSignalEncoder = encoder)
+                stores.put("ac_$limit", vm)
+                dispatcher.scheduler.advanceUntilIdle()
+                assertNotNull(profile.acSettings.temperatureBoundaryReason(action))
+                if (action == AcAction.TEMP_DOWN) vm.decreaseTemp() else vm.increaseTemp()
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(UiText.resource(R.string.msg_send_incomplete, UiText.Resource(resource)), vm.operationError.value)
+                assertEquals(limit, vm.acState.value.temperature)
+                assertTrue(sent.isEmpty())
+                vm.clearOperationError()
+                if (action == AcAction.TEMP_DOWN) vm.increaseTemp() else vm.decreaseTemp()
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(if (limit == 16) 17 else 29, sent.single().temperature)
+                assertNull(vm.operationError.value)
+                sent.clear()
+            }
+        } finally { clearViewModelsAndAwait(stores, dispatcher); Dispatchers.resetMain() }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
