@@ -243,12 +243,12 @@ fun CodeMatchingActions(state: AddRemoteUiState, onMatched: () -> Unit, onConfir
     val busy = state.isSendingTest || state.isLoading
     val remoteId = state.currentRemote?.remoteId
     val currentFeedback = if (state.canConfirmTest || state.testMessage != null ||
-        (!state.isSendingTest && state.verifiedFunctions.isNotEmpty())) {
+        (!state.isSendingTest && state.verifiedCount > 0)) {
         PairingFeedback(
             remoteId,
             state.testedButton?.let { localizedButtonLabel(it, context) }?.takeIf { state.canConfirmTest },
             state.testMessage,
-            state.verifiedFunctions.size
+            state.verifiedCount
         )
     } else null
     var lastFeedback by remember { mutableStateOf<PairingFeedback?>(null) }

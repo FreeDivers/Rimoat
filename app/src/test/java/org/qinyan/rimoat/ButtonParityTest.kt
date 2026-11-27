@@ -8,7 +8,13 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.coroutines.*
+import org.qinyan.rimoat.data.db.*
+import org.qinyan.rimoat.ui.viewmodel.AddRemoteViewModel
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.lifecycle.ViewModelStore
+import java.nio.file.Files
 
 class ButtonParityTest {
     private fun stock(id: String = "old", key: Int = 834, label: String = "左右扫风") =
@@ -94,6 +100,67 @@ class ButtonParityTest {
             repeat(4) { vm.sendButton(button) };dispatcher.scheduler.advanceUntilIdle()
             assertEquals(listOf(button.toIrSignal(0),button.toIrSignal(1),button.toIrSignal(0)),sent)
         } finally { org.qinyan.rimoat.clearViewModelsAndAwait(stores, dispatcher); Dispatchers.resetMain() }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun sameNamedPairingButtonsKeepIndependentObservationsAndPersistStableFunctions() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val dir = Files.createTempDirectory("pairing-key-test").toFile()
+        val context = object : ContextWrapper(null) {
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? = null
+            override fun getFilesDir() = dir
+        }
+        val stores = ViewModelStore()
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        try {
+            val keys = listOf(
+                RemoteButton("first", "Power", key = ButtonKey.POWER, rawPattern = listOf(9000, 4500, 560)),
+                RemoteButton("second", "Power", key = ButtonKey.POWER, rawPattern = listOf(9000, 4500, 600)))
+            val category = IrCategory(1, "电视", "TV", "tv")
+            val brand = IrBrand(42, "品牌", "Brand", "b", 1)
+            val model = IrRemoteModel("R_tv_42_1", 1, "电视", 42, "品牌", "Brand", 1, "Model", 2)
+            val catalog = object : IrCatalog {
+                override suspend fun getCategories() = listOf(category)
+                override suspend fun getBrandsForCategory(categoryId: Int, searchQuery: String) = listOf(brand)
+                override suspend fun getRemotesForBrand(categoryId: Int, brandIdx: Int) = listOf(model)
+                override suspend fun getTestKeysForRemote(remoteId: String) = keys[0] to keys[1]
+                override suspend fun buildRemoteProfile(model: IrRemoteModel, customName: String?) =
+                    RemoteProfile("saved", "TV", category = DeviceCategory.TV, buttons = keys,
+                        sourceRemoteId = model.remoteId, brand = model.brandCn, brandIdx = model.brandIdx)
+            }
+            val repo = RemoteRepository(context, scope)
+            repo.awaitLoaded()
+            val manager = org.qinyan.rimoat.hardware.IrTransmitterManager(context, scope)
+            val vm = AddRemoteViewModel(catalog, repo, manager,
+                transmitSignals = { _, _ -> Result.success(org.qinyan.rimoat.hardware.TransmissionReceipt(false)) })
+            stores.put("pairing", vm)
+            runCurrent()
+            vm.selectCategory(category); runCurrent()
+            vm.selectBrand(brand); runCurrent()
+            for (key in keys) {
+                vm.testSignal(key); runCurrent()
+                assertTrue(vm.uiState.value.canConfirmTest)
+                vm.confirmTest(true); runCurrent()
+            }
+            assertEquals(setOf("first", "second"), vm.uiState.value.verifiedFunctions)
+            assertEquals(2, vm.uiState.value.verifiedCount)
+            vm.testSignal(keys[1]); runCurrent(); vm.confirmTest(false); runCurrent()
+            assertEquals(setOf("first"), vm.uiState.value.verifiedFunctions)
+            assertEquals(1, vm.uiState.value.verifiedCount)
+            var saved: RemoteProfile? = null
+            vm.saveRemote { saved = it }
+            withTimeout(5000) { while (saved == null) { runCurrent(); delay(10) } }
+            assertEquals(listOf("POWER"), saved!!.verifiedFunctions)
+            assertEquals(42, saved!!.brandIdx)
+            assertEquals("品牌", saved!!.brand)
+            assertEquals(keys.map { it.id }, saved!!.buttons.map { it.id })
+            assertEquals(listOf("POWER"), repo.getRemote("saved")!!.verifiedFunctions)
+        } finally {
+            stores.clear(); runCurrent(); scope.coroutineContext[Job]!!.cancelAndJoin()
+            Dispatchers.resetMain(); dir.deleteRecursively()
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

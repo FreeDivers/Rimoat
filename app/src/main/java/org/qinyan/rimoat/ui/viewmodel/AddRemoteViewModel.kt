@@ -72,6 +72,9 @@ data class AddRemoteUiState(
     val distinguishingKeys: Set<String> = emptySet(),
     val sessionRevision: Int = 0
 ) {
+    val verifiedCount: Int
+        get() = observations.values.count { it.result == PairingResult.VALID }
+
     val currentRemote: IrRemoteModel?
         get() = remotes.getOrNull(currentRemoteIndex)
 }
@@ -160,7 +163,7 @@ class AddRemoteViewModel(
     }
     private fun verifiedFor(remoteId: String, buttons: List<RemoteButton>): Set<String> {
         val records = observationsFor(remoteId, buttons)
-        return buttons.filter { records[it.id]?.result == PairingResult.VALID }.map { it.label }.toSet()
+        return buttons.filter { records[it.id]?.result == PairingResult.VALID }.map { it.id }.toSet()
     }
     private fun recordObservation(button: RemoteButton, observation: PairingObservation) {
         val state = _uiState.value
@@ -435,7 +438,7 @@ class AddRemoteViewModel(
             it.copy(
                 canConfirmTest = false,
                 observations = it.observations + (button.id to observation),
-                verifiedFunctions = if (responded) it.verifiedFunctions + button.label else it.verifiedFunctions - button.label,
+                verifiedFunctions = if (responded) it.verifiedFunctions + button.id else it.verifiedFunctions - button.id,
                 testMessage = if (responded) {
                     UiText.resource(R.string.msg_response_recorded, UiText.ButtonLabel(button))
                 } else {
@@ -513,7 +516,7 @@ class AddRemoteViewModel(
             try {
                 val built = LegacyRemoteMigration.normalizeKeys(irDbRepository.buildRemoteProfile(model, state.customRemoteName))
                 val profile = built.copy(verifiedFunctions = built.buttons
-                    .filter { it.label in state.verifiedFunctions }.map { it.verifiedFunctionId }.distinct())
+                    .filter { it.id in state.verifiedFunctions }.map { it.verifiedFunctionId }.distinct())
                 if (epoch != saveEpoch) return@launch
                 remoteRepository.saveRemote(profile)
                 if (epoch != saveEpoch) return@launch

@@ -100,9 +100,9 @@ class PairingProgressTest {
             fun restore(key: String) = AddRemoteViewModel(catalog, repo, manager,
                 SavedStateHandle(mapOf("pairing_progress" to Json.encodeToString(draft)))).also { store.put(key,it) }
             val good = restore("good"); runCurrent()
-            assertEquals(setOf("电源"), good.uiState.value.verifiedFunctions)
+            assertEquals(setOf(button.id), good.uiState.value.verifiedFunctions)
             good.nextModel(); runCurrent(); assertTrue(good.uiState.value.verifiedFunctions.isEmpty())
-            good.prevModel(); runCurrent(); assertEquals(setOf("电源"), good.uiState.value.verifiedFunctions)
+            good.prevModel(); runCurrent(); assertEquals(setOf(button.id), good.uiState.value.verifiedFunctions)
             catalog.changed = true
             val changed = restore("changed"); runCurrent()
             assertTrue(changed.uiState.value.verifiedFunctions.isEmpty())
