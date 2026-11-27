@@ -16,20 +16,40 @@ import android.widget.AdapterView
 import android.widget.ListView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.LosslessWebPImageIoFormat
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
+import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -44,6 +64,8 @@ import org.robolectric.util.ReflectionHelpers
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @LooperMode(LooperMode.Mode.PAUSED)
 class WidgetPreviewHostTest {
+    @get:Rule val composeRule = createComposeRule()
+
     // Exercise framework asynchronous inflation instead of the simplified host shadow.
     @Implements(AppWidgetHostView::class)
     class FrameworkWidgetHostShadow : ShadowViewGroup()
@@ -211,4 +233,70 @@ class WidgetPreviewHostTest {
 
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+
+    @Test
+    @Config(sdk = [35])
+    fun stalledPreviewComposeTimesOutReleasesLockAndClearsInFlight() = runBlocking {
+        val stalled = CompletableDeferred<android.widget.RemoteViews>()
+        val first = WidgetPreviewComposer.request("stalled_key_test", timeoutMs = 40L) {
+            stalled.await()
+        }
+        val failure = runCatching { withTimeout(2_000L) { first.await() } }.exceptionOrNull()
+        assertTrue("Stalled compose must time out rather than hanging forever", failure is TimeoutCancellationException)
+
+        val recovered = WidgetPreviewComposer.request("recovered_key_test", timeoutMs = 1_000L) {
+            android.widget.RemoteViews(RuntimeEnvironment.getApplication().packageName, R.layout.widget_error)
+        }
+        assertNotNull(withTimeout(2_000L) { recovered.await() })
+
+        val retriedSameKey = WidgetPreviewComposer.request("stalled_key_test", timeoutMs = 1_000L) {
+            android.widget.RemoteViews(RuntimeEnvironment.getApplication().packageName, R.layout.widget_error)
+        }
+        assertNotNull(withTimeout(2_000L) { retriedSameKey.await() })
+    }
+
+    @Test
+    @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h560dp-port-mdpi")
+    @OptIn(ExperimentalRoborazziApi::class)
+    fun failedConfigurationPreviewDisplaysRetryAndRecoversInLightAndDarkLargeText() {
+        val imageOptions = RoborazziOptions(recordOptions =
+            RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
+        val context = RuntimeEnvironment.getApplication()
+        val unavailable = context.getString(R.string.widget_preview_unavailable)
+        val retryLabel = context.getString(R.string.screen_retry)
+        var retried = 0
+        var previewState by mutableStateOf(
+            WidgetPreview(DpSize(128.dp, 64.dp), views = null, failed = true, onRetry = { retried++ })
+        )
+
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    Box(Modifier.width(288.dp)) {
+                        ConfigurationPreview(-1, previewState)
+                    }
+                }
+            }
+        }
+        composeRule.onNodeWithText(unavailable).assertIsDisplayed()
+        composeRule.onNodeWithText(retryLabel).assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage("src/test/screenshots/widget_preview_failed_light.webp", roborazziOptions = imageOptions)
+        composeRule.onNodeWithText(retryLabel).performClick()
+        assertEquals(1, retried)
+
+        RuntimeEnvironment.setFontScale(2f)
+        assertEquals(2f, RuntimeEnvironment.getApplication().resources.configuration.fontScale, 0f)
+        composeRule.setContent {
+            IrRemoteTheme(darkTheme = true, dynamicColor = false, pureBlackBackground = true) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    Box(Modifier.width(288.dp)) {
+                        ConfigurationPreview(-1, previewState)
+                    }
+                }
+            }
+        }
+        composeRule.onNodeWithText(unavailable).assertIsDisplayed()
+        composeRule.onNodeWithText(retryLabel).assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage("src/test/screenshots/widget_preview_failed_dark_large_text.webp", roborazziOptions = imageOptions)
+    }
 }

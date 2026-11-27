@@ -377,10 +377,11 @@ private fun WidgetConfigurationContent(
  * preview uses the app's canonical canvas for multi-row layouts when launcher allocations
  * include space outside the widget's content view.
  */
-private data class WidgetPreview(
+internal data class WidgetPreview(
     val displaySize: DpSize,
     val views: android.widget.RemoteViews?,
-    val failed: Boolean = false
+    val failed: Boolean = false,
+    val onRetry: () -> Unit = {}
 )
 
 private val previewExecutor by lazy { java.util.concurrent.Executors.newSingleThreadExecutor() }
@@ -414,7 +415,8 @@ private fun rememberConfigurationPreview(widgetId: Int, configuration: WidgetCon
     }
     var views by remember { mutableStateOf(WidgetPreviewComposer.cached(previewKey)) }
     var failed by remember { mutableStateOf(false) }
-    LaunchedEffect(previewKey) {
+    var retryToken by remember { mutableIntStateOf(0) }
+    LaunchedEffect(previewKey, retryToken) {
         if (configuration == null || selected == null) return@LaunchedEffect
         failed = false
         views = WidgetPreviewComposer.cached(previewKey)
@@ -438,7 +440,13 @@ private fun rememberConfigurationPreview(widgetId: Int, configuration: WidgetCon
             failed = true
         }
     }
-    return WidgetPreview(availableSize, views, failed)
+    val onRetry: () -> Unit = remember(previewKey) {
+        {
+            WidgetPreviewComposer.clearInFlight(previewKey)
+            retryToken += 1
+        }
+    }
+    return WidgetPreview(availableSize, views, failed, onRetry)
 }
 
 private const val PREVIEW_TIMEOUT_MS = 10_000L
@@ -469,7 +477,7 @@ internal fun widgetPreviewSize(context: android.content.Context, id: Int, orient
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ConfigurationPreview(widgetId: Int, preview: WidgetPreview) {
+internal fun ConfigurationPreview(widgetId: Int, preview: WidgetPreview) {
     val context = LocalContext.current
     val providerInfo = remember(context, widgetId) {
         AppWidgetManager.getInstance(context).getAppWidgetInfo(widgetId)
@@ -480,7 +488,12 @@ private fun ConfigurationPreview(widgetId: Int, preview: WidgetPreview) {
         Spacer(Modifier.height(12.dp))
         BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             val scale = (maxWidth / preview.displaySize.width).coerceAtMost(1f)
-            Box(Modifier.size(preview.displaySize.width * scale, preview.displaySize.height * scale), contentAlignment = Alignment.Center) {
+            val containerModifier = if (preview.failed) {
+                Modifier.fillMaxWidth().heightIn(min = preview.displaySize.height * scale)
+            } else {
+                Modifier.size(preview.displaySize.width * scale, preview.displaySize.height * scale)
+            }
+            Box(containerModifier, contentAlignment = Alignment.Center) {
                 if (preview.views != null && !preview.failed && providerInfo != null) {
                     AndroidView(factory = { createConfigurationPreviewHost(it, widgetId, providerInfo) },
                         modifier = Modifier.requiredSize(preview.displaySize.width, preview.displaySize.height).graphicsLayer {
@@ -491,8 +504,27 @@ private fun ConfigurationPreview(widgetId: Int, preview: WidgetPreview) {
                                 host.updateAppWidget(preview.views)
                             }
                         })
-                } else if (preview.failed || providerInfo == null) Text(stringResource(R.string.widget_preview_unavailable), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else LoadingIndicator(Modifier.size(40.dp))
+                } else if (preview.failed || providerInfo == null) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.widget_preview_unavailable),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        if (preview.failed) {
+                            TextButton(
+                                onClick = preview.onRetry,
+                                shapes = ButtonDefaults.shapes(),
+                                modifier = Modifier.heightIn(min = 48.dp)
+                            ) {
+                                Text(stringResource(R.string.screen_retry))
+                            }
+                        }
+                    }
+                } else LoadingIndicator(Modifier.size(40.dp))
             }
         }
     }
