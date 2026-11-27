@@ -8,6 +8,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.i18n.defaultLearningLabelRes
+import org.qinyan.rimoat.i18n.labelRes
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
@@ -32,6 +33,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -50,6 +52,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.qinyan.rimoat.data.ApplianceType
+import org.qinyan.rimoat.data.AcAction
+import org.qinyan.rimoat.data.ButtonKey
+import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.db.IrBrand
 import org.qinyan.rimoat.hardware.learning.LearnerType
@@ -108,10 +113,22 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
     val context = LocalContext.current
     var addKey by rememberSaveable { mutableStateOf(false) }
     var keyName by rememberSaveable { mutableStateOf("") }
+    var assignmentKeyId by rememberSaveable { mutableStateOf<String?>(null) }
+    var assignmentAction by rememberSaveable { mutableStateOf<AcAction?>(null) }
     var pickBrand by rememberSaveable { mutableStateOf(false) }
     val brandContext = androidx.compose.ui.platform.LocalContext.current
     val wide = rememberWideLayout()
     val active = LocalMotionActive.current
+    val startRecording = {
+        val suggestion = state.suggestedAcAction(context)
+        if (suggestion != null) {
+            assignmentKeyId = state.currentKey?.id
+            assignmentAction = suggestion
+        } else {
+            HapticHelper.performStartListening(haptic, context)
+            viewModel.startLearningCurrentKey()
+        }
+    }
     val savedRemote by viewModel.savedRemote.collectAsStateWithLifecycle()
     val onCreated by rememberUpdatedState(onRemoteCreated)
     LaunchedEffect(active, savedRemote) {
@@ -230,7 +247,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                 }
             }, bottomBar = {
                 if (page.step == WizardStep.LEARNING && !wide) LearningKeyActions(page, available,
-                    onRecord = { HapticHelper.performStartListening(haptic, context); viewModel.startLearningCurrentKey() },
+                    onRecord = startRecording,
                     onCancel = viewModel::cancelCurrentKeyLearning,
                     onSkip = viewModel::skipCurrentKey,
                     onConfirm = viewModel::confirmCurrentKey,
@@ -250,11 +267,11 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
                     onMock = { viewModel.setForceMockMode(it) },
                     onSelect = viewModel::selectKey,
                     onAdd = { keyName = ""; addKey = true },
-                    onRecord = { HapticHelper.performStartListening(haptic, context); viewModel.startLearningCurrentKey() },
+                    onRecord = startRecording,
                     modifier = Modifier.fillMaxSize().padding(padding),
                     actions = {
                         LearningKeyActions(page, available,
-                            onRecord = { HapticHelper.performStartListening(haptic, context); viewModel.startLearningCurrentKey() },
+                            onRecord = startRecording,
                             onCancel = viewModel::cancelCurrentKeyLearning, onSkip = viewModel::skipCurrentKey,
                             onConfirm = viewModel::confirmCurrentKey,
                             onTest = { HapticHelper.performTestEmit(haptic, context); viewModel.testTransmitCurrentKey() },
@@ -266,6 +283,27 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
             }
         }
         }
+    }
+    if (active && assignmentKeyId == state.currentKey?.id) assignmentAction?.let { action ->
+        AssignLearningActionDialog(
+            action = action,
+            onAssign = {
+                val id = assignmentKeyId
+                assignmentKeyId = null
+                assignmentAction = null
+                if (id != null && viewModel.bindCustomKeyToAcAction(id, action)) {
+                    HapticHelper.performStartListening(haptic, context)
+                    viewModel.startLearningCurrentKey()
+                }
+            },
+            onKeepCustom = {
+                assignmentKeyId = null
+                assignmentAction = null
+                HapticHelper.performStartListening(haptic, context)
+                viewModel.startLearningCurrentKey()
+            },
+            onDismiss = { assignmentKeyId = null; assignmentAction = null }
+        )
     }
     if (active && addKey) {
         val dialogKeyboard = LocalSoftwareKeyboardController.current
@@ -593,6 +631,50 @@ internal fun WizardKeyItem.displayLabel(): String {
     val context = LocalContext.current
     if (builtinLabel != null && key != null) return context.getString(defaultLearningLabelRes(key, acAction))
     return builtinLabel?.let { org.qinyan.rimoat.i18n.localizedLabel(it, context) } ?: label
+}
+
+private fun CustomRemoteWizardUiState.suggestedAcAction(context: android.content.Context): AcAction? {
+    val item = currentKey ?: return null
+    if (category != DeviceCategory.AC || item.builtinLabel != null || item.acAction != null) return null
+    return CustomRemoteWizardViewModel.generateDefaultQueue(ApplianceType.AC).firstOrNull { candidate ->
+        val action = candidate.acAction ?: return@firstOrNull false
+        val key = candidate.key ?: return@firstOrNull false
+        val matches = item.label.equals(context.getString(defaultLearningLabelRes(key, action)), ignoreCase = true) ||
+            item.label.equals(context.getString(action.labelRes), ignoreCase = true) ||
+            (key == ButtonKey.TEMPERATURE_UP && item.label == "+") ||
+            (key == ButtonKey.TEMPERATURE_DOWN && item.label in setOf("-", "−"))
+        matches && keyQueue.none {
+            it.id != item.id && it.acAction == action && (it.capturedSignal != null || it.builtinLabel == null)
+        }
+    }?.acAction
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AssignLearningActionDialog(
+    action: AcAction,
+    onAssign: () -> Unit,
+    onKeepCustom: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    MotionAlertDialog(
+        modifier = Modifier.testTag("wizard_assign_ac_key_dialog"),
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.wizard_assign_ac_key_title, stringResource(action.labelRes)),
+            modifier = Modifier.semantics { heading() }) },
+        text = { Text(stringResource(R.string.wizard_assign_ac_key_message),
+            modifier = Modifier.verticalScroll(rememberScrollState())) },
+        confirmButton = {
+            TextButton(onClick = onAssign, shapes = ButtonDefaults.shapes(), modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.wizard_assign_ac_key_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onKeepCustom, shapes = ButtonDefaults.shapes(), modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.wizard_assign_ac_key_keep_custom))
+            }
+        }
+    )
 }
 
 @Composable

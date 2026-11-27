@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="control_ok" translatable="false">OK</string>
+    <string name="wizard_assign_ac_key_title">Use as the %1$s button?</string>
+    <string name="wizard_assign_ac_key_message">Place this learned signal on the standard control, or keep it as a separate button.</string>
+    <string name="wizard_assign_ac_key_confirm">Use standard control</string>
+    <string name="wizard_assign_ac_key_keep_custom">Keep separate</string>
 </resources>

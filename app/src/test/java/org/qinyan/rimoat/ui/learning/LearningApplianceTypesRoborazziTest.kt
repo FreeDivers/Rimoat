@@ -6,6 +6,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
 import com.github.takahirom.roborazzi.*
 import kotlinx.coroutines.runBlocking
@@ -15,13 +16,18 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ErrorCollector
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.data.ApplianceType
 import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.db.IrDatabaseRepository
+import org.qinyan.rimoat.hardware.IrSignal
+import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.labelRes
 import org.qinyan.rimoat.ui.components.getCategoryIcon
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.robolectric.RobolectricTestRunner
@@ -37,6 +43,7 @@ import org.robolectric.annotation.LooperMode
 @OptIn(ExperimentalRoborazziApi::class)
 class LearningApplianceTypesRoborazziTest {
     @get:Rule val compose = createComposeRule()
+    @get:Rule val screenshotErrors = ErrorCollector()
     private val app get() = RuntimeEnvironment.getApplication()
     private val store = ViewModelStore()
     private val options = RoborazziOptions(
@@ -57,7 +64,10 @@ class LearningApplianceTypesRoborazziTest {
         ApplianceType.CUSTOM to R.string.screen_category_custom
     )
 
-    @After fun release() { compose.runOnUiThread { store.clear() } }
+    @After fun release() {
+        compose.runOnUiThread { store.clear() }
+        RuntimeEnvironment.setFontScale(1f)
+    }
 
     private fun show(dark: Boolean = false, fontScale: Float = 1f): CustomRemoteWizardViewModel {
         AppStrings.initialize(app)
@@ -73,10 +83,19 @@ class LearningApplianceTypesRoborazziTest {
         return vm
     }
 
-    private fun capture(name: String) {
-        compose.mainClock.advanceTimeBy(400)
+    private fun capture(name: String, dialog: Boolean = false) {
         compose.waitForIdle()
-        compose.onRoot().captureRoboImage("src/test/screenshots/learning_types_$name.webp", roborazziOptions = options)
+        if (name in setOf("portrait_before", "portrait_selected", "camera_learning", "landscape_before",
+                "landscape_after", "narrow_dark_before", "narrow_dark_after")) {
+            // Keep the existing text cursor blink phase in the unchanged reference images.
+            compose.mainClock.advanceTimeBy(400)
+            compose.waitForIdle()
+        }
+        val root = if (dialog) compose.onNode(isDialog()) else compose.onRoot()
+        screenshotErrors.checkSucceeds {
+            root.captureRoboImage("src/test/screenshots/learning_types_$name.webp", roborazziOptions = options)
+            Unit
+        }
     }
 
     private fun select(type: ApplianceType, vm: CustomRemoteWizardViewModel) {
@@ -84,6 +103,25 @@ class LearningApplianceTypesRoborazziTest {
             .performScrollTo().assertIsDisplayed().performClick().assertIsSelected()
         assertEquals(type, vm.uiState.value.selectedApplianceType)
         assertEquals(type.category, vm.uiState.value.category)
+    }
+
+    @Test
+    @Config(qualifiers = "en-w411dp-h891dp-port-mdpi")
+    fun learnedStandardLabelsStayLocalizedWhileCustomNamesStayUnchanged() {
+        AppStrings.initialize(app)
+        val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560))
+        val standard = org.qinyan.rimoat.data.RemoteButton(
+            id = "temperature", label = AcAction.TEMP_UP.label,
+            sourceKeyType = AcAction.TEMP_UP.keyType, acAction = AcAction.TEMP_UP
+        ).withLearnedSignal(signal)
+        val localized = app.getString(AcAction.TEMP_UP.labelRes)
+        assertEquals(localized, org.qinyan.rimoat.i18n.localizedButtonLabel(standard, app))
+        assertEquals(localized, org.qinyan.rimoat.i18n.localizedButtonLabel(
+            standard.copy(id = "ac_function_TEMP_UP", label = AcAction.TEMP_UP.name), app))
+        val custom = standard.copy(id = "custom_temperature", sourceKeyType = null, label = "My warm button")
+        assertEquals(custom.label, org.qinyan.rimoat.i18n.localizedButtonLabel(custom, app))
+        assertEquals("OK", org.qinyan.rimoat.i18n.localizedButtonLabel(
+            standard.copy(key = ButtonKey.OK, builtinLabel = ButtonKey.OK.name, acAction = null), app))
     }
 
     @Test fun allApplianceTypesCanBeSelectedAndCameraStartsWithShutter() {
@@ -205,6 +243,94 @@ class LearningApplianceTypesRoborazziTest {
             assertEquals(expectedQueue, vm.uiState.value.keyQueue)
             assertEquals(expectedIndex, vm.uiState.value.currentIndex)
             compose.onNodeWithText("自定义键").performScrollTo().assertIsDisplayed()
+        } finally {
+            learner.cancel()
+        }
+    }
+
+    private fun waitForCapture(vm: CustomRemoteWizardViewModel) {
+        compose.waitUntil(3000) {
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED
+        }
+        compose.waitForIdle()
+    }
+
+    @Test fun customPlusKeyCanBecomeTheStandardTemperatureControl() {
+        assignmentFlow("assign_light", assign = true, customLabel = "+")
+    }
+
+    @Test fun customKeyCanRemainIndependentAfterTheAssignmentPrompt() {
+        assignmentFlow("assign_dark", dark = true, assign = false)
+    }
+
+    @Test
+    @Config(qualifiers = "en-w320dp-h891dp-port-mdpi")
+    fun narrowAmoledAssignmentAtDoubleFontSizeKeepsBothActionsReachable() {
+        RuntimeEnvironment.setFontScale(2f)
+        assertEquals(2f, app.resources.configuration.fontScale, 0f)
+        assignmentFlow("assign_amoled_large", dark = true, pureBlack = true, assign = true)
+    }
+
+    @Test fun dynamicColorAssignmentCanKeepTheOriginalCustomKey() {
+        assignmentFlow("assign_dynamic", dynamic = true, assign = false)
+    }
+
+    private fun assignmentFlow(
+        screenshot: String,
+        dark: Boolean = false,
+        pureBlack: Boolean = false,
+        dynamic: Boolean = false,
+        assign: Boolean,
+        customLabel: String = app.getString(ButtonKey.TEMPERATURE_UP.labelRes)
+    ) {
+        AppStrings.initialize(app)
+        val learner = IrLearnerManager(context = null)
+        learner.mockLearner.setSimulatedDelayMs(0L)
+        val vm = CustomRemoteWizardViewModel(learnerManager = learner).also { store.put("assignment", it) }
+        try {
+            vm.setApplianceType(ApplianceType.AC)
+            vm.setRemoteName("Study AC")
+            vm.addCustomKey(customLabel)
+            val customIndex = vm.uiState.value.keyQueue.lastIndex
+            val customId = vm.uiState.value.keyQueue.last().id
+            assertTrue(vm.proceedToLearning())
+            vm.selectKey(customIndex)
+            compose.setContent {
+                IrRemoteTheme(darkTheme = dark, pureBlackBackground = pureBlack, dynamicColor = dynamic) {
+                    CustomRemoteWizardScreen(vm, {}, {})
+                }
+            }
+            compose.onNodeWithText(app.getString(R.string.screen_record_signal)).assertIsEnabled()
+            capture("${screenshot}_before")
+            compose.onNodeWithText(app.getString(R.string.screen_record_signal)).performTouchInput { click() }
+            compose.onNodeWithTag("wizard_assign_ac_key_dialog").assertExists()
+            compose.onNodeWithText(app.getString(R.string.wizard_assign_ac_key_title, app.getString(AcAction.TEMP_UP.labelRes)))
+                .assertIsDisplayed()
+            assertNull(vm.uiState.value.currentKey?.acAction)
+            assertEquals(KeyLearnStatus.PENDING, vm.uiState.value.currentKey?.status)
+            capture("${screenshot}_dialog", dialog = true)
+            listOf(R.string.wizard_assign_ac_key_confirm, R.string.wizard_assign_ac_key_keep_custom).forEach { label ->
+                compose.onNodeWithText(app.getString(label)).assertIsDisplayed().assertIsEnabled().assertHeightIsAtLeast(48.dp)
+            }
+            val signal = IrSignal.Raw(40000, intArrayOf(9000, 4500, 560, 1690))
+            learner.mockLearner.triggerManualSignal(signal)
+            val choice = if (assign) R.string.wizard_assign_ac_key_confirm else R.string.wizard_assign_ac_key_keep_custom
+            compose.onNodeWithText(app.getString(choice)).performTouchInput { click() }
+            waitForCapture(vm)
+            compose.onNodeWithTag("wizard_assign_ac_key_dialog").assertDoesNotExist()
+            val learned = vm.uiState.value.currentKey!!
+            assertEquals(customId, learned.id)
+            assertEquals(customLabel, learned.label)
+            assertNull(learned.builtinLabel)
+            assertEquals(if (assign) AcAction.TEMP_UP else null, learned.acAction)
+            assertEquals(if (assign) ButtonKey.TEMPERATURE_UP else null, learned.key)
+            assertEquals(1, vm.uiState.value.keyQueue.count { it.acAction == AcAction.TEMP_UP })
+            val standardKey = vm.uiState.value.keyQueue.single { it.acAction == AcAction.TEMP_UP }
+            if (assign) assertEquals(customId, standardKey.id) else assertNotEquals(customId, standardKey.id)
+            assertEquals(signal.frequencyHz, learned.capturedSignal?.frequencyHz)
+            assertArrayEquals(signal.patternMicros, learned.capturedSignal?.patternMicros)
+            capture("${screenshot}_after")
         } finally {
             learner.cancel()
         }

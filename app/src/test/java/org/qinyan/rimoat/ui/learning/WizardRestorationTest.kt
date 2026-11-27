@@ -532,6 +532,39 @@ class WizardRestorationTest {
         }
     }
 
+    @Test fun confirmedAcTemplateAndCustomActionSurviveDraftRestoration() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val dir = java.nio.file.Files.createTempDirectory("wizard-action-").toFile()
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val draft = File(dir, "draft.json")
+            val vm = CustomRemoteWizardViewModel(initialCategory = DeviceCategory.AC, draftFile = draft)
+                .also { store.put("original", it) }
+            await(dispatcher) { !vm.uiState.value.isRestoring }
+            vm.setRemoteName("Bedroom")
+            vm.addCustomKey("+", AcAction.TEMP_UP)
+            vm.onScreenStopped()
+            await(dispatcher) { draft.exists() }
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+
+            val restored = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("restored", it) }
+            await(dispatcher) { !restored.uiState.value.isRestoring }
+            val state = restored.uiState.value
+            assertEquals(ApplianceType.AC, state.selectedApplianceType)
+            assertEquals(ApplianceType.AC, state.templateApplianceType)
+            assertEquals(1, state.keySchemaVersion)
+            val custom = state.keyQueue.single { it.acAction == AcAction.TEMP_UP }
+            assertEquals("+", custom.label)
+            assertEquals(ButtonKey.TEMPERATURE_UP, custom.key)
+            assertEquals(null, custom.builtinLabel)
+            assertEquals(6, state.keyQueue.size)
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+            dir.deleteRecursively()
+        }
+    }
 
     @Test fun legacyAcTemplateRestoresActionsOnlyWhenTheWholeTemplateMatches() {
         val dispatcher = StandardTestDispatcher()

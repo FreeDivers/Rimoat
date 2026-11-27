@@ -743,7 +743,48 @@ class CustomRemoteWizardViewModelTest {
         assertEquals(null, classified[3])
     }
 
+    @Test fun customStandardActionBindingIsExplicitAndDoesNotDuplicateTheSlot() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.AC))
+        vm.addCustomKey("+")
+        val custom = vm.uiState.value.keyQueue.last()
+        assertEquals(null, custom.acAction)
+        assertEquals(null, custom.key)
+        assertTrue(vm.bindCustomKeyToAcAction(custom.id, AcAction.TEMP_UP))
+        assertEquals(6, vm.uiState.value.keyQueue.size)
+        val bound = vm.uiState.value.keyQueue.single { it.acAction == AcAction.TEMP_UP }
+        assertEquals(custom.id, bound.id)
+        assertEquals("+", bound.label)
+        assertEquals(null, bound.builtinLabel)
+        assertEquals(ButtonKey.TEMPERATURE_UP, bound.key)
+        vm.setRemoteName("Custom AC")
+        assertTrue(vm.proceedToLearning())
+        vm.selectKey(vm.uiState.value.keyQueue.indexOf(bound))
+        val signal = learnCurrentKey(vm)
+        vm.addCustomKey("Another +")
+        val other = vm.uiState.value.keyQueue.last()
+        assertFalse(vm.bindCustomKeyToAcAction(other.id, AcAction.TEMP_UP))
+        assertEquals(1, vm.uiState.value.keyQueue.count { it.acAction == AcAction.TEMP_UP })
+        assertEquals(null, vm.uiState.value.keyQueue.last().acAction)
+        assertEquals(signal, vm.uiState.value.keyQueue.single { it.acAction == AcAction.TEMP_UP }.capturedSignal)
+    }
 
+    @Test fun customActionBindingThroughAddKeepsTheUserNameWhenSaved() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.AC))
+        vm.addCustomKey("My temperature button", AcAction.TEMP_UP)
+        val target = vm.uiState.value.keyQueue.single { it.acAction == AcAction.TEMP_UP }
+        vm.setRemoteName("Custom AC")
+        assertTrue(vm.proceedToLearning())
+        vm.selectKey(vm.uiState.value.keyQueue.indexOf(target))
+        learnCurrentKey(vm)
+        var saved: RemoteProfile? = null
+        vm.saveRemote { saved = it }
+        assertTrue(awaitCondition { saved != null })
+        val button = saved!!.buttons.single()
+        assertEquals("My temperature button", button.label)
+        assertEquals(null, button.builtinLabel)
+        assertEquals(AcAction.TEMP_UP, button.acAction)
+        assertEquals(ButtonKey.TEMPERATURE_UP, button.key)
+    }
 
     private fun learnCurrentKey(vm: CustomRemoteWizardViewModel): IrSignal.Raw {
         val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560 + vm.uiState.value.currentIndex * 10))

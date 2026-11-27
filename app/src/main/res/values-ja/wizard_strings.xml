@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="control_ok" translatable="false">OK</string>
+    <string name="wizard_assign_ac_key_title">%1$sボタンに割り当てますか？</string>
+    <string name="wizard_assign_ac_key_message">学習した信号を標準ボタンに割り当てるか、独立したボタンとして残します。</string>
+    <string name="wizard_assign_ac_key_confirm">標準ボタンに割り当てる</string>
+    <string name="wizard_assign_ac_key_keep_custom">独立したボタンにする</string>
 </resources>

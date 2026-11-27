@@ -104,8 +104,7 @@ data class RemoteButton(
             necCommand = null,
             necExtended = false,
             alternateRawPattern = emptyList(),
-            isLearned = true,
-            acAction = null
+            isLearned = true
         )
     }
 }

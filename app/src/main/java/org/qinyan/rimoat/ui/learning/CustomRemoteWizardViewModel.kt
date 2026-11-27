@@ -15,6 +15,7 @@ import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.LegacyLabelMap
 import org.qinyan.rimoat.data.LegacyRemoteMigration
+import org.qinyan.rimoat.data.buttonKey
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.RemoteRepository
@@ -543,7 +544,7 @@ class CustomRemoteWizardViewModel(
         }
     }
 
-    fun addCustomKey(label: String) {
+    fun addCustomKey(label: String, acAction: AcAction? = null) {
         val trimmed = label.trim()
         if (trimmed.isBlank()) return
         if (trimmed.length > 100 || _uiState.value.keyQueue.size >= 256) {
@@ -558,8 +559,37 @@ class CustomRemoteWizardViewModel(
             val newQueue = current.keyQueue + newKey
             current.copy(keyQueue = newQueue)
         }
+        if (acAction != null) bindCustomKeyToAcAction(newKey.id, acAction)
     }
 
+    fun bindCustomKeyToAcAction(keyId: String, action: AcAction): Boolean {
+        val state = _uiState.value
+        val target = state.keyQueue.firstOrNull { it.id == keyId } ?: return false
+        if (state.category != DeviceCategory.AC || state.isSaving || state.isRestoring || target.builtinLabel != null) return false
+        if (state.keyQueue.any {
+            it.id != keyId && it.acAction == action && (it.capturedSignal != null || it.builtinLabel == null)
+        }) return false
+        cancelTest()
+        cancelCurrentKeyLearning()
+        _uiState.update { current ->
+            val queue = current.keyQueue.mapNotNull { item ->
+                when {
+                    item.id == keyId -> item.copy(
+                        key = if (action == AcAction.POWER_ON) ButtonKey.POWER else action.buttonKey,
+                        acAction = action
+                    )
+                    item.acAction == action && item.capturedSignal == null && item.builtinLabel != null -> null
+                    else -> item
+                }
+            }
+            current.copy(
+                keyQueue = queue,
+                currentIndex = queue.indexOfFirst { it.id == current.currentKey?.id }.takeIf { it >= 0 }
+                    ?: queue.indexOfFirst { it.id == keyId }
+            )
+        }
+        return true
+    }
 
     fun selectKey(index: Int) {
         if (_uiState.value.isSaving || index !in _uiState.value.keyQueue.indices) return

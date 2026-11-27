@@ -19,6 +19,7 @@ import org.qinyan.rimoat.ui.components.withPanelPresentation
 import org.qinyan.rimoat.ui.components.panelAction
 import org.qinyan.rimoat.ui.components.acButtonForAction
 import org.qinyan.rimoat.ui.components.acRawExtensionButtons
+import org.qinyan.rimoat.ui.components.hasAcControlPanel
 import org.qinyan.rimoat.i18n.localizedAcRawButtonLabel
 import org.qinyan.rimoat.ui.components.panelKey
 import org.qinyan.rimoat.ui.components.remoteButtonNumber
@@ -464,23 +465,24 @@ private fun RemoteControlContent(
             } else {
                 androidx.compose.runtime.key(profile.id) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
-                val dynamicAc = profile.category == DeviceCategory.AC && !profile.useStaticAcButtons && profile.acProtocolId != null
+                val acPanel = profile.hasAcControlPanel()
+                val dynamicAc = acPanel && !profile.useStaticAcButtons && profile.acProtocolId != null
                 val mainAc = setOf(AcAction.POWER_ON, AcAction.POWER_OFF, AcAction.TEMP_UP, AcAction.TEMP_DOWN,
                     AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.WIND_DIRECTION)
-                val extras = if (dynamicAc) profile.buttons.filter { it.acAction !in mainAc } else remoteExtraButtons(profile)
-                val acMainActions = if (dynamicAc) acPanelActions(profile, availableAcActions, isLearningMode).filter { it in mainAc } else emptyList()
-                val acExtraLabels = if (dynamicAc) acPanelActions(profile, availableAcActions, isLearningMode)
+                val extras = if (acPanel) profile.buttons.filter { it.acAction !in mainAc } else remoteExtraButtons(profile)
+                val acMainActions = if (acPanel) acPanelActions(profile, availableAcActions, isLearningMode).filter { it in mainAc } else emptyList()
+                val acExtraLabels = if (acPanel) acPanelActions(profile, availableAcActions, isLearningMode)
                     .filter { it !in mainAc }.map { stringResource(it.labelRes) } +
                     acRawExtensionButtons(profile).map { localizedAcRawButtonLabel(it) } else emptyList()
                 val acPresetLabels = if (dynamicAc && !isLearningMode) listOf(stringResource(R.string.screen_resend), stringResource(R.string.screen_cool_preset), stringResource(R.string.screen_heat_preset)).filterIndexed { index, _ -> "preset:$index" !in profile.panelLayout.hidden } else emptyList()
-                val extraLabels = if (dynamicAc) acExtraLabels + acPresetLabels else extras.map { localizedButtonLabel(it) }
-                val inlineGroups = if (dynamicAc) {
+                val extraLabels = if (acPanel) acExtraLabels + acPresetLabels else extras.map { localizedButtonLabel(it) }
+                val inlineGroups = if (acPanel) {
                     val trailingSlots = (3 - acMainActions.size % 3) % 3
                     listOf(acExtraLabels.drop(trailingSlots), acPresetLabels).filter { it.isNotEmpty() }
                 } else {
                     listOf(extraLabels).filter { it.isNotEmpty() }
                 }
-                val inlineCount = if (dynamicAc) {
+                val inlineCount = if (acPanel) {
                     if (acExtraLabels.isNotEmpty()) acExtraLabels.size else acPresetLabels.size
                 } else {
                     extraLabels.size
@@ -491,7 +493,7 @@ private fun RemoteControlContent(
                     height = maxHeight,
                     extensionCount = inlineCount
                 )
-                val hasMore = if (dynamicAc) extraLabels.isNotEmpty() || isLearningMode else extras.isNotEmpty()
+                val hasMore = if (acPanel) extraLabels.isNotEmpty() || dynamicAc && isLearningMode else extras.isNotEmpty()
                 if (wide) {
                     LandscapeRemotePanel(
                         profile = profile, acState = acState, isDemonstrating = isDemonstrating,
@@ -529,7 +531,7 @@ private fun RemoteControlContent(
                             )
                         }
                         DeviceCategory.AC -> {
-                            if (profile.useStaticAcButtons || profile.acProtocolId == null) {
+                            if (!acPanel) {
                                 genericRemoteItems(profile, viewModel::sendButton, viewModel::startLearningButton, isLearningMode, viewModel::repeatButton, morePage, inline, { explainUnavailable(it, AcUnavailableReason.MISSING_SIGNAL) })
                             } else remoteItem("ac_controls") {
                             AcRemoteLayout(
@@ -551,9 +553,10 @@ private fun RemoteControlContent(
                                 onSendButton = { viewModel.sendButton(it) },
                                 onLearnButton = { viewModel.startLearningButton(it) },
                                 isLearningMode = isLearningMode,
+                                isTransmitting = isTransmitting,
                                 onRepeatButton = viewModel::repeatButton, morePage = morePage
                             )
-                            if ((morePage || inline) && !isLearningMode) {
+                            if (dynamicAc && (morePage || inline) && !isLearningMode) {
                                 Spacer(Modifier.height(Spacing.large))
                                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                                     val labels = listOf(stringResource(R.string.screen_resend), stringResource(R.string.screen_cool_preset), stringResource(R.string.screen_heat_preset))
@@ -970,6 +973,7 @@ fun AcRemoteLayout(
     onSelectChoice: (org.qinyan.rimoat.data.AcStateChoice) -> Unit = {},
     onLearnButton: ((RemoteButton) -> Unit)? = null,
     isLearningMode: Boolean = false,
+    isTransmitting: Boolean = false,
     onRepeatButton: ((RemoteButton) -> Unit)? = null,
     morePage: Boolean = false,
     inlineExtensions: Boolean = false,
@@ -979,24 +983,36 @@ fun AcRemoteLayout(
     unavailableReasons: Map<AcAction, AcUnavailableReason> = emptyMap(),
     onUnavailable: (RemoteButton, AcUnavailableReason) -> Unit = { _, _ -> }
 ) {
-    fun key(action: AcAction): RemoteButton = (acButtonForAction(profile, action)
-        ?: RemoteButton(id = "ac_function_${action.keyType}", label = action.label, sourceKeyType = action.keyType))
-        .copy(acAction = action)
+    val staticAc = profile.useStaticAcButtons || profile.acProtocolId == null
+    fun key(action: AcAction): RemoteButton {
+        val bound = acButtonForAction(profile, action)
+            ?: if (action == AcAction.POWER_OFF) profile.buttons.firstOrNull {
+                it.key == org.qinyan.rimoat.data.ButtonKey.POWER && it.acAction == AcAction.POWER_ON
+            } else null
+        return bound?.let { if (it.acAction == null) it.copy(acAction = action) else it }
+            ?: RemoteButton(id = "ac_function_${action.name}", label = action.name,
+                sourceKeyType = action.keyType, acAction = action)
+    }
+    fun usesRecordedSignal(button: RemoteButton): Boolean = staticAc || button.isLearned
     val tempDownBtn = key(AcAction.TEMP_DOWN)
     val powerAction = if (acState.powerOn) AcAction.POWER_OFF else AcAction.POWER_ON
     val powerBtn = key(powerAction)
-    // The central toggle represents both explicit power commands.
-    key(AcAction.POWER_ON)
-    key(AcAction.POWER_OFF)
     val tempUpBtn = key(AcAction.TEMP_UP)
     val headerReasons = listOf(AcAction.TEMP_DOWN, AcAction.TEMP_UP, powerAction).mapNotNull { action ->
-        val reason = if (action !in availableActions)
-            unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE
-        else acState.temperatureBoundaryReason(action)
+        val button = key(action)
+        val reason = when {
+            usesRecordedSignal(button) -> AcUnavailableReason.MISSING_SIGNAL.takeUnless { button.hasSignal }
+            action !in availableActions -> unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE
+            else -> acState.temperatureBoundaryReason(action)
+        }
         reason?.let { action to it }
     }.toMap()
     fun click(button: RemoteButton, send: () -> Unit) {
-        if (isLearningMode) onLearnButton?.invoke(button) else send()
+        when {
+            isLearningMode -> onLearnButton?.invoke(button)
+            usesRecordedSignal(button) -> onSendButton(button)
+            else -> send()
+        }
     }
     var showTimer by androidx.compose.runtime.saveable.rememberSaveable(profile.id) { mutableStateOf(false) }
     val timerOptions = remember(profile.acProtocolId, acState.powerOn) {
@@ -1007,19 +1023,56 @@ fun AcRemoteLayout(
     val fanAppearance = acState.controlAppearance(AcAction.FAN)
     val timerBadge = if (acState.timerMinutes > 0) org.qinyan.rimoat.i18n.localizedTimerDurationLabel(acState.timerMinutes) else null
     val temperatureCard: @Composable () -> Unit = {
+    if (staticAc) {
+        Surface(shape = RoundedCornerShape(28.dp), color = ExpressiveSurface.card,
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                val powers = listOf(key(AcAction.POWER_ON)) + listOfNotNull(
+                    acButtonForAction(profile, AcAction.POWER_OFF)?.let { key(AcAction.POWER_OFF) }
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    powers.forEach { button ->
+                        RemoteButtonView(
+                            label = stringResource(if (button.key == org.qinyan.rimoat.data.ButtonKey.POWER || powers.size == 1)
+                                R.string.control_power else checkNotNull(button.acAction).labelRes),
+                            iconName = "power", onClick = { click(button) {} },
+                            modifier = Modifier.weight(1f), enabled = !isTransmitting && (isLearningMode || button.hasSignal),
+                            currentState = if (!isLearningMode && !button.hasSignal) stringResource(R.string.control_reason_missing_signal) else null,
+                            onUnavailable = if (isTransmitting) null else ({ onUnavailable(button, AcUnavailableReason.MISSING_SIGNAL) }),
+                            onLongClick = onLearnButton?.let { { it(button) } },
+                            isLearningMode = isLearningMode, variant = RemoteButtonVariant.POWER, diameter = 72.dp
+                        )
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    listOf(tempDownBtn, tempUpBtn).forEach { button ->
+                        val action = checkNotNull(button.acAction)
+                        RemoteButtonView(stringResource(action.labelRes), icon = acState.controlAppearance(action).icon,
+                            onClick = { click(button) {} }, modifier = Modifier.weight(1f),
+                            enabled = !isTransmitting && (isLearningMode || button.hasSignal),
+                            currentState = if (!isLearningMode && !button.hasSignal) stringResource(R.string.control_reason_missing_signal) else null,
+                            onUnavailable = if (isTransmitting) null else ({ onUnavailable(button, AcUnavailableReason.MISSING_SIGNAL) }),
+                            onLongClick = onLearnButton?.let { { it(button) } },
+                            onRepeat = onRepeatButton?.let { { it(button) } }, isLearningMode = isLearningMode)
+                    }
+                }
+            }
+        }
+    } else {
     org.qinyan.rimoat.ui.components.AcTemperatureCard(
         temperature = acState.temperature,
         powerOn = acState.powerOn,
         isDemonstrating = isDemonstrating,
-        canDecrease = isLearningMode || AcAction.TEMP_DOWN !in headerReasons,
-        canIncrease = isLearningMode || AcAction.TEMP_UP !in headerReasons,
-        canTogglePower = isLearningMode || powerAction !in headerReasons,
+        canDecrease = !isTransmitting && (isLearningMode || AcAction.TEMP_DOWN !in headerReasons),
+        canIncrease = !isTransmitting && (isLearningMode || AcAction.TEMP_UP !in headerReasons),
+        canTogglePower = !isTransmitting && (isLearningMode || powerAction !in headerReasons),
         isLearningMode = isLearningMode,
         onDecrease = { click(tempDownBtn, onTempDown) },
         onIncrease = { click(tempUpBtn, onTempUp) },
         onTogglePower = { click(powerBtn, onTogglePower) },
         unavailableDescriptions = headerReasons.mapValues { AppStrings.get(it.value.messageResource()) },
-        onUnavailable = { action -> headerReasons[action]?.let { onUnavailable(key(action), it) } },
+        onUnavailable = if (isTransmitting) null else ({ action -> headerReasons[action]?.let { onUnavailable(key(action), it) } }),
         modeLabel = modeAppearance.label,
         modeIcon = modeAppearance.icon,
         fanLabel = fanAppearance.label,
@@ -1032,28 +1085,32 @@ fun AcRemoteLayout(
             stringResource(acState.mode.labelRes), stringResource(acState.fanSpeed.labelRes))
     )
     }
+    }
     val actions = acPanelActions(profile, availableActions, isLearningMode)
-    val actionButtons = actions.associateWith { key(it).copy(acAction = it, isLearned = false) }
+    val actionButtons = actions.associateWith { key(it) }
     val renderAction: @Composable androidx.compose.foundation.layout.RowScope.(AcAction) -> Unit = { action ->
         val button = actionButtons.getValue(action)
                 val appearance = acState.controlAppearance(action)
-                val available = action in availableActions && (action != AcAction.TIMER || timerOptions.isNotEmpty())
+                val recorded = usesRecordedSignal(button)
+                val available = if (recorded) button.hasSignal else
+                    action in availableActions && (action != AcAction.TIMER || timerOptions.isNotEmpty())
                 val scope = rememberCoroutineScope()
                 var showChoices by remember(action) { mutableStateOf(false) }
                 var choices by remember(action) { mutableStateOf(emptyList<org.qinyan.rimoat.data.AcStateChoice>()) }
-                val canSelect = !isLearningMode && available && org.qinyan.rimoat.data.AcStateChoice.forAction(action).isNotEmpty()
+                val canSelect = !isTransmitting && !recorded && !isLearningMode && available && org.qinyan.rimoat.data.AcStateChoice.forAction(action).isNotEmpty()
                 Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
                 RemoteButtonView(
-                    label = if (isLearningMode || !available) stringResource(action.labelRes) else appearance.label,
+                    label = if (recorded || isLearningMode || !available) stringResource(action.labelRes) else appearance.label,
                     icon = appearance.icon,
                     accessibilityLabel = stringResource(action.labelRes),
                     currentState = when {
-                        isLearningMode -> null
+                        isLearningMode || recorded && available -> null
+                        recorded -> stringResource(R.string.control_reason_missing_signal)
                         !available -> AppStrings.get((unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE).messageResource())
                         else -> appearance.state?.let { AppStrings.get(R.string.screen_setting_state, "%1\$s：%2\$s", if (isDemonstrating) AppStrings.get(R.string.screen_simulated_setting, "模拟设定") else AppStrings.get(R.string.screen_setting, "设定"), it) }
                     },
-                    active = appearance.active,
-                    isToggle = appearance.active != null && action != AcAction.TIMER,
+                    active = appearance.active.takeUnless { recorded },
+                    isToggle = !recorded && appearance.active != null && action != AcAction.TIMER,
                     onClick = { click(button) {
                         when (action) {
                             AcAction.MODE -> onCycleMode()
@@ -1070,10 +1127,11 @@ fun AcRemoteLayout(
                         showChoices = choices.isNotEmpty()
                     } }) else null,
                     isLearningMode = isLearningMode,
-                    enabled = isLearningMode || available,
-                    showSelectionEntry = org.qinyan.rimoat.data.AcStateChoice.forAction(action).isNotEmpty(),
-                    onUnavailable = if (!available && !isLearningMode) ({
-                        onUnavailable(button, unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE)
+                    enabled = !isTransmitting && (isLearningMode || available),
+                    showSelectionEntry = !recorded && org.qinyan.rimoat.data.AcStateChoice.forAction(action).isNotEmpty(),
+                    onUnavailable = if (!isTransmitting && !available && !isLearningMode) ({
+                        onUnavailable(button, if (recorded) AcUnavailableReason.MISSING_SIGNAL else
+                            unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE)
                     }) else null
                 )
                 ExpressiveDropdownMenu(
@@ -1097,11 +1155,11 @@ fun AcRemoteLayout(
     val mainActions = actions.filter { it in setOf(AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.WIND_DIRECTION) }
     val extensionGroups = listOf(actions.filter { it !in mainActions }.map { actionButtons.getValue(it) }, acRawExtensionButtons(profile))
     val renderExtensionButton: @Composable androidx.compose.foundation.layout.RowScope.(RemoteButton) -> Unit = { button ->
-        val action = button.acAction?.takeUnless { button.isLearned }
+        val action = button.acAction
         if (action != null && action in actionButtons) renderAction(action)
         else RemoteButtonView(localizedAcRawButtonLabel(button), button.iconName, { onSendButton(button) },
-            modifier = Modifier.weight(1f), enabled = isLearningMode || button.hasSignal,
-            onUnavailable = { onUnavailable(button, AcUnavailableReason.MISSING_SIGNAL) },
+            modifier = Modifier.weight(1f), enabled = !isTransmitting && (isLearningMode || button.hasSignal),
+            onUnavailable = if (isTransmitting) null else ({ onUnavailable(button, AcUnavailableReason.MISSING_SIGNAL) }),
             onRepeat = onRepeatButton?.let { { it(button) } },
             onLongClick = onLearnButton?.let { { it(button) } }, isLearningMode = isLearningMode,
             buttonId = button.id, builtinLabel = button.builtinLabel, buttonKey = button.key)
@@ -1121,7 +1179,9 @@ fun AcRemoteLayout(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)) {
-                        val columns = org.qinyan.rimoat.ui.components.extensionColumns(displayButtons.map { localizedAcRawButtonLabel(it) }, maxWidth)
+                        val columns = org.qinyan.rimoat.ui.components.extensionColumns(displayButtons.map {
+                            it.acAction?.let { action -> stringResource(action.labelRes) } ?: localizedAcRawButtonLabel(it)
+                        }, maxWidth)
                             .coerceAtMost(displayButtons.size.coerceAtLeast(1))
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             displayButtons.chunked(columns).forEach { row ->
@@ -1164,7 +1224,7 @@ fun AcRemoteLayout(
             if (index > 0) Spacer(Modifier.height(24.dp))
             RemoteFunctionGroups(extendedButtons, onSendButton, onLearnButton, isLearningMode, onRepeatButton,
                 preserveOrder = true, buttonContent = renderExtensionButton,
-                buttonLabel = { localizedAcRawButtonLabel(it) })
+                buttonLabel = { it.acAction?.let { action -> AppStrings.get(action.labelRes) } ?: localizedAcRawButtonLabel(it) })
         }
     }
 
@@ -1344,12 +1404,16 @@ internal fun AcUnavailableReason.messageResource(): Int = when (this) {
     AcUnavailableReason.TEMPERATURE_MAXIMUM -> R.string.control_reason_temperature_maximum
 }
 
-internal fun acPanelActions(profile: RemoteProfile, available: Set<AcAction>, learning: Boolean): List<AcAction> =
-    (listOf(AcAction.MODE, AcAction.FAN) + AcAction.entries.filter { action ->
-        action.ordinal >= AcAction.SWING.ordinal && (action in available ||
-            action in setOf(AcAction.SWING, AcAction.HORIZONTAL_SWING) || learning ||
+internal fun acPanelActions(profile: RemoteProfile, available: Set<AcAction>, learning: Boolean): List<AcAction> {
+    val staticAc = profile.useStaticAcButtons || profile.acProtocolId == null
+    val actions = listOf(AcAction.MODE, AcAction.FAN) + AcAction.entries.filter { action ->
+        action.ordinal >= AcAction.SWING.ordinal && (action == AcAction.SWING ||
+            !staticAc && (action in available || action == AcAction.HORIZONTAL_SWING || learning) ||
             acButtonForAction(profile, action) != null)
-    }).let { actions -> if (learning) actions else actions.filter { panelAction(it) !in profile.panelLayout.hidden }.sortedBy { profile.panelLayout.rank(panelAction(it)) } }
+    }
+    return if (learning) actions else actions.filter { panelAction(it) !in profile.panelLayout.hidden }
+        .sortedBy { profile.panelLayout.rank(panelAction(it)) }
+}
 
 private data class UnavailableControl(val button: RemoteButton, val reason: AcUnavailableReason)
 

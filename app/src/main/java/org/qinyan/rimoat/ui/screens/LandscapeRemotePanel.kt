@@ -127,7 +127,8 @@ internal fun LandscapeRemotePanel(
     primaryScroll: ScrollState = rememberScrollState(),
     secondaryScroll: ScrollState = rememberScrollState()
 ) {
-    val dynamicAc = profile.category == DeviceCategory.AC && !profile.useStaticAcButtons && profile.acProtocolId != null
+    val acPanel = profile.hasAcControlPanel()
+    val dynamicAc = acPanel && !profile.useStaticAcButtons && profile.acProtocolId != null
     val density = LocalDensity.current
     var commonHeight by remember(profile.id) { mutableStateOf(0.dp) }
     val explain: (RemoteButton) -> Unit = { onUnavailable(it, AcUnavailableReason.MISSING_SIGNAL) }
@@ -138,16 +139,17 @@ internal fun LandscapeRemotePanel(
             onCycleMode = onCycleMode, onCycleWind = onCycleWind, availableActions = availableAcActions,
             onAction = onAction, onSendButton = onSendButton, onLoadChoices = onLoadChoices,
             onSelectChoice = onSelectChoice, onLearnButton = onLearnButton, isLearningMode = isLearningMode,
+            isTransmitting = isTransmitting,
             onRepeatButton = onRepeatButton, part = part, unavailableReasons = unavailableReasons,
             onUnavailable = onUnavailable
         )
     }
     CompositionLocalProvider(LocalCompactRemoteButtons provides true) {
-        if (dynamicAc) {
+        if (acPanel) {
             TwoPaneLayout(primary = {
                 PanelScroll("remote_primary", primaryScroll) {
                     acContent(AcLayoutPart.TEMPERATURE)
-                    if (!isLearningMode) AcPanelPresets(profile, isTransmitting, onResend, onPreset)
+                    if (dynamicAc && !isLearningMode) AcPanelPresets(profile, isTransmitting, onResend, onPreset)
                 }
             }, secondary = {
                 BoxWithConstraints(Modifier.fillMaxSize()) {

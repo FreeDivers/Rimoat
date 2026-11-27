@@ -8,6 +8,9 @@ import org.qinyan.rimoat.ui.screens.genericDirectionButtons
 fun panelKey(button: RemoteButton) = "key:${button.id}"
 fun panelAction(action: AcAction) = "ac:${action.name}"
 
+fun RemoteProfile.hasAcControlPanel(): Boolean = category == DeviceCategory.AC &&
+    (useStaticAcButtons || acProtocolId != null)
+
 private val NUMERIC_BUTTON_ID = Regex("(?:tv_)?num_(\\d)")
 
 internal fun remoteButtonNumber(button: RemoteButton): Int? =
@@ -16,7 +19,7 @@ internal fun remoteButtonNumber(button: RemoteButton): Int? =
 
 /** Spatial combinations retain their geometry and their complete signal set. */
 fun fixedPanelKeys(profile: RemoteProfile): Set<String> {
-    if (profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons) return emptySet()
+    if (profile.hasAcControlPanel()) return emptySet()
     val power = profile.buttons.firstOrNull { it.isPowerKey() }
     val fixed = mutableSetOf<String>()
     power?.let { fixed += it.id }
@@ -38,24 +41,25 @@ fun RemoteProfile.withPanelPresentation(): RemoteProfile {
         .sortedBy { if (it.id in fixed) -1 else panelLayout.rank(panelKey(it)) })
 }
 
-/** Stable metadata takes precedence over old labels, even when a user renames a key. */
+/** A user's label never assigns an AC function; stable metadata survives renaming. */
 private fun acButtonMatchesAction(button: RemoteButton, action: AcAction): Boolean {
     button.acAction?.let { return it == action }
     AcAction.entries.firstOrNull { it.keyType == button.sourceKeyType }?.let { return it == action }
-    val aliases = when (action) {
-        AcAction.POWER_ON -> setOf("开机", "电源", "开关")
-        AcAction.TEMP_UP -> setOf("温度+", "升温", "温度加")
-        AcAction.TEMP_DOWN -> setOf("温度-", "降温", "温度减")
-        AcAction.FAN -> setOf("风速", "风量")
-        else -> setOf(action.label)
+    if (button.isLearned && button.builtinLabel == null && button.sourceKeyType == null) return false
+    val keys = when (action) {
+        AcAction.POWER_ON -> setOf(ButtonKey.POWER_ON, ButtonKey.POWER)
+        AcAction.FAN -> setOf(ButtonKey.FAN_SPEED, ButtonKey.AIRFLOW)
+        AcAction.SWING -> setOf(ButtonKey.SWING, ButtonKey.VERTICAL_SWING)
+        else -> setOf(action.buttonKey)
     }
-    return button.label in aliases
+    return button.key in keys
 }
 
 /** The state control chooses the most explicit binding; every duplicate remains represented by that control. */
 fun acButtonForAction(profile: RemoteProfile, action: AcAction): RemoteButton? =
     profile.buttons.filter { acButtonMatchesAction(it, action) }.minByOrNull { button ->
         when {
+            button.isLearned && button.hasSignal -> -1
             button.acAction == action -> 0
             button.sourceKeyType == action.keyType -> 1
             else -> 2
@@ -63,7 +67,7 @@ fun acButtonForAction(profile: RemoteProfile, action: AcAction): RemoteButton? =
     }
 
 fun acRawExtensionButtons(profile: RemoteProfile): List<RemoteButton> =
-    profile.buttons.filter { button -> button.isLearned || AcAction.entries.none { acButtonMatchesAction(button, it) } }
+    profile.buttons.filter { button -> AcAction.entries.none { acButtonMatchesAction(button, it) } }
 
 /** Policy for migrated buttons; a custom name alone never assigns a function. */
 fun RemoteButton.isPowerKey(): Boolean = key in setOf(

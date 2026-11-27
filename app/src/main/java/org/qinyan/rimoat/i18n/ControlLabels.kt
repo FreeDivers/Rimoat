@@ -272,6 +272,11 @@ fun localizedButtonLabel(button: RemoteButton, context: Context? = null): String
             context?.getString(resource) ?: AppStrings.get(resource, button.label)
         }
     }
+    button.isLearned && button.sourceKeyType == null && !button.id.startsWith("ac_function_") -> button.label
+    button.acAction != null && button.label == button.acAction.name -> {
+        val resource = button.acAction.labelRes
+        context?.getString(resource) ?: AppStrings.get(resource, button.label)
+    }
     button.acAction != null || button.id.startsWith("ac_function_") -> localizedLabel(button.label, context)
     button.sourceKeyType != null -> localizedCatalogKeyLabel(button, context) ?: localizedLabel(button.label, context)
     else -> button.label
