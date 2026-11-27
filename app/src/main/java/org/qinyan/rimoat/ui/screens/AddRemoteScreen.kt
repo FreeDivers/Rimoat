@@ -355,7 +355,7 @@ fun AddRemoteScreen(
                             onNameChange = { viewModel.updateCustomName(it) },
                             onSave = {
                                 HapticHelper.performRemoteClick(haptic, context)
-                                viewModel.saveRemote(onRemoteCreated)
+                                viewModel.saveRemote(stepState.displayRemoteName(context), onRemoteCreated)
                             }
                         )
                     }
@@ -560,7 +560,8 @@ fun ConfirmRemoteView(
     val keyboard = LocalSoftwareKeyboardController.current
     val model = state.currentRemote
     val icon = getCategoryIcon(state.selectedCategory?.code.orEmpty())
-    val canSave = state.customRemoteName.isNotBlank() && !state.isLoading && !state.isSaving
+    val name = state.defaultRemoteName?.asString()?.take(100) ?: state.customRemoteName
+    val canSave = name.isNotBlank() && !state.isLoading && !state.isSaving
 
     val wide = rememberWideLayout()
     val primaryScroll = rememberScrollState()
@@ -606,7 +607,7 @@ fun ConfirmRemoteView(
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ExpressiveTextField(
-                    value = state.customRemoteName,
+                    value = name,
                     onValueChange = onNameChange,
                     enabled = !state.isSaving,
                     label = { Text(stringResource(R.string.screen_remote_name)) },
@@ -676,3 +677,6 @@ fun ConfirmRemoteView(
             horizontalAlignment = Alignment.CenterHorizontally) { summary(); form() }
     }
 }
+
+internal fun AddRemoteUiState.displayRemoteName(context: android.content.Context): String =
+    defaultRemoteName?.resolve(context)?.take(100) ?: customRemoteName

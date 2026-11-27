@@ -95,6 +95,24 @@ class AppLanguageResourcesTest {
     }
 
     @Test
+    fun resourceArgumentsResolveInAllSupportedLanguages() {
+        for (tag in listOf("zh-CN", "zh-Hant", "en", "ja")) {
+            select(tag)
+            AppStrings.initialize(app)
+            val context = AppStrings.resourceContext()
+            assertEquals(context.getString(R.string.control_learned_button_name, "Custom"),
+                AppStrings.get(R.string.control_learned_button_name, "Custom"))
+            assertEquals(context.resources.getQuantityString(R.plurals.control_minutes, 3, 3),
+                AppStrings.quantity(R.plurals.control_minutes, 3, 3))
+            val name = UiText.resource(R.string.screen_default_remote_name,
+                UiText.CatalogBrand("品牌", "Brand"), UiText.Resource(R.string.screen_category_tv))
+            assertEquals(context.getString(R.string.screen_default_remote_name,
+                if (tag.startsWith("zh")) "品牌" else "Brand", context.getString(R.string.screen_category_tv)),
+                name.resolve(context))
+        }
+    }
+
+    @Test
     fun backgroundAndPreviouslyLocalizedContextsFollowTheCurrentChoice() {
         select("ja")
         val japanese = AppLanguage.wrap(app)

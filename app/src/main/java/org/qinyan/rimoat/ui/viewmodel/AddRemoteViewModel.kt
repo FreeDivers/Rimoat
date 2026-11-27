@@ -2,10 +2,9 @@ package org.qinyan.rimoat.ui.viewmodel
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppError
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.UiText
-import org.qinyan.rimoat.i18n.localizedLabel
+import org.qinyan.rimoat.i18n.displayText
 import org.qinyan.rimoat.i18n.toAppError
 import org.qinyan.rimoat.i18n.wrapped
 import androidx.lifecycle.SavedStateHandle
@@ -64,6 +63,7 @@ data class AddRemoteUiState(
     val allPreviewButtons: List<RemoteButton> = emptyList(),
     val isSendingTest: Boolean = false,
     val customRemoteName: String = "",
+    val defaultRemoteName: UiText? = null,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val error: UiText? = null,
@@ -360,7 +360,7 @@ class AddRemoteViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = UiText.resource(R.string.msg_brand_no_codes, brand.displayText()),
+                            error = UiText.resource(R.string.msg_brand_no_codes, brand.displayText),
                             errorAction = null
                         )
                     }
@@ -373,7 +373,7 @@ class AddRemoteViewModel(
                 val previewKeys = irDbRepository.buildRemoteProfile(firstRemote).buttons
                 val distinctions = differences(firstRemote, remotes, previewKeys)
 
-                val defaultName = "${brand.displayName()} ${localizedLabel(category.nameCn)}".take(100)
+                val defaultName = UiText.resource(R.string.screen_default_remote_name, brand.displayText, category.displayText)
                 if (epoch != loadEpoch) return@launch
                 _uiState.update {
                     it.copy(
@@ -383,7 +383,8 @@ class AddRemoteViewModel(
                         primaryTestKey = primaryKey,
                         secondaryTestKey = secondaryKey,
                         allPreviewButtons = previewKeys,
-                        customRemoteName = saved?.name?.takeIf { it.isNotBlank() } ?: defaultName,
+                        customRemoteName = saved?.name.orEmpty(),
+                        defaultRemoteName = defaultName.takeIf { saved?.name.isNullOrBlank() },
                         verifiedFunctions = verifiedFor(firstRemote.remoteId, previewKeys + listOfNotNull(primaryKey, secondaryKey)),
                         observations = observationsFor(firstRemote.remoteId, previewKeys + listOfNotNull(primaryKey, secondaryKey)),
                         distinguishingKeys = distinctions,
@@ -538,10 +539,10 @@ class AddRemoteViewModel(
     }
 
     fun updateCustomName(name: String) {
-        _uiState.update { it.copy(customRemoteName = name.take(100), error = null, errorAction = null) }
+        _uiState.update { it.copy(customRemoteName = name.take(100), defaultRemoteName = null, error = null, errorAction = null) }
     }
 
-    fun saveRemote(onSaved: (RemoteProfile) -> Unit) {
+    fun saveRemote(displayedName: String? = null, onSaved: (RemoteProfile) -> Unit) {
         val state = _uiState.value
         val model = state.currentRemote ?: return
         if (state.isSaving || state.isLoading) return
@@ -549,7 +550,7 @@ class AddRemoteViewModel(
         _uiState.update { it.copy(isLoading = true, isSaving = true, error = null, errorAction = null) }
         saveJob = viewModelScope.launch {
             try {
-                val built = LegacyRemoteMigration.normalizeKeys(irDbRepository.buildRemoteProfile(model, state.customRemoteName))
+                val built = LegacyRemoteMigration.normalizeKeys(irDbRepository.buildRemoteProfile(model, if (state.defaultRemoteName != null) displayedName else state.customRemoteName))
                 val profile = built.copy(verifiedFunctions = built.buttons
                     .filter { it.id in state.verifiedFunctions }.map { it.verifiedFunctionId }.distinct())
                 if (epoch != saveEpoch) return@launch
@@ -566,7 +567,7 @@ class AddRemoteViewModel(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (epoch != saveEpoch) return@launch
-                retryAction = { saveRemote(onSaved) }
+                retryAction = { saveRemote(displayedName, onSaved) }
                 val mapped = e.toAppError(R.string.control_unknown_error, ErrorAction.Retry)
                     .wrapped(R.string.msg_remote_save_failed, ErrorAction.Retry)
                 _uiState.update {
@@ -659,9 +660,3 @@ class AddRemoteViewModel(
         private const val MAX_SAVED_BRANDS = 5
     }
 }
-
-private fun IrBrand.displayName(): String = if (AppStrings.currentLanguage != "zh") nameEn.ifBlank { nameCn } else nameCn
-
-private fun IrBrand.displayText(): UiText = if (nameCn == "其他" || nameCn == "其它") {
-    UiText.Resource(R.string.screen_other_brand)
-} else UiText.CatalogBrand(nameCn, nameEn)

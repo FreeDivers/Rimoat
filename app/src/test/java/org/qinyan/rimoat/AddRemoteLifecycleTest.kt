@@ -18,6 +18,27 @@ import java.nio.file.Files
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddRemoteLifecycleTest {
     @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
+
+    @Test fun suggestedNameRetainsResourceIdentityUntilTheUserEditsIt() = scenario { vm, catalog ->
+        vm.selectCategory(catalog.category)
+        runCurrent()
+        val brand = IrBrand(1, "测试", "Test", "test", 1)
+        catalog.brands.getValue("").complete(listOf(brand))
+        catalog.models.complete(listOf(IrRemoteModel("R_tv_1", 1, "电视", 1, "测试", "Test", 1, "方案", 1)))
+        vm.selectBrand(brand)
+        runCurrent()
+        assertEquals("", vm.uiState.value.customRemoteName)
+        val suggested = vm.uiState.value.defaultRemoteName as UiText.Resource
+        assertEquals(R.string.screen_default_remote_name, suggested.id)
+        assertEquals(UiText.CatalogBrand("测试", "Test"), suggested.arguments[0])
+        assertEquals(UiText.Resource(R.string.screen_category_tv), suggested.arguments[1])
+        vm.updateCustomName("My own remote")
+        assertEquals("My own remote", vm.uiState.value.customRemoteName)
+        assertNull(vm.uiState.value.defaultRemoteName)
+        vm.proceedToConfirm()
+        assertEquals("My own remote", vm.uiState.value.customRemoteName)
+        assertNull(vm.uiState.value.defaultRemoteName)
+    }
     private class Catalog : IrCatalog {
         val category = IrCategory(1, "电视", "TV", "tv")
         var categoriesAction: suspend () -> List<IrCategory> = { listOf(category) }

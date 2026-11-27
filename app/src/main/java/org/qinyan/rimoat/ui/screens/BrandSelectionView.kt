@@ -84,9 +84,7 @@ fun BrandSelectionView(
     val configuration = LocalConfiguration.current
     val keyboard = LocalSoftwareKeyboardController.current
     val searchFocus = rememberSearchFocusController()
-    val preferEnglish = remember(brandContext, configuration) {
-        org.qinyan.rimoat.i18n.AppLanguage.wrap(brandContext).resources.configuration.locales[0].language != "zh"
-    }
+    val preferEnglish = configuration.locales[0].language != "zh"
     val otherBrandLabel = stringResource(R.string.screen_other_brand)
     val precomputed = if (preferEnglish) precomputedGroupsEn else precomputedGroupsCn
     val groups = remember(brands, preferEnglish, precomputed) {
@@ -98,12 +96,7 @@ fun BrandSelectionView(
     val positions = remember(groups, showPopular, wide) { brandHeaderPositions(groups, if (showPopular && !wide) 1 else 0) }
     val letters = remember(positions) { ('A'..'Z').toList() + if ('#' in positions) listOf('#') else emptyList() }
     val popularNames = remember(category?.code) {
-        when (category?.code) {
-            "tv" -> listOf("小米", "创维", "海信", "索尼", "TCL", "飞利浦", "长虹", "三星", "其它")
-            "air" -> listOf("格力", "美的", "海尔", "奥克斯", "志高", "三菱", "大金", "松下", "其它")
-            "fan" -> listOf("美的", "艾美特", "格力", "先锋", "华生", "联创", "其它")
-            else -> listOf("小米", "华为", "索尼", "飞利浦", "创维", "其它")
-        }
+        org.qinyan.rimoat.data.popularCatalogBrandNames(category?.code)
     }
     val popular = remember(brands, popularNames) {
         val matches = popularNames.mapNotNull { name ->

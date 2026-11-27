@@ -15,10 +15,7 @@ object AppStrings {
     }
 
     internal interface ResourceResolver {
-        val currentLanguage: String
-        get() = application?.let { AppLanguage.wrap(it).resources.configuration.locales[0].language } ?: "zh"
-
-    fun get(id: Int, vararg args: Any): String
+        fun get(id: Int, vararg args: Any): String
         fun quantity(id: Int, quantity: Int, vararg args: Any): String
     }
 
