@@ -1,7 +1,6 @@
 package org.qinyan.rimoat.ui.components
 
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -68,10 +67,13 @@ fun TransmitterSelectionBottomSheet(
     val context = androidx.compose.ui.platform.LocalContext.current
     val demoSelected = forceMock || manualSelection == TransmitterType.MOCK
     val automatic = manualSelection == null && !forceMock
-    val channels = transmitterChannels(
-        available.map { it.type }.toSet(), manualSelection.takeUnless { demoSelected },
-        usbDevices, serialSettings, serialSettingsLoaded
-    )
+    val availableTypes = remember(available) { available.map { it.type }.toSet() }
+    val channels = remember(availableTypes, manualSelection, demoSelected, usbDevices, serialSettings, serialSettingsLoaded) {
+        transmitterChannels(
+            availableTypes, manualSelection.takeUnless { demoSelected },
+            usbDevices, serialSettings, serialSettingsLoaded
+        )
+    }
     val usable = channels.filter { it.available }
     val attention = channels.filter { it.needsAttention }
     val unavailable = channels.filter { !it.available && !it.needsAttention }
@@ -95,14 +97,14 @@ fun TransmitterSelectionBottomSheet(
                 Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(AppStrings.get(R.string.control_ir_channel), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = { scope.launch { sheetState.hide(); onDismissRequest() } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_done)) }
+                Text(stringResource(R.string.control_ir_channel), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                TextButton(onClick = { scope.launch { sheetState.hide(); onDismissRequest() } }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.control_done)) }
             }
             val choices: @Composable () -> Unit = {
                 Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ChannelChoice(AppStrings.get(R.string.control_auto_select), Icons.Rounded.AutoMode, automatic, onClick = { select(null) })
+                    ChannelChoice(stringResource(R.string.control_auto_select), Icons.Rounded.AutoMode, automatic, onClick = { select(null) })
                     if (usable.isNotEmpty()) {
-                        ChannelSectionTitle(AppStrings.get(R.string.control_available_devices))
+                        ChannelSectionTitle(stringResource(R.string.control_available_devices))
                         Column(verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)) {
                             usable.forEachIndexed { index, channel ->
                                 HardwareChannelItem(channel, usbDevices.any { it.pending },
@@ -113,7 +115,7 @@ fun TransmitterSelectionBottomSheet(
                         }
                     }
                     if (attention.isNotEmpty()) {
-                        ChannelSectionTitle(AppStrings.get(R.string.control_pending_devices))
+                        ChannelSectionTitle(stringResource(R.string.control_pending_devices))
                         Column(verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)) {
                             attention.forEachIndexed { index, channel ->
                                 HardwareChannelItem(channel, usbDevices.any { it.pending },
@@ -127,17 +129,18 @@ fun TransmitterSelectionBottomSheet(
                         }
                     }
                     if (unavailable.isNotEmpty()) {
+                        val expansionLabel = stringResource(if (showUnavailable) R.string.control_expanded else R.string.control_collapsed)
                         // This row expands information; it never looks like a channel choice.
                         TextButton(
                             onClick = { showUnavailable = !showUnavailable },
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp).semantics {
-                                stateDescription = if (showUnavailable) AppStrings.get(R.string.control_expanded) else AppStrings.get(R.string.control_collapsed)
+                                stateDescription = expansionLabel
                             },
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
                             shapes = ButtonDefaults.shapes()
                         ) {
-                            Text(AppStrings.get(R.string.control_unavailable_count, unavailable.size), Modifier.weight(1f))
+                            Text(stringResource(R.string.control_unavailable_count, unavailable.size), Modifier.weight(1f))
                             Icon(if (showUnavailable) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
                         }
                         ExpandSection(visible = showUnavailable) {
@@ -147,14 +150,14 @@ fun TransmitterSelectionBottomSheet(
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    ChannelChoice(AppStrings.get(R.string.control_demo_mode), Icons.Rounded.SensorsOff, demoSelected,
+                    ChannelChoice(stringResource(R.string.control_demo_mode), Icons.Rounded.SensorsOff, demoSelected,
                         onClick = { select(TransmitterType.MOCK) })
                 }
                 if (!inlineSerialSettings) {
                     OutlinedButton(onClick = { showSerialSettings = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shapes = ButtonDefaults.shapes()) {
                         Icon(Icons.Rounded.Settings, null, Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                        Text(AppStrings.get(R.string.control_serial_config))
+                        Text(stringResource(R.string.control_serial_config))
                     }
                 }
             }

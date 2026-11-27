@@ -1,7 +1,7 @@
 package org.qinyan.rimoat.ui.components
 
+import androidx.compose.ui.res.stringResource
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.UiTextStateSaver
 import org.qinyan.rimoat.i18n.asString
@@ -55,10 +55,10 @@ fun SerialIrSettingsDialog(manager: IrTransmitterManager, onDismiss: () -> Unit)
         MotionAlertDialog(
             onDismissRequest = onDismiss,
             containerColor = ExpressiveSurface.canvas,
-            title = { Text(AppStrings.get(R.string.control_serial_config)) },
+            title = { Text(stringResource(R.string.control_serial_config)) },
             text = { LinearWavyProgressIndicator(Modifier.fillMaxWidth()) },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onDismiss, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_cancel)) } }
+            dismissButton = { TextButton(onClick = onDismiss, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.control_cancel)) } }
         )
         return
     }
@@ -97,7 +97,7 @@ internal fun SerialIrSettingsForm(
         modifier = if (wide) modifier.fillMaxWidth(.96f).widthIn(max = 960.dp) else modifier,
         containerColor = ExpressiveSurface.canvas,
         properties = DialogProperties(usePlatformDefaultWidth = !wide),
-        title = { Text(AppStrings.get(R.string.control_serial_config)) },
+        title = { Text(stringResource(R.string.control_serial_config)) },
         text = {
             ProvideExpressiveCanvas {
                 val moduleEntries = SerialIrModule.entries
@@ -127,12 +127,12 @@ internal fun SerialIrSettingsForm(
                         val hasDevices = devices.isNotEmpty()
                         val selectorInteractive = hasDevices && !saving
                         val deviceLabel = selectedDevice?.label ?: if (selectionMissing) selectedLabel
-                            else if (saved.vendorId == null) AppStrings.get(R.string.control_select_serial)
-                            else AppStrings.get(R.string.control_keep_serial)
+                            else if (saved.vendorId == null) stringResource(R.string.control_select_serial)
+                            else stringResource(R.string.control_keep_serial)
                         val deviceSupport = when {
-                            selectionMissing -> AppStrings.get(R.string.control_select_again)
-                            !hasDevices -> AppStrings.get(R.string.control_no_serial_usb)
-                            selectedDevice != null -> AppStrings.get(R.string.control_port_count, selectedDevice.portCount)
+                            selectionMissing -> stringResource(R.string.control_select_again)
+                            !hasDevices -> stringResource(R.string.control_no_serial_usb)
+                            selectedDevice != null -> stringResource(R.string.control_port_count, selectedDevice.portCount)
                             else -> null
                         }
                         Box(Modifier.fillMaxWidth()) {
@@ -203,7 +203,7 @@ internal fun SerialIrSettingsForm(
                                         text = { Text(device.label) },
                                         supportingText = {
                                             Column {
-                                                Text(AppStrings.get(R.string.control_port_count, device.portCount))
+                                                Text(stringResource(R.string.control_port_count, device.portCount))
                                                 if (devices.count { it.label == device.label } > 1) {
                                                     Text(device.deviceName)
                                                 }
@@ -224,14 +224,14 @@ internal fun SerialIrSettingsForm(
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                                 shapes = ButtonDefaults.shapes()
                             ) {
-                                Text(AppStrings.get(R.string.control_authorize_usb))
+                                Text(stringResource(R.string.control_authorize_usb))
                             }
                         }
                         ExpressiveTextField(
                             value = port,
                             onValueChange = { port = it; error = null },
-                            label = { Text(AppStrings.get(R.string.control_port_index)) },
-                            supportingText = { Text(AppStrings.get(R.string.control_zero_based)) },
+                            label = { Text(stringResource(R.string.control_port_index)) },
+                            supportingText = { Text(stringResource(R.string.control_zero_based)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !saving,
@@ -242,7 +242,7 @@ internal fun SerialIrSettingsForm(
                         ExpressiveTextField(
                             value = baud,
                             onValueChange = { baud = it; error = null },
-                            label = { Text(AppStrings.get(R.string.control_baud_rate)) },
+                            label = { Text(stringResource(R.string.control_baud_rate)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !saving,
@@ -251,8 +251,8 @@ internal fun SerialIrSettingsForm(
                         ExpressiveTextField(
                             value = address,
                             onValueChange = { address = it; error = null },
-                            label = { Text(AppStrings.get(R.string.control_module_address)) },
-                            supportingText = { Text(AppStrings.get(R.string.control_hexadecimal)) },
+                            label = { Text(stringResource(R.string.control_module_address)) },
+                            supportingText = { Text(stringResource(R.string.control_hexadecimal)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !saving
@@ -260,7 +260,7 @@ internal fun SerialIrSettingsForm(
                     }
                     SerialFormSection(visible = module == SerialIrModule.IR_TOY, topPadding = 12.dp) {
                         Text(
-                            AppStrings.get(R.string.control_firmware),
+                            stringResource(R.string.control_firmware),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(horizontal = 4.dp)
@@ -331,11 +331,11 @@ internal fun SerialIrSettingsForm(
                 }
             }, shapes = ButtonDefaults.shapes()) {
                 StateFade(saving) { active ->
-                    Text(if (active) AppStrings.get(R.string.control_saving) else AppStrings.get(R.string.control_save))
+                    Text(if (active) stringResource(R.string.control_saving) else stringResource(R.string.control_save))
                 }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_cancel)) } }
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.control_cancel)) } }
     )
 }
 
