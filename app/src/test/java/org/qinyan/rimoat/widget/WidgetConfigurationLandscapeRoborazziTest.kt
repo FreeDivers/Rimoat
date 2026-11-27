@@ -183,8 +183,14 @@ class WidgetConfigurationLandscapeRoborazziTest {
             assertEquals("Power", powerLabel)
             shadowOf(Looper.getMainLooper()).idle()
             composeRule.waitForIdle()
-            val configurationPane = composeRule.onNode(hasScrollAction() and hasAnyAncestor(hasTestTag("two_pane_secondary")))
-            configurationPane.performScrollToNode(hasText(powerLabel))
+            val configurationPaneMatcher = hasScrollAction() and hasAnyAncestor(hasTestTag("two_pane_secondary"))
+            composeRule.waitUntil(timeoutMillis = 10_000) {
+                composeRule.onAllNodesWithTag("two_pane_primary").fetchSemanticsNodes().size == 1 &&
+                    composeRule.onAllNodesWithTag("two_pane_secondary").fetchSemanticsNodes().size == 1 &&
+                    composeRule.onAllNodes(configurationPaneMatcher).fetchSemanticsNodes().size == 1
+            }
+            val configurationPane = composeRule.onNode(configurationPaneMatcher)
+            configurationPane.performScrollToIndex(0)
             composeRule.onNodeWithText(powerLabel).assertIsDisplayed()
             val left = composeRule.onNodeWithTag("two_pane_primary").fetchSemanticsNode().boundsInRoot
             val right = composeRule.onNodeWithTag("two_pane_secondary").fetchSemanticsNode().boundsInRoot
