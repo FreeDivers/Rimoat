@@ -23,6 +23,18 @@ internal enum class UpdatePhase {
     INSTALLING, DOWNLOADED, ERROR,
 }
 
+internal enum class UpdateErrorStage {
+    CHECK, DOWNLOAD, VERIFY, INSTALL,
+}
+
+internal fun UpdateFailure.defaultErrorStage(): UpdateErrorStage = when (this) {
+    UpdateFailure.CHECK_TIMEOUT, UpdateFailure.NO_RELEASE, UpdateFailure.INVALID_RELEASE,
+    UpdateFailure.NETWORK, UpdateFailure.RATE_LIMIT -> UpdateErrorStage.CHECK
+    UpdateFailure.NO_APK, UpdateFailure.DOWNLOAD, UpdateFailure.STORAGE -> UpdateErrorStage.DOWNLOAD
+    UpdateFailure.INVALID_APK, UpdateFailure.SIGNATURE -> UpdateErrorStage.VERIFY
+    UpdateFailure.PERMISSION, UpdateFailure.INSTALLER -> UpdateErrorStage.INSTALL
+}
+
 internal data class AppUpdateState(
     val phase: UpdatePhase = UpdatePhase.CLOSED,
     val release: AppRelease? = null,
@@ -30,6 +42,8 @@ internal data class AppUpdateState(
     val totalBytes: Long = 0,
     val apk: File? = null,
     val failure: UpdateFailure? = null,
+    val errorStage: UpdateErrorStage? = failure?.defaultErrorStage(),
+    val minimized: Boolean = false,
 )
 
 internal class AppUpdateViewModel(
@@ -73,12 +87,12 @@ internal class AppUpdateViewModel(
                     release = release,
                 )
             } catch (_: TimeoutCancellationException) {
-                fail(UpdateFailure.CHECK_TIMEOUT, request)
+                fail(UpdateFailure.CHECK_TIMEOUT, request, UpdateErrorStage.CHECK)
             } catch (_: SocketTimeoutException) {
-                fail(UpdateFailure.CHECK_TIMEOUT, request)
+                fail(UpdateFailure.CHECK_TIMEOUT, request, UpdateErrorStage.CHECK)
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (error: Exception) {
-                fail((error as? UpdateException)?.failure ?: UpdateFailure.NETWORK, request)
+                fail((error as? UpdateException)?.failure ?: UpdateFailure.NETWORK, request, UpdateErrorStage.CHECK)
             }
         }
     }
@@ -87,11 +101,20 @@ internal class AppUpdateViewModel(
         val current = state.value
         if (current.phase !in setOf(UpdatePhase.AVAILABLE, UpdatePhase.ERROR)) return
         val release = current.release ?: return
-        if (release.asset == null) { mutableState.value = current.copy(failure = UpdateFailure.NO_APK); return }
+        if (release.asset == null) {
+            mutableState.value = current.copy(failure = UpdateFailure.NO_APK, errorStage = UpdateErrorStage.DOWNLOAD)
+            return
+        }
         val request = ++generation
         operation?.cancel()
-        mutableState.value = current.copy(phase = UpdatePhase.DOWNLOADING, failure = null, downloadedBytes = 0,
-            totalBytes = release.asset.size)
+        mutableState.value = current.copy(
+            phase = UpdatePhase.DOWNLOADING,
+            failure = null,
+            errorStage = null,
+            downloadedBytes = 0,
+            totalBytes = release.asset.size,
+            minimized = false,
+        )
         operation = viewModelScope.launch {
             try {
                 var lastPercent = -1
@@ -110,7 +133,13 @@ internal class AppUpdateViewModel(
                 mutableState.value = state.value.copy(phase = UpdatePhase.READY, apk = file)
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (error: Exception) {
-                fail((error as? UpdateException)?.failure ?: UpdateFailure.DOWNLOAD, request)
+                val failure = (error as? UpdateException)?.failure ?: UpdateFailure.DOWNLOAD
+                val stage = if (failure == UpdateFailure.INVALID_APK || failure == UpdateFailure.SIGNATURE) {
+                    UpdateErrorStage.VERIFY
+                } else {
+                    UpdateErrorStage.DOWNLOAD
+                }
+                fail(failure, request, stage)
             }
         }
     }
@@ -118,23 +147,48 @@ internal class AppUpdateViewModel(
     fun requirePermission() { mutableState.value = state.value.copy(phase = UpdatePhase.PERMISSION) }
     fun awaitingPermission() {
         savedState["update_waiting"] = true
-        mutableState.value = state.value.copy(phase = UpdatePhase.WAITING_PERMISSION, failure = null)
+        mutableState.value = state.value.copy(phase = UpdatePhase.WAITING_PERMISSION, failure = null, errorStage = null)
     }
     fun permissionResult(granted: Boolean) {
         if (state.value.phase != UpdatePhase.WAITING_PERMISSION) return
         savedState["update_waiting"] = false
-        mutableState.value = state.value.copy(phase = if (granted) UpdatePhase.READY else UpdatePhase.PERMISSION,
-            failure = if (granted) null else UpdateFailure.PERMISSION)
+        mutableState.value = state.value.copy(
+            phase = if (granted) UpdatePhase.READY else UpdatePhase.PERMISSION,
+            failure = if (granted) null else UpdateFailure.PERMISSION,
+            errorStage = if (granted) null else UpdateErrorStage.INSTALL,
+        )
     }
-    fun installing() { mutableState.value = state.value.copy(phase = UpdatePhase.INSTALLING, failure = null) }
+    fun installing() { mutableState.value = state.value.copy(phase = UpdatePhase.INSTALLING, failure = null, errorStage = null) }
     fun installerReturned() {
         if (state.value.phase == UpdatePhase.INSTALLING) mutableState.value = state.value.copy(phase = UpdatePhase.DOWNLOADED)
     }
-    fun installAgain() { mutableState.value = state.value.copy(phase = UpdatePhase.READY, failure = null) }
-    fun installationFailed() { mutableState.value = state.value.copy(phase = UpdatePhase.DOWNLOADED, failure = UpdateFailure.INSTALLER) }
+    fun installAgain() { mutableState.value = state.value.copy(phase = UpdatePhase.READY, failure = null, errorStage = null) }
+    fun installationFailed() {
+        mutableState.value = state.value.copy(
+            phase = UpdatePhase.DOWNLOADED,
+            failure = UpdateFailure.INSTALLER,
+            errorStage = UpdateErrorStage.INSTALL,
+        )
+    }
     fun permissionUnavailable() {
         savedState["update_waiting"] = false
-        mutableState.value = state.value.copy(phase = UpdatePhase.PERMISSION, failure = UpdateFailure.PERMISSION)
+        mutableState.value = state.value.copy(
+            phase = UpdatePhase.PERMISSION,
+            failure = UpdateFailure.PERMISSION,
+            errorStage = UpdateErrorStage.INSTALL,
+        )
+    }
+
+    fun minimize() {
+        if (state.value.phase == UpdatePhase.DOWNLOADING) {
+            mutableState.value = state.value.copy(minimized = true)
+        }
+    }
+
+    fun resume() {
+        if (state.value.phase != UpdatePhase.CLOSED) {
+            mutableState.value = state.value.copy(minimized = false)
+        }
     }
 
     fun cancel() {
@@ -150,7 +204,9 @@ internal class AppUpdateViewModel(
         mutableState.value = AppUpdateState()
     }
 
-    private fun fail(failure: UpdateFailure, request: Int) {
-        if (generation == request) mutableState.value = state.value.copy(phase = UpdatePhase.ERROR, failure = failure)
+    private fun fail(failure: UpdateFailure, request: Int, stage: UpdateErrorStage) {
+        if (generation == request) {
+            mutableState.value = state.value.copy(phase = UpdatePhase.ERROR, failure = failure, errorStage = stage)
+        }
     }
 }

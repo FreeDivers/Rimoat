@@ -43,9 +43,11 @@ class AppUpdateViewModelTest {
         dispatcher.scheduler.advanceTimeBy(1)
         dispatcher.scheduler.runCurrent()
         assertEquals(UpdateFailure.CHECK_TIMEOUT, vm.state.value.failure)
+        assertEquals(UpdateErrorStage.CHECK, vm.state.value.errorStage)
         repository.latest = { release }
         vm.check(); dispatcher.scheduler.runCurrent()
         assertEquals(UpdatePhase.AVAILABLE, vm.state.value.phase)
+        assertNull(vm.state.value.errorStage)
     }
 
     @Test fun equalAndOlderReleasesDoNotOfferDowngrades() {
@@ -83,11 +85,14 @@ class AppUpdateViewModelTest {
         val vm = model(repository, handle)
         vm.check(); dispatcher.scheduler.runCurrent(); vm.download(); dispatcher.scheduler.runCurrent()
         assertEquals(UpdateFailure.DOWNLOAD, vm.state.value.failure)
+        assertEquals(UpdateErrorStage.DOWNLOAD, vm.state.value.errorStage)
         repository.fetch = { progress -> progress(100, 100); file }
         vm.download(); dispatcher.scheduler.runCurrent()
         assertEquals(UpdatePhase.READY, vm.state.value.phase)
+        assertNull(vm.state.value.errorStage)
         vm.requirePermission(); vm.awaitingPermission(); vm.permissionResult(false)
         assertEquals(UpdateFailure.PERMISSION, vm.state.value.failure)
+        assertEquals(UpdateErrorStage.INSTALL, vm.state.value.errorStage)
         assertTrue(file.exists())
         vm.awaitingPermission()
         val restored = model(repository, handle)
@@ -96,8 +101,13 @@ class AppUpdateViewModelTest {
         assertEquals(UpdatePhase.READY, restored.state.value.phase)
         restored.installing(); restored.installerReturned()
         assertEquals(UpdatePhase.DOWNLOADED, restored.state.value.phase)
+        restored.installationFailed()
+        assertEquals(UpdatePhase.DOWNLOADED, restored.state.value.phase)
+        assertEquals(UpdateFailure.INSTALLER, restored.state.value.failure)
+        assertEquals(UpdateErrorStage.INSTALL, restored.state.value.errorStage)
         restored.installAgain()
         assertEquals(UpdatePhase.READY, restored.state.value.phase)
+        assertNull(restored.state.value.errorStage)
         restored.cancel()
         assertFalse(file.exists())
     }
@@ -107,9 +117,46 @@ class AppUpdateViewModelTest {
         val vm = model(repository)
         vm.check(); dispatcher.scheduler.runCurrent()
         assertEquals(UpdateFailure.RATE_LIMIT, vm.state.value.failure)
+        assertEquals(UpdateErrorStage.CHECK, vm.state.value.errorStage)
         repository.latest = { release.copy(asset = null) }
         vm.check(); dispatcher.scheduler.runCurrent(); vm.download()
         assertEquals(UpdatePhase.AVAILABLE, vm.state.value.phase)
         assertEquals(UpdateFailure.NO_APK, vm.state.value.failure)
+    }
+
+    @Test fun minimizeKeepsDownloadAndVerifyStageMapsErrors() {
+        val file = File.createTempFile("update-bg", ".apk").also { files += it }
+        val gate = CompletableDeferred<Unit>()
+        val repository = FakeRepository().apply {
+            latest = { release }
+            fetch = { progress ->
+                progress(25, 100)
+                gate.await()
+                file
+            }
+        }
+        val vm = model(repository)
+        vm.check(); dispatcher.scheduler.runCurrent()
+        vm.download(); dispatcher.scheduler.runCurrent()
+        vm.minimize()
+        assertTrue(vm.state.value.minimized)
+        assertEquals(UpdatePhase.DOWNLOADING, vm.state.value.phase)
+        gate.complete(Unit); dispatcher.scheduler.runCurrent()
+        assertEquals(UpdatePhase.READY, vm.state.value.phase)
+        assertTrue(vm.state.value.minimized)
+        vm.resume()
+        assertFalse(vm.state.value.minimized)
+        vm.cancel()
+        assertFalse(file.exists())
+
+        val badRepo = FakeRepository().apply {
+            latest = { release }
+            fetch = { throw UpdateException(UpdateFailure.INVALID_APK) }
+        }
+        val verifyVm = model(badRepo)
+        verifyVm.check(); dispatcher.scheduler.runCurrent()
+        verifyVm.download(); dispatcher.scheduler.runCurrent()
+        assertEquals(UpdatePhase.ERROR, verifyVm.state.value.phase)
+        assertEquals(UpdateErrorStage.VERIFY, verifyVm.state.value.errorStage)
     }
 }
