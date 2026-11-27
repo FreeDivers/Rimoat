@@ -96,13 +96,14 @@ internal fun RemoteFunctionGrid(buttons: List<RemoteButton>, onSend: (RemoteButt
         buttons.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { button ->
+                    val isPower = button.isPowerKey()
                     if (buttonContent != null) buttonContent(button) else
                     RemoteButtonView(buttonLabel(button), button.iconName, { onSend(button) }, modifier = Modifier.weight(1f),
                         onRepeat = onRepeat?.let { { it(button) } }, onLongClick = onLearn?.let { { it(button) } },
                         isLearningMode = learning, enabled = learning || enabled(button),
                         onUnavailable = onUnavailable?.let { explain -> { explain(button) } },
-                        diameter = if (button.iconName == "power" || button.id.contains("power")) 72.dp else 64.dp,
-                        variant = if (button.iconName == "power" || button.label in listOf("电源", "开关")) RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD,
+                        diameter = if (isPower) 72.dp else 64.dp,
+                        variant = if (isPower) RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD,
                         buttonId = button.id, builtinLabel = button.builtinLabel)
                 }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }

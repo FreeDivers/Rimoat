@@ -2,6 +2,8 @@
 
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.ui.components.isPowerKey
+
 import androidx.compose.foundation.layout.fillMaxHeight
 import org.qinyan.rimoat.ui.components.contentWidth
 import android.content.Context
@@ -59,7 +61,7 @@ internal fun pairingKeys(state: AddRemoteUiState): List<RemoteButton> =
 
 internal fun pairingKeyGroup(button: RemoteButton, context: Context): String = when {
     button.label.toIntOrNull() in 0..9 -> context.getString(R.string.screen_number_keys)
-    button.iconName == "power" || button.label in setOf("电源", "开关", "开机", "关机") -> context.getString(R.string.screen_power_group)
+    button.isPowerKey() -> context.getString(R.string.screen_power_group)
     button.label in setOf("上", "下", "左", "右", "OK", "确定", "返回", "主页", "菜单", "信源", "输入", "信息") -> context.getString(R.string.screen_navigation_sources)
     button.label.contains("音量") || button.label.contains("静音") || button.label.contains("频道") -> context.getString(R.string.screen_volume_channels)
     else -> localizedLabel(remoteFunctionGroup(button), context)
@@ -168,7 +170,8 @@ fun CodeMatchingWizardView(
                                                         currentState = statusLabel,
                                                         active = page.testedButton?.id == button.id,
                                                         isToggle = false,
-                                                        variant = if (button.iconName == "power" || button.label == "电源") RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD,
+                                                        variant = if (button.isPowerKey()) RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD,
+                                                        diameter = if (button.isPowerKey()) 72.dp else 64.dp,
                                                         buttonId = button.id,
                                                         builtinLabel = button.builtinLabel
                                                     )

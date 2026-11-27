@@ -44,6 +44,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Tune
+import org.qinyan.rimoat.ui.theme.RemotePowerColors
 import androidx.compose.ui.draw.clip
 
 enum class RemoteButtonVariant { STANDARD, POWER, ACCENT, PILL, OUTLINED }
@@ -201,7 +202,7 @@ fun RemoteButtonView(
             )
             variant == RemoteButtonVariant.POWER -> Button(
                 onClick = click, modifier = buttonModifier, enabled = enabled, shape = pressShape,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
+                colors = RemotePowerColors.buttonColors(),
                 contentPadding = PaddingValues(0.dp), interactionSource = interactionSource, content = content
             )
             active == true -> Button(

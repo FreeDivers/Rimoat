@@ -73,7 +73,7 @@ class DeviceCategoryIconsRoborazziTest {
         RemoteProfile("dvd", "客厅 DVD", category = DeviceCategory.AUDIO, sourceRemoteId = "R_dvd_1_1_0"),
         RemoteProfile("light", "客厅灯", category = DeviceCategory.CUSTOM, sourceRemoteId = "R_light_1_1_0")
     ).map { it.copy(room = "客厅", buttons = listOf(
-        RemoteButton("power", "电源", iconName = "power", rawPattern = listOf(9000, 4500, 560))
+        RemoteButton("power", "电源", iconName = "power", key = ButtonKey.POWER, rawPattern = listOf(9000, 4500, 560))
     )) }
 
     @After fun release() {

@@ -1,6 +1,15 @@
 package org.qinyan.rimoat.ui.components
 
 import android.app.Application
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertIsNotEnabled
+import org.qinyan.rimoat.data.*
+import org.qinyan.rimoat.ui.screens.tvRemoteItems
+import org.qinyan.rimoat.ui.screens.fanRemoteItems
+import org.qinyan.rimoat.ui.screens.genericRemoteItems
+import org.qinyan.rimoat.ui.theme.ExpressiveSurface
+import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import android.view.View
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -221,6 +230,67 @@ class ExpressiveRemoteControlsRoborazziTest {
         compose.onNodeWithText(AppStrings.get(R.string.control_disable_timer)).assertIsDisplayed()
         compose.onNodeWithText(AppStrings.get(R.string.control_set_timer)).assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(120, sentMinutes) }
+    }
+
+    @Test fun powerKeysKeepTheirAccentInLightTheme() = exercisePowerPanels("light")
+
+    @Test fun powerKeysKeepTheirAccentInDarkTheme() = exercisePowerPanels("dark", dark = true)
+
+    @Test fun powerKeysKeepTheirAccentOnAmoledCanvas() = exercisePowerPanels("amoled", dark = true, pureBlack = true)
+
+    @Test fun powerKeysKeepTheirAccentWithDynamicColors() = exercisePowerPanels("dynamic", dynamic = true)
+
+    private fun exercisePowerPanels(name: String, dark: Boolean = false, pureBlack: Boolean = false, dynamic: Boolean = false) {
+        val television = RemoteProfile("tv", "Television", category = DeviceCategory.TV,
+            buttons = listOf(RemoteButton("tv_power", "TV power", key = ButtonKey.POWER,
+                rawPattern = listOf(9000, 4500, 560))))
+        val fan = RemoteProfile("fan", "Fan", category = DeviceCategory.FAN,
+            buttons = listOf(RemoteButton("fan_power", "Fan power", key = ButtonKey.POWER,
+                rawPattern = listOf(9000, 4500, 560))))
+        val generic = RemoteProfile("remote", "Universal remote", category = DeviceCategory.CUSTOM,
+            buttons = listOf(RemoteButton("custom_power", "Remote power", key = ButtonKey.POWER,
+                rawPattern = listOf(9000, 4500, 560))))
+        val profiles = listOf(television, fan, generic)
+        var sentIds by mutableStateOf(emptyList<String>())
+        fun availableProfile(profile: RemoteProfile) = profile.copy(buttons = profile.buttons.map {
+            if (it.id in sentIds) it.copy(rawPattern = emptyList()) else it
+        })
+        val send: (RemoteButton) -> Unit = { sentIds = sentIds + it.id }
+        compose.setContent {
+            IrRemoteTheme(darkTheme = dark, dynamicColor = dynamic, pureBlackBackground = pureBlack) {
+                ProvideExpressiveCanvas {
+                    Surface(Modifier.fillMaxSize(), color = ExpressiveSurface.canvas) {
+                        LazyColumn(Modifier.fillMaxSize().padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            item("tv_title") { Text(television.name, style = MaterialTheme.typography.titleMedium) }
+                            tvRemoteItems(availableProfile(television), send)
+                            item("fan_title") { Text(fan.name, style = MaterialTheme.typography.titleMedium) }
+                            fanRemoteItems(availableProfile(fan), send)
+                            item("generic_title") { Text(generic.name, style = MaterialTheme.typography.titleMedium) }
+                            genericRemoteItems(availableProfile(generic), send)
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        profiles.forEach { profile ->
+            val key = compose.onNodeWithContentDescription(profile.buttons.single().label)
+            key.assertIsDisplayed()
+            val bounds = key.fetchSemanticsNode().boundsInRoot
+            assertEquals("Power controls keep the same 72dp target", 72f, bounds.width, 0.1f)
+            assertEquals(72f, bounds.height, 0.1f)
+        }
+        capture("remote_power_${name}_before")
+        profiles.forEach { profile ->
+            val key = compose.onNodeWithContentDescription(profile.buttons.single().label)
+            key.performTouchInput { click() }
+            compose.waitForIdle()
+            key.assertIsNotEnabled()
+            key.performTouchInput { click() }
+        }
+        compose.runOnIdle { assertEquals(profiles.map { it.buttons.single().id }, sentIds) }
+        capture("remote_power_${name}_after")
     }
 
     private fun capture(name: String, dialog: Boolean = false) =

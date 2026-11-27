@@ -47,12 +47,12 @@ class RemotePagesTest {
         recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat())
     )
 
-    private fun remote(category: DeviceCategory, labels: List<String>, name: String = "客厅风扇") = RemoteProfile(
+    private fun remote(category: DeviceCategory, labels: List<String>, name: String = "客厅风扇") = LegacyRemoteMigration.normalizeKeys(RemoteProfile(
         id = "test", name = name, category = category,
         buttons = labels.mapIndexed { index, label ->
             RemoteButton("key_$index", label, rawPattern = listOf(9000, 4500, 560))
         }
-    )
+    ))
 
     @Test fun televisionKeepsDigitsAndDirectionKeysOnRegularPage() {
         val p = remote(DeviceCategory.TV, listOf("电源", "上", "下", "左", "右", "OK", "返回", "0", "1", "播放", "字幕"))

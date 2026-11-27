@@ -32,6 +32,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemotePanelLayout
@@ -59,15 +60,16 @@ class RemotePanelEditorRoborazziTest {
 
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
 
-    private fun key(id: String, label: String, icon: String? = null) =
-        RemoteButton(id, label, iconName = icon, rawPattern = listOf(9000, 4500, 560))
+    private fun key(id: String, label: String, icon: String? = null, semanticKey: ButtonKey? = null) =
+        RemoteButton(id, label, iconName = icon, key = semanticKey, rawPattern = listOf(9000, 4500, 560))
 
     private val profile = RemoteProfile(
         id = "panel_editor_fan", name = "风扇", category = DeviceCategory.FAN,
         buttons = listOf(
-            key("power", "电源", "power"), key("speed", "风速", "speed"), key("swing", "摇头", "oscillation"),
-            key("timer", "定时", "timer"), key("mode", "模式", "mode"), key("natural", "自然风", "nature"),
-            key("light", "灯光"), key("sleep", "睡眠")
+            key("power", "电源", "power", ButtonKey.POWER), key("speed", "风速", "speed", ButtonKey.FAN_SPEED),
+            key("swing", "摇头", "oscillation", ButtonKey.OSCILLATION), key("timer", "定时", "timer", ButtonKey.TIMER),
+            key("mode", "模式", "mode", ButtonKey.MODE), key("natural", "自然风", "nature", ButtonKey.WIND_TYPE),
+            key("light", "灯光", semanticKey = ButtonKey.LIGHT), key("sleep", "睡眠", semanticKey = ButtonKey.SLEEP)
         )
     )
 

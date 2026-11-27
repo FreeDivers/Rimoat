@@ -42,7 +42,7 @@ fun RemoteControlPages(hasMore: Boolean, labels: List<String> = listOf(localized
 internal fun tvStandardButtons(profile: RemoteProfile): List<RemoteButton?> {
     fun find(predicate: (RemoteButton) -> Boolean) = profile.buttons.firstOrNull(predicate)
     return listOf(
-        find { it.iconName == "power" || it.id.contains("power") || it.label.contains("电源") || it.label == "开关" },
+        find { it.isPowerKey() },
         find { it.id.contains("source") || it.label.contains("信源") },
         find { it.id.contains("mute") || it.label.contains("静音") },
         find { it.id == "tv_up" || it.label == "上" }, find { it.id == "tv_down" || it.label == "下" },
@@ -64,7 +64,7 @@ internal fun remoteExtraButtons(profile: RemoteProfile): List<RemoteButton> {
             (0..9).mapNotNull { number -> profile.buttons.firstOrNull { remoteButtonNumber(it) == number }?.id }
         return profile.buttons.filter { it.id !in used }
     }
-    val power = profile.buttons.firstOrNull { it.iconName == "power" || it.id.contains("power") || it.label.contains("电源") || it.label == "开关" }
+    val power = profile.buttons.firstOrNull { it.isPowerKey() }
     if (profile.category == DeviceCategory.FAN) return profile.buttons.filter { it != power }.drop(6)
     val directions = org.qinyan.rimoat.ui.screens.genericDirectionButtons(profile.buttons)
     val useDpad = directions.keys.containsAll(listOf("上", "下", "左", "右"))

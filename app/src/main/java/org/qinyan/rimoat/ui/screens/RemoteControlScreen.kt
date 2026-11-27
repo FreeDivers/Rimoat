@@ -2,6 +2,8 @@
 
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.ui.components.isPowerKey
+
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.IconButtonDefaults
 import android.app.Activity
@@ -1186,7 +1188,7 @@ internal fun LazyListScope.fanRemoteItems(
         return
     }
 
-    val powerBtn = profile.buttons.firstOrNull { it.iconName == "power" || it.id.contains("power") || it.label.contains("电源") || it.label == "开关" }
+    val powerBtn = profile.buttons.firstOrNull { it.isPowerKey() }
     val otherButtons = profile.buttons.filter { it != powerBtn }
 
     remoteItem("fan_power") {
@@ -1249,7 +1251,7 @@ internal fun LazyListScope.genericRemoteItems(
         }
         return
     }
-    val powerBtn = profile.buttons.firstOrNull { it.iconName == "power" || it.id.contains("power") || it.label.contains("电源") || it.label == "开关" }
+    val powerBtn = profile.buttons.firstOrNull { it.isPowerKey() }
     val directions = genericDirectionButtons(profile.buttons)
     val directionButtons = directions.values.toList()
     val useDpad = directions.keys.containsAll(setOf("上", "下", "左", "右"))
@@ -1269,7 +1271,7 @@ internal fun LazyListScope.genericRemoteItems(
                 isLearningMode = isLearningMode,
                 variant = RemoteButtonVariant.POWER,
                 modifier = Modifier.fillMaxWidth(0.5f),
-                diameter = 64.dp
+                diameter = 72.dp
             )
             Spacer(modifier = Modifier.height(14.dp))
         }

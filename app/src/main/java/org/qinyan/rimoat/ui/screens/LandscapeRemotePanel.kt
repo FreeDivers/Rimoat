@@ -67,7 +67,7 @@ internal fun remotePaneButtons(profile: RemoteProfile): RemotePaneButtons {
         val used = primaryIds + commonIds + numbers.map { it.id }
         if (primary.isNotEmpty()) return RemotePaneButtons(primary, common, numbers, buttons.filter { it.id !in used })
     } else {
-        val power = buttons.firstOrNull { it.iconName == "power" || "power" in it.id.lowercase() || (it.builtinLabel ?: it.label) in setOf("电源", "开关") }
+        val power = buttons.firstOrNull { it.isPowerKey() }
         val directions = genericDirectionButtons(buttons)
         val primary = if (profile.category == DeviceCategory.FAN) {
             listOfNotNull(power, buttons.firstOrNull { it != power && ("speed" in it.id.lowercase() || (it.builtinLabel ?: it.label) in setOf("风速", "风量")) })

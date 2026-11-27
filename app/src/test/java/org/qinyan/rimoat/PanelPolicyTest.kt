@@ -69,7 +69,7 @@ class PanelPolicyTest {
     }
 
     @Test fun layoutChangesPreserveSpatialCombinationsSignalsAndDefaultOrder() {
-        val power = button("power", "电源")
+        val power = button("power", "电源").copy(key = ButtonKey.POWER)
         val up = button("up", "上"); val down = button("down", "下")
         val left = button("left", "左"); val right = button("right", "右")
         val first = button("first"); val second = button("second"); val rare = button("rare")
@@ -177,5 +177,36 @@ class PanelPolicyTest {
         assertNull(DpadDirection.from(ButtonKey.POWER))
         assertEquals(listOf(ButtonKey.UP, ButtonKey.DOWN, ButtonKey.LEFT, ButtonKey.RIGHT, ButtonKey.OK), DpadDirection.entries.map { it.key })
     }
+
+    @Test fun powerPoliciesUseTheSameStableIdentityAcrossRemoteCategories() {
+        val ordinary = listOf(
+            button("power_saving", "Power").copy(key = ButtonKey.ECO),
+            button("custom_switch", "开关"),
+            button("power", "Power").copy(iconName = "power"),
+            button("renamed_volume", "Power").copy(key = ButtonKey.VOLUME_UP, iconName = "power")
+        ) + (0..4).map { button("extra_$it", "Custom $it") }
+        val powerKeys = listOf(ButtonKey.POWER, ButtonKey.POWER_ON, ButtonKey.POWER_OFF, ButtonKey.SECOND_POWER)
+        for (powerKey in powerKeys) {
+            val power = button("fan_power", "Personal name").copy(key = powerKey)
+            for (category in listOf(DeviceCategory.TV, DeviceCategory.FAN, DeviceCategory.CUSTOM)) {
+                val profile = RemoteProfile("remote", "Remote", category = category, buttons = ordinary + power)
+                assertTrue(power.isPowerKey())
+                assertTrue(ordinary.none { it.isPowerKey() })
+                assertEquals(setOf(power.id), fixedPanelKeys(profile))
+                if (category == DeviceCategory.TV) {
+                    assertEquals(power, tvStandardButtons(profile).first())
+                    assertEquals(ordinary, remoteExtraButtons(profile))
+                } else {
+                    assertEquals(ordinary.drop(6), remoteExtraButtons(profile))
+                }
+                val hidden = profile.copy(panelLayout = RemotePanelLayout(
+                    hidden = profile.buttons.map(::panelKey).toSet()
+                )).withPanelPresentation()
+                assertEquals(listOf(power), hidden.buttons)
+                assertEquals(ordinary + power, profile.buttons)
+            }
+        }
+    }
+
 
 }

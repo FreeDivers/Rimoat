@@ -17,7 +17,7 @@ internal fun remoteButtonNumber(button: RemoteButton): Int? =
 /** Spatial combinations retain their geometry and their complete signal set. */
 fun fixedPanelKeys(profile: RemoteProfile): Set<String> {
     if (profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons) return emptySet()
-    val power = profile.buttons.firstOrNull { it.iconName == "power" || it.id.contains("power") || it.label.contains("电源") || it.label == "开关" }
+    val power = profile.buttons.firstOrNull { it.isPowerKey() }
     val fixed = mutableSetOf<String>()
     power?.let { fixed += it.id }
     if (profile.category == DeviceCategory.TV) {
