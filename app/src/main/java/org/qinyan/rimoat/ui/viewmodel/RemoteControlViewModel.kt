@@ -23,6 +23,7 @@ import org.qinyan.rimoat.data.AcStateChoice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -31,6 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -157,15 +159,17 @@ class RemoteControlViewModel(
     val isSavingButton = _isSavingButton.asStateFlow()
 
     fun saveLearnedButton(button: RemoteButton, signal: IrSignal.Raw) {
-        if (_isSavingButton.value) return
+        if (_isSavingButton.value || !operationLifetime.isActive) return
         _isSavingButton.value = true
         val session = learningSession
         _learningError.value = null
         _operationError.value = null
-        viewModelScope.launch {
+        operationScope.launch {
             try {
                 val updatedButton = button.withLearnedSignal(signal)
-                repository?.updateButton(remoteId, updatedButton)
+                withContext(NonCancellable) {
+                    repository?.updateButton(remoteId, updatedButton)
+                }
                 _manualProfile.value?.let { profile ->
                     val buttons = profile.buttons.toMutableList()
                     val idx = buttons.indexOfFirst { it.id == updatedButton.id }
@@ -245,7 +249,7 @@ class RemoteControlViewModel(
 
     override fun onCleared() {
         onScreenStopped()
-        // Let submitted layout edits and accepted transmissions finish saving.
+        // Let submitted layout edits, learned button saves, and accepted transmissions finish saving.
         operationLifetime.complete()
     }
 

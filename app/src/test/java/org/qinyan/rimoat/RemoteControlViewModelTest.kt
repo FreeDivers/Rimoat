@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.*
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import androidx.lifecycle.ViewModelStore
 import org.junit.After
 import org.junit.Before
@@ -301,6 +303,50 @@ class RemoteControlViewModelTest {
             ),
             failingVm.operationError.value
         )
+    }
+
+    @Test fun saveLearnedButtonCompletesPersistenceAfterViewModelCleared() = runTest(dispatcher) {
+        val dir = java.nio.file.Files.createTempDirectory("remote-save-learned-").toFile()
+        val context = object : android.content.ContextWrapper(null) {
+            override fun getApplicationContext() = this
+            override fun getFilesDir() = dir
+            override fun getSystemService(name: String): Any? = null
+        }
+        val repoScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+        try {
+            val repo = RemoteRepository(context, repoScope)
+            repo.awaitLoaded()
+            val button = RemoteButton("power", "电源", signalType = SignalType.NEC, necAddress = 0x10, necCommand = 0x20)
+            val savedProfile = RemoteProfile("tv_save_clear", "客厅电视", category = DeviceCategory.TV, buttons = listOf(button))
+            repo.saveRemote(savedProfile)
+
+            val vm = tracked(RemoteControlViewModel(savedProfile.id, repository = repo, initialProfile = savedProfile))
+            val learned = IrSignal.Raw(39500, intArrayOf(9000, 4500, 560, 1690))
+            vm.startLearningButton(button)
+            vm.saveLearnedButton(button, learned)
+            // Leave screen immediately so ViewModel.onCleared() cancels viewModelScope while IO save is pending/running.
+            stores.clear()
+
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) {
+                    while (true) {
+                        dispatcher.scheduler.advanceUntilIdle()
+                        val updated = repo.getRemote(savedProfile.id)?.buttons?.single()
+                        if (updated?.isLearned == true && updated.rawPattern == learned.patternMicros.toList()) break
+                        delay(10)
+                    }
+                }
+            }
+
+            val persisted = repo.getRemote(savedProfile.id)!!.buttons.single()
+            assertTrue(persisted.isLearned)
+            assertEquals(SignalType.RAW, persisted.signalType)
+            assertEquals(39500, persisted.frequencyHz)
+            assertEquals(learned.patternMicros.toList(), persisted.rawPattern)
+        } finally {
+            repoScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+            dir.deleteRecursively()
+        }
     }
 
 }
