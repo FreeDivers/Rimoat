@@ -2,7 +2,6 @@
 
 package org.qinyan.rimoat.ui.screens
 
-import org.qinyan.rimoat.i18n.AppStrings
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.ScrollState
@@ -94,11 +93,12 @@ internal fun remotePaneButtons(profile: RemoteProfile): RemotePaneButtons {
     return RemotePaneButtons(nonNumeric.take(split), emptyList(), numeric, nonNumeric.drop(split))
 }
 
+@Composable
 private fun tvLearningProfile(profile: RemoteProfile): RemoteProfile {
     val standard = tvStandardButtons(profile)
     val directions = DpadDirection.entries
         .filter { direction -> standard.dpadButton(direction) == null && panelKey(direction.placeholderId) !in profile.panelLayout.hidden }
-        .map { direction -> direction.placeholderButton(AppStrings.get(direction.labelRes)) }
+        .map { direction -> direction.placeholderButton(stringResource(direction.labelRes)) }
     val numbers = (0..9).mapNotNull { number ->
         if (profile.buttons.any { remoteButtonNumber(it) == number } || "key:num_$number" in profile.panelLayout.hidden ||
             "key:tv_num_$number" in profile.panelLayout.hidden) null

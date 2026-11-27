@@ -129,7 +129,7 @@ fun RemotePanelEditor(
             val main = setOf(AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.WIND_DIRECTION)
             val actions = acPanelActions(profile.copy(panelLayout = RemotePanelLayout()), available, false)
             val defaults = AcSettings()
-            fun actionEntry(action: AcAction) = PanelEntry(panelAction(action), context.getString(action.labelRes), defaults.controlAppearance(action).icon)
+            fun actionEntry(action: AcAction) = PanelEntry(panelAction(action), context.getString(action.labelRes), defaults.controlAppearance(action, context).icon)
             add(PanelGroup(R.string.panel_group_controls, actions.filter { it in main }.map(::actionEntry)))
             add(PanelGroup(R.string.panel_group_ac_actions, actions.filter { it !in main }.map(::actionEntry)))
             add(PanelGroup(R.string.panel_group_raw_keys, acRawExtensionButtons(profile).map { buttonEntry(it, org.qinyan.rimoat.i18n.localizedAcRawButtonLabel(it)) }))

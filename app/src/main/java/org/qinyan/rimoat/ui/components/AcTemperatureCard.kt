@@ -1,7 +1,6 @@
 package org.qinyan.rimoat.ui.components
 
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.ui.motion.AppMotion
@@ -83,7 +82,10 @@ fun AcTemperatureCard(
     val powerInteraction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val powerHaptic = org.qinyan.rimoat.ui.rememberPressHaptic(powerInteraction, canTogglePower, isLearningMode)
     val powerShape = rememberExpressiveShape(powerInteraction, CircleShape, RoundedCornerShape(40))
-    val powerLabel = if (isLearningMode) AppStrings.get(R.string.control_learn_power) else AppStrings.get(if (powerOn) R.string.control_power_off else R.string.control_power_on)
+    val powerLabel = if (isLearningMode) stringResource(R.string.control_learn_power) else stringResource(if (powerOn) R.string.control_power_off else R.string.control_power_on)
+    val powerStateLabel = stringResource(if (powerOn) R.string.control_set_on else R.string.control_set_off)
+    val decreaseLabel = stringResource(R.string.control_temp_down)
+    val increaseLabel = stringResource(R.string.control_temp_up)
     val powerAction = if (powerOn) AcAction.POWER_OFF else AcAction.POWER_ON
     val fontScale = LocalDensity.current.fontScale
     Surface(
@@ -101,7 +103,7 @@ fun AcTemperatureCard(
                         contentColor = if (isDemonstrating) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     ) {
                         Text(
-                            text = if (isDemonstrating) AppStrings.get(R.string.control_simulation_setting) else AppStrings.get(R.string.control_target_temp),
+                            text = if (isDemonstrating) stringResource(R.string.control_simulation_setting) else stringResource(R.string.control_target_temp),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -111,7 +113,7 @@ fun AcTemperatureCard(
                 val power: @Composable () -> Unit = {
                 UnavailableAcControl(canTogglePower, powerLabel, unavailableDescriptions[powerAction],
                     onUnavailable?.let { { it(powerAction) } }, checked = powerOn.takeUnless { isLearningMode }) {
-                ActionTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn_power) else if (powerOn) AppStrings.get(R.string.control_power_off) else AppStrings.get(R.string.control_power_on)) {
+                ActionTooltip(powerLabel) {
                 FilledIconToggleButton(
                     checked = powerOn,
                     interactionSource = powerInteraction,
@@ -121,7 +123,7 @@ fun AcTemperatureCard(
                         if (canTogglePower) onClick { powerHaptic(); onTogglePower(); true } else disabled()
                         if (!isLearningMode) {
                             toggleableState = ToggleableState(powerOn)
-                            stateDescription = if (powerOn) AppStrings.get(R.string.control_set_on) else AppStrings.get(R.string.control_set_off)
+                            stateDescription = powerStateLabel
                         }
                         role = if (isLearningMode) Role.Button else Role.Switch
                     },
@@ -150,27 +152,28 @@ fun AcTemperatureCard(
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val stacked = maxWidth < (144 + 136 * fontScale).dp
                 val decrease: @Composable () -> Unit = {
-                    UnavailableAcControl(canDecrease, AppStrings.get(R.string.control_temp_down),
+                    UnavailableAcControl(canDecrease, decreaseLabel,
                         unavailableDescriptions[AcAction.TEMP_DOWN], onUnavailable?.let { { it(AcAction.TEMP_DOWN) } }) {
-                    RemoteIconButton(AppStrings.get(R.string.control_temp_down), Icons.Rounded.Remove, onDecrease, enabled = canDecrease,
+                    RemoteIconButton(decreaseLabel, Icons.Rounded.Remove, onDecrease, enabled = canDecrease,
                         isLearningMode = isLearningMode, onLearn = onDecrease)
                     }
                 }
                 val increase: @Composable () -> Unit = {
-                    UnavailableAcControl(canIncrease, AppStrings.get(R.string.control_temp_up),
+                    UnavailableAcControl(canIncrease, increaseLabel,
                         unavailableDescriptions[AcAction.TEMP_UP], onUnavailable?.let { { it(AcAction.TEMP_UP) } }) {
-                    RemoteIconButton(AppStrings.get(R.string.control_temp_up), Icons.Rounded.Add, onIncrease, enabled = canIncrease,
+                    RemoteIconButton(increaseLabel, Icons.Rounded.Add, onIncrease, enabled = canIncrease,
                         isLearningMode = isLearningMode, onLearn = onIncrease)
                     }
                 }
                 val settingLabel = stringResource(if (isDemonstrating) R.string.control_simulation_setting else R.string.control_target_temp)
+                val temperatureDescription = statusSummary ?: stringResource(R.string.control_temperature_description, settingLabel, temperature)
                 val readout: @Composable () -> Unit = {
                     AnimatedContent(
                         targetState = temperature,
                         transitionSpec = { fadeIn(motion.fastEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()) },
                         label = "Temperature",
                         modifier = Modifier.clearAndSetSemantics {
-                            contentDescription = statusSummary ?: AppStrings.get(R.string.control_temperature_description, settingLabel, temperature)
+                            contentDescription = temperatureDescription
                             liveRegion = LiveRegionMode.Polite
                         }
                     ) { value ->
@@ -179,7 +182,7 @@ fun AcTemperatureCard(
                                 color = if (powerOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         val unit: @Composable () -> Unit = {
-                            Text("°C", style = MaterialTheme.typography.headlineSmall,
+                            Text(stringResource(R.string.control_temperature_unit_celsius), style = MaterialTheme.typography.headlineSmall,
                                 modifier = Modifier.padding(start = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         if (maxWidth < (176 * fontScale).dp) Column(horizontalAlignment = Alignment.CenterHorizontally) {

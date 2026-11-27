@@ -1,7 +1,7 @@
 package org.qinyan.rimoat.ui.components
 
+import androidx.compose.ui.res.stringResource
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.localizedTimerDurationLabel
 import org.qinyan.rimoat.i18n.localizedTimerTargetLabel
@@ -49,6 +49,8 @@ internal fun timerPresets(options: List<Int>): List<Int> =
 internal fun TimerDurationSlider(options: List<Int>, selected: Int, enabled: Boolean,
     onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val durationLabel = stringResource(R.string.control_timer_duration)
+    val selectedDurationLabel = localizedTimerDurationLabel(options[selected], context)
     key(options.size) {
         val sliderState = rememberSliderState(
             value = selected.toFloat(), steps = options.size - 2,
@@ -63,7 +65,7 @@ internal fun TimerDurationSlider(options: List<Int>, selected: Int, enabled: Boo
                 HapticHelper.performSelection(context = context)
             }
         }, modifier = modifier.semantics {
-            contentDescription = AppStrings.get(R.string.control_timer_duration); stateDescription = localizedTimerDurationLabel(options[selected])
+            contentDescription = durationLabel; stateDescription = selectedDurationLabel
         }, enabled = enabled)
     }
 }
@@ -82,6 +84,7 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val setDurationLabel = stringResource(R.string.control_set_duration)
     var sending by remember { mutableStateOf(false) }
     val timeFormatter = rememberLocalizedDateTimeFormatter(includeDate = false)
     val now by produceState(nowMillis()) {
@@ -101,7 +104,7 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
     SoundEffectOnInteraction(enabled = false) {
         Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(if (powerOn) AppStrings.get(R.string.control_timer_off) else AppStrings.get(R.string.control_timer_on), style = MaterialTheme.typography.titleLarge)
+            Text(if (powerOn) stringResource(R.string.control_timer_off) else stringResource(R.string.control_timer_on), style = MaterialTheme.typography.titleLarge)
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = ExpressiveSurface.card,
@@ -109,18 +112,18 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (minutes == 0) AppStrings.get(R.string.control_zero_minutes) else localizedTimerDurationLabel(minutes), style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
-                            color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { contentDescription = AppStrings.get(R.string.control_set_duration) })
-                        Text(if (minutes == 0) "" else if (powerOn) AppStrings.get(R.string.control_expected_off, localizedTimerTargetLabel(context, now, minutes, timeFormatter)) else AppStrings.get(R.string.control_expected_on, localizedTimerTargetLabel(context, now, minutes, timeFormatter)),
+                        Text(if (minutes == 0) stringResource(R.string.control_zero_minutes) else localizedTimerDurationLabel(minutes, context), style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { contentDescription = setDurationLabel })
+                        Text(if (minutes == 0) "" else if (powerOn) stringResource(R.string.control_expected_off, localizedTimerTargetLabel(context, now, minutes, timeFormatter)) else stringResource(R.string.control_expected_on, localizedTimerTargetLabel(context, now, minutes, timeFormatter)),
                             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        ActionIconButton(AppStrings.get(R.string.control_shorten_timer), { select(selected - 1) }, enabled = selected > 0 && !sending) {
-                            Icon(Icons.Rounded.Remove, AppStrings.get(R.string.control_shorten_timer))
+                        ActionIconButton(stringResource(R.string.control_shorten_timer), { select(selected - 1) }, enabled = selected > 0 && !sending) {
+                            Icon(Icons.Rounded.Remove, stringResource(R.string.control_shorten_timer))
                         }
                         TimerDurationSlider(options, selected, !sending, { selected = it }, Modifier.weight(1f))
-                        ActionIconButton(AppStrings.get(R.string.control_extend_timer), { select(selected + 1) }, enabled = selected < options.lastIndex && !sending) {
-                            Icon(Icons.Rounded.Add, AppStrings.get(R.string.control_extend_timer))
+                        ActionIconButton(stringResource(R.string.control_extend_timer), { select(selected + 1) }, enabled = selected < options.lastIndex && !sending) {
+                            Icon(Icons.Rounded.Add, stringResource(R.string.control_extend_timer))
                         }
                     }
                 }
@@ -146,14 +149,14 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
                             this.selected = minutes == preset
                             role = Role.RadioButton
                         }) {
-                        Text(localizedTimerDurationLabel(preset))
+                        Text(localizedTimerDurationLabel(preset, context))
                     }
                 }
             }
         }
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
-            val disableLabel = AppStrings.get(R.string.control_disable_timer)
-            val confirmLabel = if (minutes == 0) disableLabel else AppStrings.get(R.string.control_set_timer)
+            val disableLabel = stringResource(R.string.control_disable_timer)
+            val confirmLabel = if (minutes == 0) disableLabel else stringResource(R.string.control_set_timer)
             val showDisable = 0 in options && minutes > 0
             val density = LocalDensity.current
             val textMeasurer = rememberTextMeasurer()

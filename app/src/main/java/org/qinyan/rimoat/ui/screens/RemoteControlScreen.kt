@@ -14,7 +14,6 @@ import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.localizedButtonLabel
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppError
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.ui.components.openStorageSettings
@@ -376,10 +375,10 @@ private fun RemoteControlContent(
         },
         topBar = {
             ExpressiveCompactTopBar(
-                title = remote?.name ?: AppStrings.get(R.string.screen_remote),
+                title = remote?.name ?: stringResource(R.string.screen_remote),
                 navigationIcon = {
-                    ActionIconButton(AppStrings.get(R.string.screen_back), onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back))
+                    ActionIconButton(stringResource(R.string.screen_back), onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.screen_back))
                     }
                 },
                 actions = {
@@ -447,7 +446,7 @@ private fun RemoteControlContent(
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(onClick = { viewModel.toggleLearningMode() }, shapes = ButtonDefaults.shapes()) {
-                            Text(AppStrings.get(R.string.screen_exit), style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.screen_exit), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -486,7 +485,7 @@ private fun RemoteControlContent(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isRepositoryLoaded) {
-                        Text(AppStrings.get(R.string.screen_remote_missing), style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.screen_remote_missing), style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             } else {
@@ -810,7 +809,7 @@ internal fun LazyListScope.tvRemoteItems(
                     ) {
                         if (volUpBtn != null) {
                             RemoteButtonView(
-                                label = AppStrings.get(R.string.screen_volume_up),
+                                label = stringResource(R.string.screen_volume_up),
                                 iconName = "volume_up",
                                 onClick = { onSendButton(volUpBtn) },
                                 enabled = isLearningMode || volUpBtn.hasSignal,
@@ -829,7 +828,7 @@ internal fun LazyListScope.tvRemoteItems(
                         }
                         if (volDownBtn != null) {
                             RemoteButtonView(
-                                label = AppStrings.get(R.string.screen_volume_down),
+                                label = stringResource(R.string.screen_volume_down),
                                 iconName = "volume_down",
                                 onClick = { onSendButton(volDownBtn) },
                                 enabled = isLearningMode || volDownBtn.hasSignal,
@@ -856,7 +855,7 @@ internal fun LazyListScope.tvRemoteItems(
                     ) {
                         if (chUpBtn != null) {
                             RemoteButtonView(
-                                label = AppStrings.get(R.string.screen_channel_up),
+                                label = stringResource(R.string.screen_channel_up),
                                 iconName = "arrow_drop_up",
                                 onClick = { onSendButton(chUpBtn) },
                                 enabled = isLearningMode || chUpBtn.hasSignal,
@@ -875,7 +874,7 @@ internal fun LazyListScope.tvRemoteItems(
                         }
                         if (chDownBtn != null) {
                             RemoteButtonView(
-                                label = AppStrings.get(R.string.screen_channel_down),
+                                label = stringResource(R.string.screen_channel_down),
                                 iconName = "arrow_drop_down",
                                 onClick = { onSendButton(chDownBtn) },
                                 enabled = isLearningMode || chDownBtn.hasSignal,
@@ -904,7 +903,7 @@ internal fun LazyListScope.tvRemoteItems(
         var localNumberPad by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
         val showNumpad = showNumberPad ?: localNumberPad
         // 5. Collapsible Numpad Toggle
-        ActionTooltip(if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers) else AppStrings.get(R.string.screen_expand_numbers)) {
+        ActionTooltip(if (showNumpad) stringResource(R.string.screen_collapse_numbers) else stringResource(R.string.screen_expand_numbers)) {
         FilledTonalIconToggleButton(
             checked = showNumpad,
             onCheckedChange = { onNumberPadChange?.invoke(it) ?: run { localNumberPad = it } },
@@ -918,7 +917,7 @@ internal fun LazyListScope.tvRemoteItems(
             shapes = IconButtonDefaults.toggleableShapes()
         ) {
             Icon(if (showNumpad) Icons.Rounded.KeyboardHide else Icons.Rounded.Dialpad,
-                contentDescription = if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers) else AppStrings.get(R.string.screen_expand_numbers), modifier = Modifier.size(24.dp))
+                contentDescription = if (showNumpad) stringResource(R.string.screen_collapse_numbers) else stringResource(R.string.screen_expand_numbers), modifier = Modifier.size(24.dp))
         }
 
         }
@@ -1020,6 +1019,7 @@ fun AcRemoteLayout(
     onUnavailable: (RemoteButton, AcUnavailableReason) -> Unit = { _, _ -> }
 ) {
     val staticAc = profile.useStaticAcButtons || profile.acProtocolId == null
+    val context = androidx.compose.ui.platform.LocalContext.current
     fun key(action: AcAction): RemoteButton {
         val bound = acButtonForAction(profile, action)
             ?: if (action == AcAction.POWER_OFF) profile.buttons.firstOrNull {
@@ -1055,9 +1055,9 @@ fun AcRemoteLayout(
         profile.acProtocolId?.let { org.qinyan.rimoat.data.AcTimerOptions.forProtocol(it, acState.powerOn) }.orEmpty()
     }
 
-    val modeAppearance = acState.controlAppearance(AcAction.MODE)
-    val fanAppearance = acState.controlAppearance(AcAction.FAN)
-    val timerBadge = if (acState.timerMinutes > 0) org.qinyan.rimoat.i18n.localizedTimerDurationLabel(acState.timerMinutes) else null
+    val modeAppearance = acState.controlAppearance(AcAction.MODE, context)
+    val fanAppearance = acState.controlAppearance(AcAction.FAN, context)
+    val timerBadge = if (acState.timerMinutes > 0) org.qinyan.rimoat.i18n.localizedTimerDurationLabel(acState.timerMinutes, context) else null
     val temperatureCard: @Composable () -> Unit = {
     if (staticAc) {
         Surface(shape = RoundedCornerShape(28.dp), color = ExpressiveSurface.card,
@@ -1084,7 +1084,7 @@ fun AcRemoteLayout(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     listOf(tempDownBtn, tempUpBtn).forEach { button ->
                         val action = checkNotNull(button.acAction)
-                        RemoteButtonView(stringResource(action.labelRes), icon = acState.controlAppearance(action).icon,
+                        RemoteButtonView(stringResource(action.labelRes), icon = acState.controlAppearance(action, context).icon,
                             onClick = { click(button) {} }, modifier = Modifier.weight(1f),
                             enabled = !isTransmitting && (isLearningMode || button.hasSignal),
                             currentState = if (!isLearningMode && !button.hasSignal) stringResource(R.string.control_reason_missing_signal) else null,
@@ -1107,15 +1107,15 @@ fun AcRemoteLayout(
         onDecrease = { click(tempDownBtn, onTempDown) },
         onIncrease = { click(tempUpBtn, onTempUp) },
         onTogglePower = { click(powerBtn, onTogglePower) },
-        unavailableDescriptions = headerReasons.mapValues { AppStrings.get(it.value.messageResource()) },
+        unavailableDescriptions = headerReasons.mapValues { stringResource(it.value.messageResource()) },
         onUnavailable = if (isTransmitting) null else ({ action -> headerReasons[action]?.let { onUnavailable(key(action), it) } }),
         modeLabel = modeAppearance.label,
         modeIcon = modeAppearance.icon,
         fanLabel = fanAppearance.label,
         fanIcon = fanAppearance.icon,
         timerLabel = timerBadge,
-        statusSummary = AppStrings.get(R.string.control_ac_status,
-            AppStrings.get(if (isDemonstrating) R.string.control_simulation_setting else R.string.control_target_temp),
+        statusSummary = stringResource(R.string.control_ac_status,
+            stringResource(if (isDemonstrating) R.string.control_simulation_setting else R.string.control_target_temp),
             stringResource(if (acState.powerOn) R.string.control_enabled else R.string.control_disabled), acState.temperature,
             stringResource(acState.mode.labelRes), stringResource(acState.fanSpeed.labelRes))
     )
@@ -1125,7 +1125,7 @@ fun AcRemoteLayout(
     val actionButtons = actions.associateWith { key(it) }
     val renderAction: @Composable androidx.compose.foundation.layout.RowScope.(AcAction) -> Unit = { action ->
         val button = actionButtons.getValue(action)
-                val appearance = acState.controlAppearance(action)
+                val appearance = acState.controlAppearance(action, context)
                 val recorded = usesRecordedSignal(button)
                 val available = if (recorded) button.hasSignal else
                     action in availableActions && (action != AcAction.TIMER || timerOptions.isNotEmpty())
@@ -1141,8 +1141,8 @@ fun AcRemoteLayout(
                     currentState = when {
                         isLearningMode || recorded && available -> null
                         recorded -> stringResource(R.string.control_reason_missing_signal)
-                        !available -> AppStrings.get((unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE).messageResource())
-                        else -> appearance.state?.let { AppStrings.get(R.string.screen_setting_state, if (isDemonstrating) AppStrings.get(R.string.screen_simulated_setting) else AppStrings.get(R.string.screen_setting), it) }
+                        !available -> stringResource((unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE).messageResource())
+                        else -> appearance.state?.let { stringResource(R.string.screen_setting_state, if (isDemonstrating) stringResource(R.string.screen_simulated_setting) else stringResource(R.string.screen_setting), it) }
                     },
                     active = appearance.active.takeUnless { recorded },
                     isToggle = !recorded && appearance.active != null && action != AcAction.TIMER,
@@ -1259,7 +1259,7 @@ fun AcRemoteLayout(
             if (index > 0) Spacer(Modifier.height(24.dp))
             RemoteFunctionGroups(extendedButtons, onSendButton, onLearnButton, isLearningMode, onRepeatButton,
                 preserveOrder = true, buttonContent = renderExtensionButton,
-                buttonLabel = { it.acAction?.let { action -> AppStrings.get(action.labelRes) } ?: localizedAcRawButtonLabel(it) })
+                buttonLabel = { it.acAction?.let { action -> context.getString(action.labelRes) } ?: localizedAcRawButtonLabel(it, context) })
         }
     }
 
@@ -1340,8 +1340,8 @@ internal fun LazyListScope.genericRemoteItems(
 
     if (profile.buttons.isEmpty()) {
         remoteItem("empty_buttons") {
-            Text(AppStrings.get(R.string.screen_no_buttons), style = MaterialTheme.typography.titleMedium)
-            Text(AppStrings.get(R.string.screen_learn_custom_hint), style = MaterialTheme.typography.bodyMedium,
+            Text(stringResource(R.string.screen_no_buttons), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.screen_learn_custom_hint), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return

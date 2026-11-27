@@ -5,19 +5,17 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.ButtonKey
 
-fun localizedTimerDurationLabel(minutes: Int): String = when {
-    minutes == 0 -> AppStrings.get(R.string.control_disable_timer)
-    minutes < 60 -> AppStrings.quantity(R.plurals.control_minutes, minutes, minutes)
-    minutes % 60 == 0 -> {
-        val hours = minutes / 60
-        AppStrings.quantity(R.plurals.control_hours, hours, hours)
-    }
-    else -> {
-        val hours = minutes / 60
-        val remainingMinutes = minutes % 60
-        val hoursText = AppStrings.quantity(R.plurals.control_hours, hours, hours)
-        val minutesText = AppStrings.quantity(R.plurals.control_minutes, remainingMinutes, remainingMinutes)
-        AppStrings.get(R.string.control_hours_minutes, hoursText, minutesText)
+fun localizedTimerDurationLabel(minutes: Int, context: Context? = null): String {
+    fun text(id: Int, vararg args: Any) = context?.getString(id, *args) ?: AppStrings.get(id, *args)
+    fun quantity(id: Int, value: Int) = context?.resources?.getQuantityString(id, value, value)
+        ?: AppStrings.quantity(id, value, value)
+    return when {
+        minutes == 0 -> text(R.string.control_disable_timer)
+        minutes < 60 -> quantity(R.plurals.control_minutes, minutes)
+        minutes % 60 == 0 -> quantity(R.plurals.control_hours, minutes / 60)
+        else -> text(R.string.control_hours_minutes,
+            quantity(R.plurals.control_hours, minutes / 60),
+            quantity(R.plurals.control_minutes, minutes % 60))
     }
 }
 

@@ -1,5 +1,7 @@
 package org.qinyan.rimoat.ui.components
 
+import android.content.Context
+import androidx.annotation.StringRes
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.localizedLabel
@@ -20,7 +22,9 @@ data class AcControlAppearance(
     val active: Boolean? = null
 )
 
-fun AcSettings.controlAppearance(action: AcAction): AcControlAppearance {
+fun AcSettings.controlAppearance(action: AcAction, context: Context? = null): AcControlAppearance {
+    fun text(@StringRes id: Int, vararg args: Any): String =
+        context?.getString(id, *args) ?: AppStrings.get(id, *args)
     val active = when (action) {
         AcAction.SWING -> isSwingOn
         AcAction.HORIZONTAL_SWING -> horizontalSwingOn
@@ -39,25 +43,25 @@ fun AcSettings.controlAppearance(action: AcAction): AcControlAppearance {
     }
     val icon = controlIcon(action)
     val label = when (action) {
-        AcAction.MODE -> localizedLabel(mode)
-        AcAction.FAN -> AppStrings.get(R.string.control_fan_label, localizedLabel(fanSpeed))
+        AcAction.MODE -> localizedLabel(mode, context)
+        AcAction.FAN -> text(R.string.control_fan_label, localizedLabel(fanSpeed, context))
         AcAction.WIND_DIRECTION -> when (windDirection) {
-            AcWindDirection.AUTO -> AppStrings.get(R.string.control_auto_direction)
-            AcWindDirection.UP -> AppStrings.get(R.string.control_air_up)
-            AcWindDirection.MIDDLE -> AppStrings.get(R.string.control_air_horizontal)
-            AcWindDirection.DOWN -> AppStrings.get(R.string.control_air_down)
+            AcWindDirection.AUTO -> text(R.string.control_auto_direction)
+            AcWindDirection.UP -> text(R.string.control_air_up)
+            AcWindDirection.MIDDLE -> text(R.string.control_air_horizontal)
+            AcWindDirection.DOWN -> text(R.string.control_air_down)
         }
-        AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes) else localizedLabel(action)
-        AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay)
-        else -> localizedLabel(action)
+        AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes, context) else localizedLabel(action, context)
+        AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay, context)
+        else -> localizedLabel(action, context)
     }
     val state = when (action) {
-        AcAction.MODE -> localizedLabel(mode)
-        AcAction.FAN -> localizedLabel(fanSpeed)
-        AcAction.WIND_DIRECTION -> localizedLabel(windDirection)
-        AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay)
-        AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes) else AppStrings.get(R.string.control_disabled)
-        else -> active?.let { if (it) AppStrings.get(R.string.control_enabled) else AppStrings.get(R.string.control_disabled) }
+        AcAction.MODE -> localizedLabel(mode, context)
+        AcAction.FAN -> localizedLabel(fanSpeed, context)
+        AcAction.WIND_DIRECTION -> localizedLabel(windDirection, context)
+        AcAction.TEMPERATURE_DISPLAY -> localizedLabel(temperatureDisplay, context)
+        AcAction.TIMER -> if (timerMinutes > 0) localizedTimerDurationLabel(timerMinutes, context) else text(R.string.control_disabled)
+        else -> active?.let { if (it) text(R.string.control_enabled) else text(R.string.control_disabled) }
     }
     return AcControlAppearance(label, icon, state, active)
 }

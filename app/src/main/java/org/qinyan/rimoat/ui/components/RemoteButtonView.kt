@@ -1,7 +1,7 @@
 package org.qinyan.rimoat.ui.components
 
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.ui.motion.AppMotion
 import androidx.compose.animation.core.animateFloatAsState
@@ -140,20 +140,26 @@ fun RemoteButtonView(
         repeated = false
     }
     val accessibilityRepeat = rememberAccessibleRepeat(enabled && !isLearningMode, onRepeat)
+    val spokenLabel = if (isLearningMode) stringResource(R.string.control_learn, accessibilityLabel) else accessibilityLabel
+    val unavailableActionLabel = stringResource(R.string.control_unavailable_action, accessibilityLabel)
+    val reasonActionLabel = stringResource(R.string.control_show_reason)
+    val toggleStateLabel = stringResource(if (active == true) R.string.control_set_on else R.string.control_set_off)
+    val selectActionLabel = stringResource(R.string.control_select, accessibilityLabel)
+    val repeatActionLabel = stringResource(R.string.control_repeat_action, accessibilityLabel)
     val buttonModifier = Modifier.then(clickHaptic.modifier).width(diameter.coerceAtLeast(48.dp)).aspectRatio(1f)
         .graphicsLayer { scaleX = pressScale.value; scaleY = pressScale.value }
         .clearAndSetSemantics {
             role = Role.Button
             if (!enabled && onUnavailable == null) disabled()
-            contentDescription = if (isLearningMode) AppStrings.get(R.string.control_learn, accessibilityLabel) else accessibilityLabel
+            contentDescription = spokenLabel
             if (enabled) onClick {
                 clickHaptic()
                 if (isLearningMode && onLongClick != null) onLongClick() else onClick()
                 true
             }
             else if (onUnavailable != null) {
-                onClick(context.getString(R.string.control_unavailable_action, accessibilityLabel)) { diagnose(); true }
-                customActions = listOf(CustomAccessibilityAction(AppStrings.get(R.string.control_show_reason)) {
+                onClick(unavailableActionLabel) { diagnose(); true }
+                customActions = listOf(CustomAccessibilityAction(reasonActionLabel) {
                     onUnavailable(); true
                 })
             }
@@ -161,14 +167,14 @@ fun RemoteButtonView(
             if (active != null && !isLearningMode && isToggle) {
                 role = Role.Switch
                 toggleableState = ToggleableState(active)
-                if (currentState == null) stateDescription = AppStrings.get(if (active) R.string.control_set_on else R.string.control_set_off)
+                if (currentState == null) stateDescription = toggleStateLabel
             }
             if (enabled && !isLearningMode && onSelectState != null) {
-                onLongClick(AppStrings.get(R.string.control_select, accessibilityLabel)) { onSelectState(); true }
+                onLongClick(selectActionLabel) { onSelectState(); true }
             }
             if (enabled && !isLearningMode && onRepeat != null) {
                 customActions = listOf(CustomAccessibilityAction(
-                    AppStrings.get(R.string.control_repeat_action, accessibilityLabel)
+                    repeatActionLabel
                 ) { accessibilityRepeat() })
             }
         }
@@ -212,7 +218,7 @@ fun RemoteButtonView(
             val compact = LocalCompactRemoteButtons.current
             val labelTopPadding = if (compact) 4.dp else 8.dp
             if (showSelectionEntry && onSelectState != null && enabled && !isLearningMode) {
-                val selectionLabel = AppStrings.get(R.string.control_select_current, label, accessibilityLabel)
+                val selectionLabel = stringResource(R.string.control_select_current, label, accessibilityLabel)
                 Box(
                     modifier = Modifier
                         .padding(top = labelTopPadding)
@@ -288,13 +294,13 @@ fun RemoteIconButton(
         clickHaptic()
         if (isLearningMode) onLearn?.invoke() else onClick()
     }
-    val spokenLabel = if (isLearningMode) AppStrings.get(R.string.control_learn, label) else label
+    val spokenLabel = if (isLearningMode) stringResource(R.string.control_learn, label) else label
     val accessibleModifier = modifier.then(clickHaptic.modifier).size(56.dp).clearAndSetSemantics {
         contentDescription = spokenLabel
         role = Role.Button
         if (enabled) onClick { click(); true } else disabled()
     }
-    ActionTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn, label) else label) {
+    ActionTooltip(spokenLabel) {
     if (isLearningMode) OutlinedIconButton(onClick = click, enabled = enabled, modifier = accessibleModifier, shape = pressShape, interactionSource = interactionSource) {
         Icon(icon, contentDescription = null)
     } else FilledTonalIconButton(onClick = click, enabled = enabled, modifier = accessibleModifier, shape = pressShape, interactionSource = interactionSource) {

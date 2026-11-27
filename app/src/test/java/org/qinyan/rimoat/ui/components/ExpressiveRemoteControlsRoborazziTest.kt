@@ -111,6 +111,40 @@ class ExpressiveRemoteControlsRoborazziTest {
         RuntimeEnvironment.setFontScale(1f)
     }
 
+    @Test fun remoteAccessibilityLabelsFollowCompositionLocaleChanges() {
+        fun localizedContext(tag: String) = app.createConfigurationContext(
+            android.content.res.Configuration(app.resources.configuration).apply {
+                setLocale(java.util.Locale.forLanguageTag(tag))
+            }
+        )
+        val english = localizedContext("en")
+        val chinese = localizedContext("zh-CN")
+        var displayContext by mutableStateOf(english)
+        var learned = 0
+        var sent = 0
+        compose.setContent {
+            CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalContext provides displayContext,
+                androidx.compose.ui.platform.LocalConfiguration provides displayContext.resources.configuration
+            ) {
+                IrRemoteTheme(dynamicColor = false) {
+                    RemoteButtonView("Device", iconName = "power", onClick = { sent++ },
+                        onLongClick = { learned++ }, isLearningMode = true)
+                }
+            }
+        }
+        val englishLabel = english.getString(R.string.control_learn, "Device")
+        val chineseLabel = chinese.getString(R.string.control_learn, "Device")
+        compose.onNodeWithContentDescription(englishLabel).assertIsDisplayed()
+        compose.runOnIdle { displayContext = chinese }
+        compose.onNodeWithContentDescription(englishLabel).assertDoesNotExist()
+        compose.onNodeWithContentDescription(chineseLabel).assertIsDisplayed().performClick()
+        compose.runOnIdle {
+            assertEquals(1, learned)
+            assertEquals(0, sent)
+        }
+    }
+
     @Test fun pressedRemoteRestoresBoundsAndSendsOnceWithoutSystemClickSound() {
         var sends = 0
         var clickSounds = 0
