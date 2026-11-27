@@ -39,6 +39,7 @@ import org.qinyan.rimoat.MainActivity
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppLanguage
 import org.qinyan.rimoat.i18n.localizedLabel
+import org.qinyan.rimoat.i18n.localizedTimerDurationLabel
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.ui.components.controlAppearance
 import org.qinyan.rimoat.ui.components.getCategoryIcon
@@ -156,10 +157,13 @@ internal fun RemoteWidgetContent(kind: WidgetKind, widgetId: Int, snapshot: Widg
 
 @Composable
 private fun StatusMessage(title: String, actionLabel: String, action: Action) {
+    val context = LocalContext.current
     Column(GlanceModifier.fillMaxSize().clickable(action), verticalAlignment = Alignment.CenterVertically) {
         if (LocalSize.current.height < 140.dp && LocalWidgetFontScale.current >= 1.5f) {
             Text(actionLabel.ifBlank { title }, style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp), maxLines = 1,
-                modifier = GlanceModifier.semantics { contentDescription = "$title $actionLabel" })
+                modifier = GlanceModifier.semantics {
+                    contentDescription = context.getString(R.string.widget_status_action_description, title, actionLabel)
+                })
         } else {
             Text(title, style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             if (actionLabel.isNotBlank()) Text(actionLabel, style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 14.sp, fontWeight = FontWeight.Medium), maxLines = 1)
@@ -433,7 +437,8 @@ private fun AcReading(profile: RemoteProfile, snapshot: WidgetSnapshot, compact:
                       expanded: Boolean = false, showMode: Boolean = true) {
     val context = LocalContext.current
     val settings = widgetAcSettings(profile, snapshot.records[profile.id], snapshot.simulated)
-    val label = if (settings.powerOn) "${settings.temperature}°" else LocalContext.current.getString(R.string.widget_off)
+    val label = if (settings.powerOn) context.getString(R.string.control_temperature_value, settings.temperature)
+        else context.getString(R.string.widget_off)
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = TextStyle(color = GlanceTheme.colors.primary, fontWeight = FontWeight.Bold,
@@ -443,22 +448,23 @@ private fun AcReading(profile: RemoteProfile, snapshot: WidgetSnapshot, compact:
                 })
             if (showMode) {
                 Spacer(GlanceModifier.width(8.dp))
-                Image(widgetImage(settings.controlAppearance(AcAction.MODE).icon), localizedLabel(settings.mode, context),
+                Image(widgetImage(settings.controlAppearance(AcAction.MODE, context).icon), localizedLabel(settings.mode, context),
                     GlanceModifier.size(20.dp), colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant))
             }
         }
         if (expanded) Row(GlanceModifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             listOf(AcAction.FAN, AcAction.SWING).forEachIndexed { index, action ->
                 if (index > 0) Spacer(GlanceModifier.width(12.dp))
-                val appearance = settings.controlAppearance(action)
-                Image(widgetImage(appearance.icon), "${localizedLabel(action, context)} ${appearance.state.orEmpty()}",
+                val appearance = settings.controlAppearance(action, context)
+                Image(widgetImage(appearance.icon), context.getString(R.string.widget_control_state_description,
+                    localizedLabel(action, context), appearance.state.orEmpty()),
                     GlanceModifier.size(24.dp), colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant))
             }
             if (settings.timerMinutes > 0) {
                 Spacer(GlanceModifier.width(12.dp))
                 Image(widgetImage(Icons.Rounded.Timer), LocalContext.current.getString(R.string.widget_timer), GlanceModifier.size(20.dp),
                     colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant))
-                Text(context.getString(R.string.widget_minutes_short, settings.timerMinutes), style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp), maxLines = 1)
+                Text(localizedTimerDurationLabel(settings.timerMinutes, context), style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp), maxLines = 1)
             }
         }
     }
@@ -493,18 +499,18 @@ private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapsho
     } else {
         val acAction = widgetAcAction(profile, command)
         val appearance = if (profile != null && acAction != null)
-            widgetAcSettings(profile, state.records[profile.id], state.simulated).controlAppearance(acAction) else null
+            widgetAcSettings(profile, state.records[profile.id], state.simulated).controlAppearance(acAction, context) else null
         val power = command.isPower(profile)
         val active = appearance?.active == true
         val failure = LocalWidgetFeedback.current?.takeIf { it.error && it.shortcut == shortcut }
+        val stateLabel = if (acAction == AcAction.TIMER && profile != null) {
+            val minutes = widgetAcSettings(profile, state.records[profile.id], state.simulated).timerMinutes
+            if (minutes > 0) localizedTimerDurationLabel(minutes, context) else context.getString(R.string.widget_off)
+        } else appearance?.state
+        val description = widgetShortcutDescription(context, profile, command.displayLabel(profile, context), stateLabel,
+            failure?.let { context.getString(R.string.widget_failure_retry, it.text.resolve(context)) })
         WidgetActionIcon(widgetImage(if (failure != null) Icons.Rounded.ErrorOutline else widgetCommandVector(profile, command, state, context)),
-            listOfNotNull(profile?.name, profile?.room?.takeIf { it.isNotBlank() },
-                command.displayLabel(profile, context),
-                if (acAction == AcAction.TIMER && profile != null) {
-                    val minutes = widgetAcSettings(profile, state.records[profile.id], state.simulated).timerMinutes
-                    if (minutes > 0) context.getString(R.string.widget_minutes_short, minutes) else context.getString(R.string.widget_off)
-                } else appearance?.state,
-                failure?.let { context.getString(R.string.widget_failure_retry, it.text.resolve(context)) }).joinToString(" "),
+            description,
             shortcutAction(shortcut), enabled = enabled,
             primary = primary || power, size = size,
             backgroundColor = when { !enabled -> LocalWidgetSurfaces.current.container; failure != null -> GlanceTheme.colors.errorContainer; primary || power -> GlanceTheme.colors.primary; active -> GlanceTheme.colors.primaryContainer; else -> LocalWidgetSurfaces.current.container },

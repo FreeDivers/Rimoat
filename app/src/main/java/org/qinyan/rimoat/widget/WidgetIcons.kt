@@ -56,7 +56,7 @@ internal fun widgetImage(vector: ImageVector): ImageProvider {
 internal fun widgetCommandVector(profile: RemoteProfile?, command: WidgetCommand, state: WidgetSnapshot, context: Context? = null): ImageVector {
     val action = widgetAcAction(profile, command)
     if (profile != null && action != null) {
-        return widgetAcSettings(profile, state.records[profile.id], state.simulated).controlAppearance(action).icon
+        return widgetAcSettings(profile, state.records[profile.id], state.simulated).controlAppearance(action, context).icon
     }
     val button = profile?.buttons?.firstOrNull { it.id == command.id }
     val icon = if (button != null) resolveButtonIcon(button)

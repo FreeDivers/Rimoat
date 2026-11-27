@@ -117,9 +117,19 @@ class WidgetCommandsTest {
         }
     }
     @Test fun invalidBindingsAreRejected() {
-        assertTrue(runCatching { WidgetConfiguration(WidgetKind.SINGLE, "tv", listOf(WidgetShortcut("ac", "x"))).validate() }.isFailure)
-        assertTrue(runCatching { WidgetConfiguration(WidgetKind.PANEL, shortcuts = List(2) { WidgetShortcut("a", "b") }).validate() }.isFailure)
-        assertTrue(runCatching { WidgetConfiguration(WidgetKind.PANEL, shortcuts = List(13) { WidgetShortcut("a", "$it") }).validate() }.isFailure)
+        val wrongRemote = assertThrows(IllegalArgumentException::class.java) {
+            WidgetConfiguration(WidgetKind.SINGLE, "tv", listOf(WidgetShortcut("ac", "x"))).validate()
+        }
+        assertEquals(org.qinyan.rimoat.i18n.AppStrings.get(R.string.widget_wrong_remote), wrongRemote.message)
+        val duplicate = assertThrows(IllegalArgumentException::class.java) {
+            WidgetConfiguration(WidgetKind.PANEL, shortcuts = List(2) { WidgetShortcut("a", "b") }).validate()
+        }
+        val tooMany = assertThrows(IllegalArgumentException::class.java) {
+            WidgetConfiguration(WidgetKind.PANEL, shortcuts = List(13) { WidgetShortcut("a", "$it") }).validate()
+        }
+        val expected = org.qinyan.rimoat.i18n.AppStrings.get(R.string.widget_max_shortcuts)
+        assertEquals(expected, duplicate.message)
+        assertEquals(expected, tooMany.message)
     }
     @Test fun defaultPowerHonorsCapabilitiesAndLearnedSignals() {
         assertEquals("power", WidgetCommands.default(tv())?.buttonId)

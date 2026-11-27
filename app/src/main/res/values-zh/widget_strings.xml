@@ -49,7 +49,6 @@
     <string name="widget_set_temperature">设定温度%1$d摄氏度</string>
     <string name="widget_power_off">电源关闭</string>
     <string name="widget_timer">定时</string>
-    <string name="widget_minutes_short">%1$dm</string>
     <string name="widget_reselect_button">重新选择按键</string>
     <string name="widget_failure_retry">%1$s，点按重试</string>
     <string name="widget_cancel_config">取消配置</string>

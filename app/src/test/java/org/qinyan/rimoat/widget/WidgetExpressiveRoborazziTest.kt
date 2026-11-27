@@ -80,6 +80,27 @@ class WidgetExpressiveRoborazziTest {
     private val airConditioner = RemoteProfile("air_conditioner", "Bedroom AC", room = "Bedroom",
         category = DeviceCategory.AC, acProtocolId = 670, acSettings = AcSettings(temperature = 26))
 
+    @Test fun shortcutDescriptionsPreserveNamesAndResolveAllOptionalStates() {
+        for (tag in listOf("en", "zh-CN", "zh-Hant", "ja")) {
+            val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tag))
+            })
+            val profile = television.copy(name = "TV  One", room = "Room  Two")
+            val command = context.getString(R.string.widget_power)
+            val state = context.getString(R.string.widget_on)
+            val failure = context.getString(R.string.widget_failure_retry, "Disconnected")
+            assertEquals("TV  One Room  Two $command $state $failure",
+                widgetShortcutDescription(context, profile, command, state, failure))
+            assertEquals("TV  One Room  Two $command",
+                widgetShortcutDescription(context, profile, command, null, null))
+            assertEquals("TV  One $command $state",
+                widgetShortcutDescription(context, profile.copy(room = ""), command, state, null))
+            assertEquals("TV  One $command",
+                widgetShortcutDescription(context, profile.copy(room = ""), command, null, null))
+            assertEquals(command, widgetShortcutDescription(context, null, command, null, null))
+        }
+    }
+
     @Test
     @Config(sdk = [28, 35])
     fun singleKeepsOneReachableActionAcrossSizesAndColors() = runBlocking {
@@ -99,6 +120,37 @@ class WidgetExpressiveRoborazziTest {
 
     @Test fun statusKeepsTheSavedTemperatureAcrossSizesAndColors() = runBlocking {
         exerciseLayouts(WidgetKind.STATUS)
+    }
+
+    @Test fun timerDurationUsesLocalizedUnitsInReadingAndActionDescription() = runBlocking {
+        val durations = mapOf(
+            "en" to "1 hr 30 mins",
+            "zh-CN" to "1 小时 30 分钟",
+            "zh-Hant" to "1 小時 30 分鐘",
+            "ja" to "1時間30分"
+        )
+        val timer = RemoteButton("timer", AcAction.TIMER.name, key = ButtonKey.TIMER, acAction = AcAction.TIMER)
+        val profile = airConditioner.copy(acSettings = AcSettings(temperature = 26, timerMinutes = 90),
+            buttons = listOf(timer))
+        val (initialConfiguration, initialSnapshot) = fixture(WidgetKind.STATUS, profile = profile)
+        val configuration = initialConfiguration.copy(shortcuts = listOf(
+            WidgetShortcut(profile.id, WidgetCommands.POWER), WidgetShortcut(profile.id, timer.id)))
+        for ((localeTags, duration) in durations) {
+            render("timer_duration_$localeTags", DpSize(280.dp, 240.dp), configuration,
+                initialSnapshot.copy(localeTags = localeTags, colorMode = AppColorMode.LIGHT),
+                capture = false) { root ->
+                assertAllConfiguredCommandTargets(root, configuration)
+                val reading = texts(root).single { it.text.toString() == duration }
+                assertEquals("The full localized duration remains visible", 0,
+                    requireNotNull(reading.layout).getEllipsisCount(0))
+                val expectedDescription = root.context.getString(R.string.widget_shortcut_room_state_description,
+                    profile.name, profile.room, root.context.getString(R.string.control_timer), duration)
+                assertEquals("The timer action announces the localized duration", 1,
+                    descendants(root).filterIsInstance<ImageView>().count {
+                        it.contentDescription?.toString() == expectedDescription
+                    })
+            }
+        }
     }
 
     @Test fun narrowTallStatusKeepsFourActionsVisibleAtBothFontSizes() = runBlocking {
@@ -393,6 +445,7 @@ class WidgetExpressiveRoborazziTest {
         configuration: WidgetConfiguration,
         snapshot: WidgetSnapshot,
         feedback: WidgetFeedback? = null,
+        capture: Boolean = true,
         inspect: (ViewGroup) -> Unit
     ) {
         AppStrings.initialize(app)
@@ -420,7 +473,7 @@ class WidgetExpressiveRoborazziTest {
             parent.layout(0, 0, size.width.value.toInt(), size.height.value.toInt())
             inspect(parent)
             assertRenderedContentIsFullyVisible(parent)
-            parent.captureScreenshot("src/test/screenshots/widget_expressive_$name.webp", roborazziOptions = options)
+            if (capture) parent.captureScreenshot("src/test/screenshots/widget_expressive_$name.webp", roborazziOptions = options)
         } finally {
             controller.pause().stop().destroy()
         }

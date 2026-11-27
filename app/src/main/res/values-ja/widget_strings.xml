@@ -57,7 +57,6 @@
     <string name="widget_set_temperature">設定温度%1$d度</string>
     <string name="widget_power_off">電源オフ</string>
     <string name="widget_timer">タイマー</string>
-    <string name="widget_minutes_short">%1$d分</string>
     <string name="widget_reselect_button">ボタンを選び直す</string>
     <string name="widget_failure_retry">%1$s。タップして再試行</string>
     <string name="widget_cancel_config">設定をキャンセル</string>

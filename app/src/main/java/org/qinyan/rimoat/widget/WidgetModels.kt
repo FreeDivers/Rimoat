@@ -49,7 +49,7 @@ internal fun WidgetCommand.isPower(profile: RemoteProfile?, context: Context? = 
 
 /** Translate built-in labels only at presentation; persisted user names stay untouched. */
 fun WidgetCommand.displayLabel(profile: RemoteProfile?, context: Context? = null): String = when {
-    id == WidgetCommands.POWER -> widgetString(context, R.string.widget_power, "电源")
+    id == WidgetCommands.POWER -> widgetString(context, R.string.widget_power)
     id.startsWith(WidgetCommands.PREFIX) -> AcAction.entries.firstOrNull {
         it.name == id.removePrefix(WidgetCommands.PREFIX)
     }?.let { localizedLabel(it, context) } ?: label
@@ -88,12 +88,12 @@ object WidgetCommands {
 }
 
 fun DeviceCategory.widgetLabel(context: Context? = null): String = when (this) {
-    DeviceCategory.AC -> widgetString(context, R.string.widget_category_ac, "空调")
-    DeviceCategory.TV -> widgetString(context, R.string.widget_category_tv, "电视")
-    DeviceCategory.FAN -> widgetString(context, R.string.widget_category_fan, "风扇")
-    DeviceCategory.AUDIO -> widgetString(context, R.string.widget_category_audio, "音响")
-    DeviceCategory.PROJECTOR -> widgetString(context, R.string.widget_category_projector, "投影仪")
-    DeviceCategory.CUSTOM -> widgetString(context, R.string.widget_category_remote, "遥控器")
+    DeviceCategory.AC -> widgetString(context, R.string.widget_category_ac)
+    DeviceCategory.TV -> widgetString(context, R.string.widget_category_tv)
+    DeviceCategory.FAN -> widgetString(context, R.string.widget_category_fan)
+    DeviceCategory.AUDIO -> widgetString(context, R.string.widget_category_audio)
+    DeviceCategory.PROJECTOR -> widgetString(context, R.string.widget_category_projector)
+    DeviceCategory.CUSTOM -> widgetString(context, R.string.widget_category_remote)
 }
 
 data class WidgetDeviceStatus(val primary: String, val secondary: String, val details: List<String>,
@@ -115,16 +115,16 @@ fun widgetCommandEnabled(shortcut: WidgetShortcut, profile: RemoteProfile?, reco
 fun widgetDeviceStatus(profile: RemoteProfile, record: RemoteCommandRecord?, simulated: Boolean, context: Context? = null): WidgetDeviceStatus {
     if (profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons) {
         val state = widgetAcSettings(profile, record, simulated)
-        return WidgetDeviceStatus(if (state.powerOn) "${state.temperature}°" else widgetString(context, R.string.widget_turned_off, "已关闭"),
-            if (state.powerOn) localizedLabel(state.mode, context) else "${state.temperature}°  ${localizedLabel(state.mode, context)}",
+        return WidgetDeviceStatus(if (state.powerOn) widgetString(context, R.string.control_temperature_value, state.temperature) else widgetString(context, R.string.widget_turned_off),
+            if (state.powerOn) localizedLabel(state.mode, context) else widgetString(context, R.string.widget_temperature_mode, state.temperature, localizedLabel(state.mode, context)),
             buildList {
-                add(widgetString(context, R.string.widget_fan_value, "风速  %1\$s", localizedLabel(state.fanSpeed, context)))
-                add(widgetString(context, R.string.widget_vertical_swing_value, "上下扫风  %1\$s", if (state.isSwingOn) widgetString(context, R.string.widget_on, "开") else widgetString(context, R.string.widget_off, "关")))
-                if (state.horizontalSwingOn) add(widgetString(context, R.string.widget_horizontal_swing_on, "左右扫风  开"))
-                if (state.timerMinutes > 0) add(widgetString(context, R.string.widget_timer_value, "定时  %1\$d 分钟", state.timerMinutes))
-                if (state.sleepOn) add(widgetString(context, R.string.widget_sleep_on, "睡眠  开"))
-                if (state.ecoOn) add(widgetString(context, R.string.widget_eco_on, "节能  开"))
-                if (state.turboOn) add(widgetString(context, R.string.widget_turbo_on, "超强  开"))
+                add(widgetString(context, R.string.widget_fan_value, localizedLabel(state.fanSpeed, context)))
+                add(widgetString(context, R.string.widget_vertical_swing_value, if (state.isSwingOn) widgetString(context, R.string.widget_on) else widgetString(context, R.string.widget_off)))
+                if (state.horizontalSwingOn) add(widgetString(context, R.string.widget_horizontal_swing_on))
+                if (state.timerMinutes > 0) add(widgetString(context, R.string.widget_timer_value, state.timerMinutes))
+                if (state.sleepOn) add(widgetString(context, R.string.widget_sleep_on))
+                if (state.ecoOn) add(widgetString(context, R.string.widget_eco_on))
+                if (state.turboOn) add(widgetString(context, R.string.widget_turbo_on))
             })
     }
     // Independent IR codes do not report volume, fan speed or appliance power. Show the actual command.
@@ -144,5 +144,26 @@ fun widgetDeviceStatus(profile: RemoteProfile, record: RemoteCommandRecord?, sim
         listOfNotNull(profile.room.takeIf { it.isNotBlank() }, buttonCount), command)
 }
 
-private fun widgetString(context: Context?, @StringRes id: Int, fallback: String, vararg args: Any): String =
+private fun widgetString(context: Context?, @StringRes id: Int, vararg args: Any): String =
     context?.getString(id, *args) ?: AppStrings.get(id, *args)
+
+internal fun widgetShortcutDescription(
+    context: Context,
+    profile: RemoteProfile?,
+    command: String,
+    state: String?,
+    failure: String?
+): String {
+    val room = profile?.room?.takeIf { it.isNotBlank() }
+    val description = when {
+        profile == null -> if (state == null) command
+            else context.getString(R.string.widget_control_state_description, command, state)
+        room != null && state != null -> context.getString(
+            R.string.widget_shortcut_room_state_description, profile.name, room, command, state)
+        room != null -> context.getString(R.string.widget_shortcut_room_description, profile.name, room, command)
+        state != null -> context.getString(R.string.widget_shortcut_state_description, profile.name, command, state)
+        else -> context.getString(R.string.widget_shortcut_description, profile.name, command)
+    }
+    return if (failure == null) description
+        else context.getString(R.string.widget_shortcut_failure_description, description, failure)
+}
