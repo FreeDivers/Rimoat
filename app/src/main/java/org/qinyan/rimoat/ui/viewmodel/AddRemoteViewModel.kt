@@ -29,6 +29,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -84,15 +87,36 @@ class AddRemoteViewModel(
     private val _uiState = MutableStateFlow(AddRemoteUiState(isLoading = true))
     val uiState: StateFlow<AddRemoteUiState> = _uiState.asStateFlow()
 
+    private data class ProgressCheckpointKey(
+        val categoryId: Int?,
+        val brandId: Int?,
+        val step: AddRemoteStep,
+        val query: String,
+        val remoteId: String?,
+        val customName: String,
+        val observations: Map<String, PairingObservation>
+    )
+
     private val progressJson = Json { ignoreUnknownKeys = true }
     private val savedProgressJson: String? = savedStateHandle["pairing_progress"]
     private var progress = decodeProgress(savedProgressJson)
+    private var lastPersistedProgress: PairingProgress? = savedProgressJson?.let { progress }
     private fun decodeProgress(json: String?): PairingProgress = runCatching {
         json?.let { progressJson.decodeFromString<PairingProgress>(it) }?.takeIf { it.version in 1..2 }
     }.getOrNull() ?: PairingProgress()
     private var restoring = true
     private var flowCompleted = false
     private fun brandKey(category: Int, brand: Int) = "$category:$brand"
+    private fun updateBrandProgress(key: String, update: (BrandProgress) -> BrandProgress) {
+        val updated = update(progress.brands[key] ?: BrandProgress())
+        val reordered = (progress.brands - key) + (key to updated)
+        val bounded = if (reordered.size <= MAX_SAVED_BRANDS) {
+            reordered
+        } else {
+            reordered.entries.drop(reordered.size - MAX_SAVED_BRANDS).associate { it.key to it.value }
+        }
+        progress = progress.copy(brands = bounded)
+    }
     private fun checkpoint() {
         if (restoring || flowCompleted) return
         val state = _uiState.value
@@ -103,19 +127,24 @@ class AddRemoteViewModel(
         val model = state.currentRemote
         if (category != null && brand != null && model != null && state.step in listOf(AddRemoteStep.WIZARD, AddRemoteStep.CONFIRM)) {
             val key = brandKey(category.id, brand.brandIdx)
-            val previous = progress.brands[key] ?: BrandProgress()
-            progress = progress.copy(brands = progress.brands + (key to previous.copy(remoteId = model.remoteId, name = state.customRemoteName)))
+            updateBrandProgress(key) { previous ->
+                previous.copy(remoteId = model.remoteId, name = state.customRemoteName)
+            }
         }
         persistProgress()
     }
     private fun persistProgress() {
+        if (progress == lastPersistedProgress) return
         if (progress == PairingProgress()) {
             savedStateHandle.remove<String>("pairing_progress")
+            lastPersistedProgress = progress
             return
         }
-        val serialized = Json.encodeToString(progress)
-        if (savedStateHandle.get<String>("pairing_progress") == serialized) return
-        savedStateHandle["pairing_progress"] = serialized
+        val serialized = progressJson.encodeToString(progress)
+        if (savedStateHandle.get<String>("pairing_progress") != serialized) {
+            savedStateHandle["pairing_progress"] = serialized
+        }
+        lastPersistedProgress = progress
     }
     private fun observationsFor(remoteId: String, buttons: List<RemoteButton>): Map<String, PairingObservation> {
         val state = _uiState.value
@@ -135,10 +164,12 @@ class AddRemoteViewModel(
         val state = _uiState.value
         val key = brandKey(state.selectedCategory?.id ?: return, state.selectedBrand?.brandIdx ?: return)
         val model = state.currentRemote?.remoteId ?: return
-        val brand = progress.brands[key] ?: BrandProgress()
-        progress = progress.copy(brands = progress.brands + (key to brand.copy(
-            observations = brand.observations + (model to (brand.observations[model].orEmpty() + (button.id to observation))),
-            verified = brand.verified + (model to (brand.verified[model].orEmpty() - button.id)))))
+        updateBrandProgress(key) { brand ->
+            brand.copy(
+                observations = brand.observations + (model to (brand.observations[model].orEmpty() + (button.id to observation))),
+                verified = brand.verified + (model to (brand.verified[model].orEmpty() - button.id))
+            )
+        }
         persistProgress()
     }
     private suspend fun differences(model: IrRemoteModel, remotes: List<IrRemoteModel>, keys: List<RemoteButton>): Set<String> {
@@ -174,7 +205,21 @@ class AddRemoteViewModel(
         }
         loadCategories()
         viewModelScope.launch {
-            uiState.collect { if (!it.isLoading) checkpoint() }
+            uiState
+                .filter { !it.isLoading }
+                .map { state ->
+                    ProgressCheckpointKey(
+                        categoryId = state.selectedCategory?.id,
+                        brandId = state.selectedBrand?.brandIdx,
+                        step = state.step,
+                        query = state.brandSearchQuery,
+                        remoteId = state.currentRemote?.remoteId,
+                        customName = state.customRemoteName,
+                        observations = state.observations
+                    )
+                }
+                .distinctUntilChanged()
+                .collect { checkpoint() }
         }
     }
 
@@ -471,6 +516,7 @@ class AddRemoteViewModel(
                 if (epoch != saveEpoch) return@launch
                 flowCompleted = true
                 progress = PairingProgress()
+                lastPersistedProgress = null
                 savedStateHandle.remove<String>("pairing_progress")
                 testPressCounts.clear()
                 clearFeedback()
@@ -508,6 +554,7 @@ class AddRemoteViewModel(
         flowCompleted = false
         restoring = false
         progress = PairingProgress()
+        lastPersistedProgress = null
         savedStateHandle.remove<String>("pairing_progress")
         testPressCounts.clear()
         saveEpoch++
@@ -561,6 +608,10 @@ class AddRemoteViewModel(
             }
             AddRemoteStep.CATEGORY -> false
         }
+    }
+
+    private companion object {
+        private const val MAX_SAVED_BRANDS = 5
     }
 }
 

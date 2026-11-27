@@ -208,4 +208,51 @@ class PairingProgressTest {
         } finally { owner.clear(); runCurrent(); backgroundScope.coroutineContext.cancelChildren(); Dispatchers.resetMain(); dir.deleteRecursively() }
     }
 
+    @Test fun savedBrandsAreBoundedAndFingerprintIsCompact() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val dir = Files.createTempDirectory("experience_pairing_cap_").toFile()
+        val context = object : ContextWrapper(null) {
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? = null
+            override fun getFilesDir() = dir
+        }
+        val owner = ViewModelStore()
+        try {
+            val brands = (1..7).map { IrBrand(it, "Brand$it", "Brand$it", "b$it", 3) }
+            val catalog = object : IrCatalog {
+                val category = IrCategory(1, "电视", "TV", "tv")
+                override suspend fun getCategories() = listOf(category)
+                override suspend fun getBrandsForCategory(categoryId: Int, searchQuery: String) = brands
+                override suspend fun getRemotesForBrand(categoryId: Int, brandIdx: Int) = (1..2).map {
+                    IrRemoteModel("$brandIdx:$it", 1, "电视", brandIdx, "Brand$brandIdx", "Brand$brandIdx", it, "model", 1)
+                }
+                override suspend fun getTestKeysForRemote(remoteId: String) =
+                    RemoteButton("$remoteId:power", "电源", rawPattern = listOf(9000, 4500, 560)) to null
+                override suspend fun buildRemoteProfile(model: IrRemoteModel, customName: String?) =
+                    RemoteProfile(model.remoteId, customName ?: "test")
+            }
+            val button = RemoteButton("power", "电源", rawPattern = listOf(9000, 4500, 560))
+            val fp1 = pairingFingerprint(button)
+            val fp2 = pairingFingerprint(button.copy(rawPattern = listOf(9000, 4500, 570)))
+            assertEquals(16, fp1.length)
+            assertNotEquals(fp1, fp2)
+
+            val handle = SavedStateHandle()
+            val vm = AddRemoteViewModel(catalog, RemoteRepository(context, backgroundScope), IrTransmitterManager(context, backgroundScope), handle)
+                .also { owner.put("cap", it) }
+            runCurrent()
+            vm.selectCategory(catalog.category); runCurrent()
+            for (brand in brands) {
+                vm.selectBrand(brand); runCurrent()
+                vm.nextModel(); runCurrent()
+                vm.handleBack(); runCurrent()
+            }
+            val decoded = Json.decodeFromString<PairingProgress>(checkNotNull(handle.get<String>("pairing_progress")))
+            assertEquals(5, decoded.brands.size)
+            assertFalse("1:1" in decoded.brands)
+            assertFalse("1:2" in decoded.brands)
+            assertTrue("1:7" in decoded.brands)
+        } finally { owner.clear(); runCurrent(); backgroundScope.coroutineContext.cancelChildren(); Dispatchers.resetMain(); dir.deleteRecursively() }
+    }
+
 }

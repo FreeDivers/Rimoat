@@ -55,6 +55,17 @@ internal fun distinguishingPairingKeys(current: List<RemoteButton>, other: List<
     }.toSet()
 }
 
-internal fun pairingFingerprint(button: RemoteButton): String = java.security.MessageDigest
-    .getInstance("SHA-256").digest(Json.encodeToString(button).toByteArray(Charsets.UTF_8))
-    .joinToString("") { "%02x".format(it) }
+private val HEX_DIGITS = "0123456789abcdef".toCharArray()
+
+internal fun pairingFingerprint(button: RemoteButton): String {
+    val digest = java.security.MessageDigest
+        .getInstance("SHA-256")
+        .digest(Json.encodeToString(button).toByteArray(Charsets.UTF_8))
+    val chars = CharArray(16)
+    for (i in 0 until 8) {
+        val byte = digest[i].toInt() and 0xFF
+        chars[i * 2] = HEX_DIGITS[byte ushr 4]
+        chars[i * 2 + 1] = HEX_DIGITS[byte and 0x0F]
+    }
+    return String(chars)
+}
