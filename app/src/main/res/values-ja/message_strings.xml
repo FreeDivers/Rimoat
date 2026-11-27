@@ -151,7 +151,7 @@
     <string name="msg_serial_connect_bind">%1$s を設定しました。USB シリアルポートを接続して割り当ててください。</string>
     <string name="msg_serial_match_missing">一致するシリアルポートを特定できません。機器を接続するか、割り当て直してください。</string>
     <string name="msg_serial_permission_needed">シリアルポートに USB の権限が必要です</string>
-    <string name="msg_serial_status">%1$s · %2$s bps · ポート %3$s</string>
+    <string name="msg_serial_status">%1$s / %2$s bps / ポート %3$s</string>
     <string name="msg_serial_status_unavailable">シリアルポートの状態を取得できません：%1$s</string>
     <string name="msg_serial_port_unavailable">選択した機器にこのシリアルポートはありません</string>
     <string name="msg_serial_disconnected">シリアルポートが切断されました</string>

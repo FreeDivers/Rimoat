@@ -245,7 +245,7 @@
     <string name="control_send_failed">Send failed: %1$s</string>
     <string name="control_sent_channel">Sent [%1$s]</string>
     <string name="control_unavailable_count">Unavailable outputs (%1$d)</string>
-    <string name="control_selected_status">Selected · %1$s</string>
+    <string name="control_selected_status">Selected: %1$s</string>
     <string name="control_category_ac">Air conditioner</string>
     <string name="control_category_tv">TV</string>
     <string name="control_category_fan">Fan</string>

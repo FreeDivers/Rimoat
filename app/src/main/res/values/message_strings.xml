@@ -152,7 +152,7 @@
     <string name="msg_serial_connect_bind">%1$s configured. Connect and bind a USB serial port.</string>
     <string name="msg_serial_match_missing">No unique matching serial port found. Connect the device or bind it again.</string>
     <string name="msg_serial_permission_needed">USB permission required for the serial port</string>
-    <string name="msg_serial_status">%1$s · %2$s bps · Port %3$s</string>
+    <string name="msg_serial_status">%1$s / %2$s bps / Port %3$s</string>
     <string name="msg_serial_status_unavailable">Serial status unavailable: %1$s</string>
     <string name="msg_serial_port_unavailable">The selected device does not have this serial port</string>
     <string name="msg_serial_disconnected">Serial port disconnected</string>

@@ -151,7 +151,7 @@
     <string name="msg_serial_connect_bind">%1$s 已配置，请连接并绑定 USB 串口</string>
     <string name="msg_serial_match_missing">未找到唯一匹配的串口，请连接设备或重新绑定</string>
     <string name="msg_serial_permission_needed">串口需要 USB 授权</string>
-    <string name="msg_serial_status">%1$s · %2$s bps · 端口 %3$s</string>
+    <string name="msg_serial_status">%1$s / %2$s bps / 端口 %3$s</string>
     <string name="msg_serial_status_unavailable">串口状态不可用：%1$s</string>
     <string name="msg_serial_port_unavailable">所选设备没有此串口</string>
     <string name="msg_serial_disconnected">串口已断开</string>

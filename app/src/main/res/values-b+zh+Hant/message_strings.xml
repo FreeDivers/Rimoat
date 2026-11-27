@@ -151,7 +151,7 @@
     <string name="msg_serial_connect_bind">%1$s 已設定，請連線並綁定 USB 串列埠</string>
     <string name="msg_serial_match_missing">未找到唯一符合條件的串列埠，請連線裝置或重新綁定</string>
     <string name="msg_serial_permission_needed">串列埠需要 USB 授權</string>
-    <string name="msg_serial_status">%1$s · %2$s bps · 埠 %3$s</string>
+    <string name="msg_serial_status">%1$s / %2$s bps / 埠 %3$s</string>
     <string name="msg_serial_status_unavailable">串列埠狀態不可用：%1$s</string>
     <string name="msg_serial_port_unavailable">所選裝置沒有此串列埠</string>
     <string name="msg_serial_disconnected">串列埠已斷開</string>

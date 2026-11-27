@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.i18n
 
+import org.junit.Assert.assertTrue
 import org.qinyan.rimoat.IrRemoteApplication
 import org.junit.Assert.assertSame
 import kotlinx.coroutines.cancel
@@ -29,6 +30,23 @@ class AppLanguageResourcesTest {
         } else {
             app.getSharedPreferences("rimoat_language", Context.MODE_PRIVATE)
                 .edit().putString("language_tag", tag).commit()
+        }
+    }
+
+    @Test
+    fun selectedChannelStatusUsesTheLocaleFormatWithoutMiddleDots() {
+        for ((tag, expected) in mapOf(
+            "en" to "Selected: USB",
+            "zh-CN" to "已选：USB",
+            "zh-Hant" to "已選：USB",
+            "ja" to "選択中・USB"
+        )) {
+            val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tag))
+            })
+            val actual = context.getString(R.string.control_selected_status, "USB")
+            assertEquals(tag, expected, actual)
+            assertTrue("$tag does not use U+00B7", '\u00b7' !in actual)
         }
     }
 

@@ -243,7 +243,7 @@
     <string name="control_send_failed">发送失败: %1$s</string>
     <string name="control_sent_channel">已发送 [%1$s]</string>
     <string name="control_unavailable_count">不可用通道（%1$d）</string>
-    <string name="control_selected_status">已选 · %1$s</string>
+    <string name="control_selected_status">已选：%1$s</string>
     <string name="control_category_ac">空调</string>
     <string name="control_category_tv">电视</string>
     <string name="control_category_fan">风扇</string>
