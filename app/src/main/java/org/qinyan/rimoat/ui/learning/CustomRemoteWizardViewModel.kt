@@ -11,6 +11,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.ApplianceType
+import org.qinyan.rimoat.data.AcAction
+import org.qinyan.rimoat.data.ButtonKey
+import org.qinyan.rimoat.data.LegacyLabelMap
+import org.qinyan.rimoat.data.LegacyRemoteMigration
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.RemoteRepository
@@ -67,7 +71,9 @@ data class WizardKeyItem(
     val capturedSignal: IrSignal.Raw? = null,
     val pulseCount: Int = 0,
     val durationMs: Double = 0.0,
-    val builtinLabel: String? = null
+    val builtinLabel: String? = null,
+    val key: ButtonKey? = null,
+    val acAction: AcAction? = null
 )
 
 @Serializable
@@ -83,7 +89,9 @@ data class CustomRemoteWizardUiState(
     @kotlinx.serialization.Transient val errorMessage: UiText? = null,
     val isSaving: Boolean = false,
     val isRestoring: Boolean = false,
-    val applianceType: ApplianceType? = null
+    val applianceType: ApplianceType? = null,
+    val templateApplianceType: ApplianceType? = null,
+    val keySchemaVersion: Int = 0
 ) {
     val selectedApplianceType: ApplianceType
         get() = applianceType ?: ApplianceType.fromCategory(category)
@@ -120,7 +128,9 @@ private data class WizardDraftSnapshot(
     val category: DeviceCategory,
     val keyQueue: List<WizardKeyItem>,
     val currentIndex: Int,
-    val applianceType: ApplianceType?
+    val applianceType: ApplianceType?,
+    val templateApplianceType: ApplianceType?,
+    val keySchemaVersion: Int
 )
 
 private fun CustomRemoteWizardUiState.toDraftSnapshot(): WizardDraftSnapshot = WizardDraftSnapshot(
@@ -130,23 +140,41 @@ private fun CustomRemoteWizardUiState.toDraftSnapshot(): WizardDraftSnapshot = W
     category = category,
     keyQueue = keyQueue,
     currentIndex = currentIndex,
-    applianceType = applianceType
+    applianceType = applianceType,
+    templateApplianceType = templateApplianceType,
+    keySchemaVersion = keySchemaVersion
 )
 
-private fun normalizeRestored(state: CustomRemoteWizardUiState): CustomRemoteWizardUiState = state.copy(
-    isSaving = false,
-    isTestingTransmit = false,
-    isRestoring = false,
-    keyQueue = state.keyQueue.map { item ->
-        if (item.status == KeyLearnStatus.LEARNING) {
-            item.copy(
-                status = if (item.capturedSignal == null) KeyLearnStatus.PENDING else KeyLearnStatus.CAPTURED
-            )
-        } else {
-            item
-        }
+private fun normalizeRestored(state: CustomRemoteWizardUiState): CustomRemoteWizardUiState {
+    val normalizedQueue = state.keyQueue.map { item ->
+        val key = item.key ?: item.builtinLabel?.let(LegacyLabelMap::key)
+        item.copy(
+            key = key,
+            builtinLabel = if (item.builtinLabel != null && key != null) key.name else item.builtinLabel,
+            status = if (item.status == KeyLearnStatus.LEARNING) {
+                if (item.capturedSignal == null) KeyLearnStatus.PENDING else KeyLearnStatus.CAPTURED
+            } else item.status
+        )
     }
-)
+    val defaults = CustomRemoteWizardViewModel.generateDefaultQueue(state.selectedApplianceType)
+    val template = state.templateApplianceType ?: state.selectedApplianceType.takeIf {
+        state.keySchemaVersion == 0 &&
+            normalizedQueue.filter { it.builtinLabel != null }.map { it.key } == defaults.map { it.key }
+    }
+    val actionsByKey = defaults.associate { it.key to it.acAction }
+    return state.copy(
+        isSaving = false,
+        isTestingTransmit = false,
+        isRestoring = false,
+        templateApplianceType = template,
+        keySchemaVersion = 1,
+        keyQueue = normalizedQueue.map { item ->
+            if (state.keySchemaVersion == 0 && template == ApplianceType.AC && item.builtinLabel != null) {
+                item.copy(acAction = item.acAction ?: actionsByKey[item.key])
+            } else item
+        }
+    )
+}
 
 @OptIn(FlowPreview::class)
 class CustomRemoteWizardViewModel(
@@ -186,6 +214,8 @@ class CustomRemoteWizardViewModel(
     private val _uiState = MutableStateFlow(
         initialInlineState ?: CustomRemoteWizardUiState(
             category = initialCategory,
+            templateApplianceType = ApplianceType.fromCategory(initialCategory),
+            keySchemaVersion = 1,
             keyQueue = generateDefaultQueue(initialCategory)
         ).copy(isRestoring = shouldRestoreFromDisk)
     )
@@ -317,6 +347,7 @@ class CustomRemoteWizardViewModel(
                 it.copy(
                     category = type.category,
                     applianceType = type,
+                    templateApplianceType = type,
                     currentIndex = 0,
                     keyQueue = generateDefaultQueue(type)
                 )
@@ -529,6 +560,7 @@ class CustomRemoteWizardViewModel(
         }
     }
 
+
     fun selectKey(index: Int) {
         if (_uiState.value.isSaving || index !in _uiState.value.keyQueue.indices) return
         cancelTest()
@@ -564,6 +596,8 @@ class CustomRemoteWizardViewModel(
                     id = item.id,
                     label = item.label,
                     builtinLabel = item.builtinLabel,
+                    key = item.key,
+                    acAction = item.acAction,
                     iconName = item.iconName,
                     row = idx / 3,
                     col = idx % 3,
@@ -582,6 +616,7 @@ class CustomRemoteWizardViewModel(
             category = state.category,
             applianceType = state.selectedApplianceType,
             useStaticAcButtons = state.category == DeviceCategory.AC,
+            keySchemaVersion = LegacyRemoteMigration.KEY_SCHEMA_VERSION,
             buttons = learnedButtons,
             updatedAt = System.currentTimeMillis()
         )
@@ -638,6 +673,8 @@ class CustomRemoteWizardViewModel(
         cancelCurrentKeyLearning()
         _uiState.value = CustomRemoteWizardUiState(
             category = category,
+            templateApplianceType = ApplianceType.fromCategory(category),
+            keySchemaVersion = 1,
             keyQueue = generateDefaultQueue(category)
         )
     }
@@ -671,87 +708,99 @@ class CustomRemoteWizardViewModel(
         private const val LOCAL_DRAFT_MARKER = "local-draft"
         private const val DRAFT_WRITE_DEBOUNCE_MS = 300L
 
+        private fun defaultKey(
+            key: ButtonKey,
+            iconName: String? = null,
+            acAction: AcAction? = null
+        ) = WizardKeyItem(
+            label = key.name,
+            builtinLabel = key.name,
+            key = key,
+            iconName = iconName,
+            acAction = acAction
+        )
+
         fun generateDefaultQueue(type: ApplianceType): List<WizardKeyItem> {
             val keys = when (type) {
                 ApplianceType.SET_TOP_BOX, ApplianceType.IPTV -> generateDefaultQueue(DeviceCategory.TV) + listOf(
-                    WizardKeyItem(label = "频道+", iconName = "arrow_drop_up"),
-                    WizardKeyItem(label = "频道-", iconName = "arrow_drop_down")
+                    defaultKey(ButtonKey.CHANNEL_UP, iconName = "arrow_drop_up"),
+                    defaultKey(ButtonKey.CHANNEL_DOWN, iconName = "arrow_drop_down")
                 )
                 ApplianceType.DVD -> generateDefaultQueue(DeviceCategory.AUDIO) + listOf(
-                    WizardKeyItem(label = "播放/暂停"),
-                    WizardKeyItem(label = "停止"),
-                    WizardKeyItem(label = "上一曲"),
-                    WizardKeyItem(label = "下一曲"),
-                    WizardKeyItem(label = "开仓")
+                    defaultKey(ButtonKey.PLAY_PAUSE),
+                    defaultKey(ButtonKey.STOP),
+                    defaultKey(ButtonKey.PREVIOUS),
+                    defaultKey(ButtonKey.NEXT),
+                    defaultKey(ButtonKey.EJECT)
                 )
                 ApplianceType.CAMERA -> listOf(
-                    WizardKeyItem(label = "快门"),
-                    WizardKeyItem(label = "副快门")
+                    defaultKey(ButtonKey.SHUTTER),
+                    defaultKey(ButtonKey.SUB_SHUTTER)
                 )
                 ApplianceType.LIGHT -> listOf(
-                    WizardKeyItem(label = "电源", iconName = "power"),
-                    WizardKeyItem(label = "亮度")
+                    defaultKey(ButtonKey.POWER, iconName = "power"),
+                    defaultKey(ButtonKey.BRIGHTNESS)
                 )
                 else -> generateDefaultQueue(type.category)
             }
-            return keys.map { it.copy(builtinLabel = it.label) }
+            return keys
         }
 
         fun generateDefaultQueue(category: DeviceCategory): List<WizardKeyItem> {
             return when (category) {
                 DeviceCategory.TV -> listOf(
-                    WizardKeyItem(label = "电源", iconName = "power"),
-                    WizardKeyItem(label = "音量+", iconName = "volume_up"),
-                    WizardKeyItem(label = "音量-", iconName = "volume_down"),
-                    WizardKeyItem(label = "静音", iconName = "volume_off"),
-                    WizardKeyItem(label = "上", iconName = "keyboard_arrow_up"),
-                    WizardKeyItem(label = "下", iconName = "keyboard_arrow_down"),
-                    WizardKeyItem(label = "左", iconName = "keyboard_arrow_left"),
-                    WizardKeyItem(label = "右", iconName = "keyboard_arrow_right"),
-                    WizardKeyItem(label = "OK", iconName = null),
-                    WizardKeyItem(label = "返回", iconName = "arrow_back"),
-                    WizardKeyItem(label = "主页", iconName = "home"),
-                    WizardKeyItem(label = "菜单", iconName = "menu")
+                    defaultKey(ButtonKey.POWER, iconName = "power"),
+                    defaultKey(ButtonKey.VOLUME_UP, iconName = "volume_up"),
+                    defaultKey(ButtonKey.VOLUME_DOWN, iconName = "volume_down"),
+                    defaultKey(ButtonKey.MUTE, iconName = "volume_off"),
+                    defaultKey(ButtonKey.UP, iconName = "keyboard_arrow_up"),
+                    defaultKey(ButtonKey.DOWN, iconName = "keyboard_arrow_down"),
+                    defaultKey(ButtonKey.LEFT, iconName = "keyboard_arrow_left"),
+                    defaultKey(ButtonKey.RIGHT, iconName = "keyboard_arrow_right"),
+                    defaultKey(ButtonKey.OK, iconName = null),
+                    defaultKey(ButtonKey.BACK, iconName = "arrow_back"),
+                    defaultKey(ButtonKey.HOME, iconName = "home"),
+                    defaultKey(ButtonKey.MENU, iconName = "menu")
                 )
                 DeviceCategory.AC -> listOf(
-                    WizardKeyItem(label = "开关", iconName = "power"),
-                    WizardKeyItem(label = "温度+", iconName = "arrow_drop_up"),
-                    WizardKeyItem(label = "温度-", iconName = "arrow_drop_down"),
-                    WizardKeyItem(label = "模式", iconName = "tune"),
-                    WizardKeyItem(label = "风速", iconName = "air"),
-                    WizardKeyItem(label = "扫风", iconName = "swap_calls")
+                    defaultKey(ButtonKey.POWER, acAction = AcAction.POWER_ON, iconName = "power"),
+                    defaultKey(ButtonKey.TEMPERATURE_UP, acAction = AcAction.TEMP_UP, iconName = "arrow_drop_up"),
+                    defaultKey(ButtonKey.TEMPERATURE_DOWN, acAction = AcAction.TEMP_DOWN, iconName = "arrow_drop_down"),
+                    defaultKey(ButtonKey.MODE, acAction = AcAction.MODE, iconName = "tune"),
+                    defaultKey(ButtonKey.FAN_SPEED, acAction = AcAction.FAN, iconName = "air"),
+                    defaultKey(ButtonKey.SWING, acAction = AcAction.SWING, iconName = "swap_calls")
                 )
                 DeviceCategory.FAN -> listOf(
-                    WizardKeyItem(label = "电源", iconName = "power"),
-                    WizardKeyItem(label = "风速", iconName = "speed"),
-                    WizardKeyItem(label = "摇头", iconName = "sync_alt"),
-                    WizardKeyItem(label = "定时", iconName = "timer"),
-                    WizardKeyItem(label = "模式", iconName = "tune")
+                    defaultKey(ButtonKey.POWER, iconName = "power"),
+                    defaultKey(ButtonKey.FAN_SPEED, iconName = "speed"),
+                    defaultKey(ButtonKey.OSCILLATION, iconName = "sync_alt"),
+                    defaultKey(ButtonKey.TIMER, iconName = "timer"),
+                    defaultKey(ButtonKey.MODE, iconName = "tune")
                 )
                 DeviceCategory.PROJECTOR -> listOf(
-                    WizardKeyItem(label = "电源", iconName = "power"),
-                    WizardKeyItem(label = "上", iconName = "keyboard_arrow_up"),
-                    WizardKeyItem(label = "下", iconName = "keyboard_arrow_down"),
-                    WizardKeyItem(label = "左", iconName = "keyboard_arrow_left"),
-                    WizardKeyItem(label = "右", iconName = "keyboard_arrow_right"),
-                    WizardKeyItem(label = "OK", iconName = null),
-                    WizardKeyItem(label = "返回", iconName = "arrow_back"),
-                    WizardKeyItem(label = "菜单", iconName = "menu"),
-                    WizardKeyItem(label = "对焦+", iconName = "center_focus_strong"),
-                    WizardKeyItem(label = "对焦-", iconName = "filter_center_focus")
+                    defaultKey(ButtonKey.POWER, iconName = "power"),
+                    defaultKey(ButtonKey.UP, iconName = "keyboard_arrow_up"),
+                    defaultKey(ButtonKey.DOWN, iconName = "keyboard_arrow_down"),
+                    defaultKey(ButtonKey.LEFT, iconName = "keyboard_arrow_left"),
+                    defaultKey(ButtonKey.RIGHT, iconName = "keyboard_arrow_right"),
+                    defaultKey(ButtonKey.OK, iconName = null),
+                    defaultKey(ButtonKey.BACK, iconName = "arrow_back"),
+                    defaultKey(ButtonKey.MENU, iconName = "menu"),
+                    defaultKey(ButtonKey.FOCUS_PLUS, iconName = "center_focus_strong"),
+                    defaultKey(ButtonKey.FOCUS_MINUS, iconName = "filter_center_focus")
                 )
                 DeviceCategory.CUSTOM,
                 DeviceCategory.AUDIO -> listOf(
-                    WizardKeyItem(label = "电源", iconName = "power"),
-                    WizardKeyItem(label = "音量+", iconName = "volume_up"),
-                    WizardKeyItem(label = "音量-", iconName = "volume_down"),
-                    WizardKeyItem(label = "上", iconName = "keyboard_arrow_up"),
-                    WizardKeyItem(label = "下", iconName = "keyboard_arrow_down"),
-                    WizardKeyItem(label = "左", iconName = "keyboard_arrow_left"),
-                    WizardKeyItem(label = "右", iconName = "keyboard_arrow_right"),
-                    WizardKeyItem(label = "OK", iconName = null)
+                    defaultKey(ButtonKey.POWER, iconName = "power"),
+                    defaultKey(ButtonKey.VOLUME_UP, iconName = "volume_up"),
+                    defaultKey(ButtonKey.VOLUME_DOWN, iconName = "volume_down"),
+                    defaultKey(ButtonKey.UP, iconName = "keyboard_arrow_up"),
+                    defaultKey(ButtonKey.DOWN, iconName = "keyboard_arrow_down"),
+                    defaultKey(ButtonKey.LEFT, iconName = "keyboard_arrow_left"),
+                    defaultKey(ButtonKey.RIGHT, iconName = "keyboard_arrow_right"),
+                    defaultKey(ButtonKey.OK, iconName = null)
                 )
-            }.map { it.copy(builtinLabel = it.label) }
+            }
         }
     }
 }

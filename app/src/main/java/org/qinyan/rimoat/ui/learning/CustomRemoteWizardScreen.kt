@@ -7,6 +7,7 @@ import org.qinyan.rimoat.R
 
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.asString
+import org.qinyan.rimoat.i18n.defaultLearningLabelRes
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
@@ -544,7 +545,7 @@ internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: 
     val learnedItems = remember(page.keyQueue) { page.keyQueue.filter { it.status == KeyLearnStatus.LEARNED } }
     val learned: LazyListScope.() -> Unit = {
         itemsIndexed(learnedItems, key = { _, key -> key.id }) { index, key ->
-            val icon = resolveButtonIcon(key.iconName, key.displayLabel(), key.id, key.builtinLabel) ?: Icons.Rounded.Tune
+            val icon = resolveButtonIcon(key.key, key.iconName) ?: Icons.Rounded.Tune
             ExpressiveSegmentedSurface(index = index, count = learnedItems.size) {
                 ListItem(
                     headlineContent = { Text(key.displayLabel()) },
@@ -590,6 +591,7 @@ internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: 
 internal fun WizardKeyItem.displayLabel(): String {
     LocalConfiguration.current
     val context = LocalContext.current
+    if (builtinLabel != null && key != null) return context.getString(defaultLearningLabelRes(key, acAction))
     return builtinLabel?.let { org.qinyan.rimoat.i18n.localizedLabel(it, context) } ?: label
 }
 

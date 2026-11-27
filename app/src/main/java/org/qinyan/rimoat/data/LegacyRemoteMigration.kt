@@ -6,8 +6,9 @@ object LegacyRemoteMigration {
 
     /** Add semantic metadata without changing signal IDs, labels, or panel references. */
     fun normalizeKeys(profile: RemoteProfile): RemoteProfile {
-        if (profile.keySchemaVersion >= KEY_SCHEMA_VERSION) return profile
-        val buttons = profile.buttons.map { button ->
+        val learnedProfile = normalizeLearnedDefaults(profile)
+        if (profile.keySchemaVersion >= KEY_SCHEMA_VERSION) return learnedProfile
+        val buttons = learnedProfile.buttons.map { button ->
             val key = button.key ?: button.acAction?.buttonKey ?: if (button.builtinLabel != null) {
                 LegacyLabelMap.key(button.builtinLabel) ?: LegacyLabelMap.id(button.id)
                     ?: LegacyLabelMap.icon(button.iconName)
@@ -17,7 +18,9 @@ object LegacyRemoteMigration {
             button.copy(key = key)
         }
         val verified = profile.verifiedFunctions.flatMap { value ->
-            val matches = buttons.filter { it.id == value || it.label == value || it.builtinLabel == value }
+            val matches = profile.buttons.mapIndexedNotNull { index, button ->
+                buttons[index].takeIf { button.id == value || button.label == value || button.builtinLabel == value }
+            }
             when {
                 matches.isNotEmpty() -> matches.map { it.verifiedFunctionId }
                 profile.category == DeviceCategory.AC -> listOf(
@@ -27,13 +30,36 @@ object LegacyRemoteMigration {
             }
         }.distinct()
         val source = legacyCatalogIdentity(profile.sourceRemoteId)
-        return profile.copy(
+        return learnedProfile.copy(
             buttons = buttons,
             verifiedFunctions = verified,
             applianceType = profile.applianceType ?: source?.first ?: ApplianceType.fromCategory(profile.category),
             brandIdx = profile.brandIdx ?: source?.second,
             keySchemaVersion = KEY_SCHEMA_VERSION
         )
+    }
+
+    private fun normalizeLearnedDefaults(profile: RemoteProfile): RemoteProfile {
+        val buttons = profile.buttons.map { button ->
+            val builtin = button.builtinLabel
+            if (!button.isLearned || builtin == null) return@map button
+            val key = button.key ?: LegacyLabelMap.key(builtin) ?: return@map button
+            button.copy(
+                key = key,
+                builtinLabel = key.name,
+                acAction = button.acAction ?: if (profile.category == DeviceCategory.AC && profile.useStaticAcButtons) {
+                    LegacyLabelMap.wizardAcAction(builtin)
+                } else null
+            )
+        }
+        if (buttons == profile.buttons) return profile
+        val verified = profile.verifiedFunctions.flatMap { value ->
+            val matches = profile.buttons.mapIndexedNotNull { index, button ->
+                buttons[index].verifiedFunctionId.takeIf { button.verifiedFunctionId == value }
+            }
+            matches.ifEmpty { listOf(value) }
+        }.distinct()
+        return profile.copy(buttons = buttons, verifiedFunctions = verified)
     }
 
     /** The catalog ID syntax is a legacy storage concern, never a UI fallback. */

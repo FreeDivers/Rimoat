@@ -40,21 +40,25 @@ fun RemoteControlPages(hasMore: Boolean, labels: List<String> = listOf(localized
 
 /** Same classification supplies both page availability and the controls drawn on the first page. */
 internal fun tvStandardButtons(profile: RemoteProfile): List<RemoteButton?> {
-    fun find(predicate: (RemoteButton) -> Boolean) = profile.buttons.firstOrNull(predicate)
+    fun find(key: ButtonKey, legacyMatch: (RemoteButton) -> Boolean) =
+        profile.buttons.firstOrNull { it.key == key }
+            ?: profile.buttons.firstOrNull { it.key == null && legacyMatch(it) }
     return listOf(
-        find { it.isPowerKey() },
-        find { it.id.contains("source") || it.label.contains("信源") },
-        find { it.id.contains("mute") || it.label.contains("静音") },
-        find { it.id == "tv_up" || it.label == "上" }, find { it.id == "tv_down" || it.label == "下" },
-        find { it.id == "tv_left" || it.label == "左" }, find { it.id == "tv_right" || it.label == "右" },
-        find { it.id == "tv_ok" || it.label == "OK" },
-        find { it.id.contains("back") || it.label.contains("返回") },
-        find { it.id.contains("home") || it.label.contains("主页") },
-        find { it.id.contains("menu") || it.label.contains("菜单") },
-        find { it.id.contains("vol_up") || it.label.contains("音量+") },
-        find { it.id.contains("vol_down") || it.label.contains("音量-") },
-        find { it.id.contains("ch_up") || it.label.contains("频道+") },
-        find { it.id.contains("ch_down") || it.label.contains("频道-") }
+        profile.buttons.firstOrNull { it.isPowerKey() },
+        find(ButtonKey.SOURCE) { it.id.contains("source") || it.label.contains("信源") },
+        find(ButtonKey.MUTE) { it.id.contains("mute") || it.label.contains("静音") },
+        find(ButtonKey.UP) { it.id == "tv_up" || it.label == "上" },
+        find(ButtonKey.DOWN) { it.id == "tv_down" || it.label == "下" },
+        find(ButtonKey.LEFT) { it.id == "tv_left" || it.label == "左" },
+        find(ButtonKey.RIGHT) { it.id == "tv_right" || it.label == "右" },
+        find(ButtonKey.OK) { it.id == "tv_ok" || it.label == "OK" },
+        find(ButtonKey.BACK) { it.id.contains("back") || it.label.contains("返回") },
+        find(ButtonKey.HOME) { it.id.contains("home") || it.label.contains("主页") },
+        find(ButtonKey.MENU) { it.id.contains("menu") || it.label.contains("菜单") },
+        find(ButtonKey.VOLUME_UP) { it.id.contains("vol_up") || it.label.contains("音量+") },
+        find(ButtonKey.VOLUME_DOWN) { it.id.contains("vol_down") || it.label.contains("音量-") },
+        find(ButtonKey.CHANNEL_UP) { it.id.contains("ch_up") || it.label.contains("频道+") },
+        find(ButtonKey.CHANNEL_DOWN) { it.id.contains("ch_down") || it.label.contains("频道-") }
     )
 }
 

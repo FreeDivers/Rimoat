@@ -1,6 +1,9 @@
 package org.qinyan.rimoat.learning
 
+import org.qinyan.rimoat.data.AcAction
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.DeviceCategory
+import org.qinyan.rimoat.data.LegacyRemoteMigration
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.SignalType
@@ -11,11 +14,16 @@ import org.qinyan.rimoat.hardware.learning.MockIrLearner
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class LearnedSignalPersistenceTest {
+
+    @get:Rule
+    val temporary = TemporaryFolder()
 
     private val json = Json {
         prettyPrint = true
@@ -99,5 +107,92 @@ class LearnedSignalPersistenceTest {
         assertEquals(6, updatedButton.rawPattern.size)
         assertEquals(null, updatedButton.necAddress)
         assertEquals(null, updatedButton.necCommand)
+    }
+
+    @Test
+    fun learnedAcKeysKeepStableMetadataAndCustomNamesAfterDiskRoundTrip() {
+        val signal = IrSignal.Raw(40000, intArrayOf(9000, 4500, 560, 1690, 560, 560))
+        val templateKey = RemoteButton(
+            id = "template_temperature_up",
+            label = ButtonKey.TEMPERATURE_UP.name,
+            builtinLabel = ButtonKey.TEMPERATURE_UP.name,
+            key = ButtonKey.TEMPERATURE_UP,
+            acAction = AcAction.TEMP_UP,
+            isLearned = true,
+            signalType = SignalType.RAW,
+            frequencyHz = signal.frequencyHz,
+            rawPattern = signal.patternMicros.toList()
+        )
+        val customKey = RemoteButton(
+            id = "custom_warmer",
+            label = "My warmer button",
+            key = ButtonKey.TEMPERATURE_UP,
+            acAction = AcAction.TEMP_UP,
+            isLearned = true,
+            signalType = SignalType.RAW,
+            frequencyHz = signal.frequencyHz,
+            rawPattern = signal.patternMicros.toList()
+        )
+        val profile = RemoteProfile(
+            id = "learned_ac",
+            name = "Study AC",
+            category = DeviceCategory.AC,
+            useStaticAcButtons = true,
+            buttons = listOf(templateKey, customKey)
+        )
+        val file = temporary.newFile("learned-ac.json")
+
+        file.writeText(json.encodeToString(RemoteProfile.serializer(), profile))
+        val restored = json.decodeFromString(RemoteProfile.serializer(), file.readText())
+
+        assertEquals(profile, restored)
+        assertEquals(ButtonKey.TEMPERATURE_UP, restored.buttons.first().key)
+        assertEquals(AcAction.TEMP_UP, restored.buttons.first().acAction)
+        assertEquals(ButtonKey.TEMPERATURE_UP.name, restored.buttons.first().builtinLabel)
+        assertEquals("My warmer button", restored.buttons.last().label)
+        assertNull(restored.buttons.last().builtinLabel)
+    }
+
+    @Test
+    fun legacyLearnedDefaultsMigrateAtBothSchemaVersionsWithoutRenamingCustomKeys() {
+        val legacyName = AcAction.MODE.label
+        val original = RemoteButton(
+            id = "legacy_default_mode",
+            label = legacyName,
+            builtinLabel = legacyName,
+            isLearned = true,
+            frequencyHz = 40000,
+            rawPattern = listOf(9000, 4500, 560, 1690, 560, 560)
+        )
+        val renamed = original.copy(id = "legacy_renamed_mode", label = "My mode button")
+        val custom = original.copy(id = "custom_mode", builtinLabel = null)
+
+        for (schemaVersion in listOf(0, LegacyRemoteMigration.KEY_SCHEMA_VERSION)) {
+            val profile = RemoteProfile(
+                id = "legacy_learned_ac",
+                name = "Study AC",
+                category = DeviceCategory.AC,
+                useStaticAcButtons = true,
+                keySchemaVersion = schemaVersion,
+                buttons = listOf(original, renamed, custom)
+            )
+
+            val migrated = LegacyRemoteMigration.normalizeKeys(profile)
+
+            migrated.buttons.take(2).forEachIndexed { index, button ->
+                assertEquals(profile.buttons[index].id, button.id)
+                assertEquals(profile.buttons[index].label, button.label)
+                assertEquals(ButtonKey.MODE, button.key)
+                assertEquals(ButtonKey.MODE.name, button.builtinLabel)
+                assertEquals(AcAction.MODE, button.acAction)
+                assertEquals(original.frequencyHz, button.frequencyHz)
+                assertEquals(original.rawPattern, button.rawPattern)
+            }
+            assertEquals(legacyName, migrated.buttons.last().label)
+            assertNull(migrated.buttons.last().builtinLabel)
+            assertNull(migrated.buttons.last().acAction)
+            assertEquals(custom.rawPattern, migrated.buttons.last().rawPattern)
+            assertEquals(migrated, LegacyRemoteMigration.normalizeKeys(migrated))
+        }
     }
 }

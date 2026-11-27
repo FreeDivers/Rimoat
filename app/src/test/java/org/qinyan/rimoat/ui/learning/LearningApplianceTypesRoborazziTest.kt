@@ -18,6 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.ApplianceType
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.db.IrDatabaseRepository
 import org.qinyan.rimoat.i18n.AppStrings
@@ -97,7 +98,8 @@ class LearningApplianceTypesRoborazziTest {
         compose.onNodeWithText(app.getString(R.string.screen_start_learning)).performScrollTo().performClick()
         compose.waitForIdle()
         assertEquals(WizardStep.LEARNING, vm.uiState.value.step)
-        assertEquals("快门", vm.uiState.value.currentKey?.builtinLabel)
+        assertEquals(ButtonKey.SHUTTER, vm.uiState.value.currentKey?.key)
+        assertEquals(ButtonKey.SHUTTER.name, vm.uiState.value.currentKey?.builtinLabel)
         compose.onAllNodesWithText(app.getString(R.string.control_shutter))[0].assertIsDisplayed()
         capture("camera_learning")
     }
@@ -136,7 +138,7 @@ class LearningApplianceTypesRoborazziTest {
         compose.onNodeWithText(app.getString(R.string.screen_start_learning)).performScrollTo().performClick()
         compose.waitForIdle()
         assertEquals(WizardStep.LEARNING, vm.uiState.value.step)
-        assertTrue(vm.uiState.value.keyQueue.any { it.builtinLabel == "频道+" })
+        assertTrue(vm.uiState.value.keyQueue.any { it.key == ButtonKey.CHANNEL_UP })
     }
 
     @Test fun typesCoverTheCatalogAndFilterBrandsWithoutLosingSavedIcons() = runBlocking {

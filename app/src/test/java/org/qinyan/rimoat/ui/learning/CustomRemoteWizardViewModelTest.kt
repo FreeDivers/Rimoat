@@ -6,13 +6,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.ContextWrapper
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.data.AcAction
+import org.qinyan.rimoat.data.ApplianceType
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.DeviceCategory
+import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.SignalType
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.i18n.UiText
+import org.qinyan.rimoat.ui.components.DpadDirection
+import org.qinyan.rimoat.ui.components.tvStandardButtons
+import org.qinyan.rimoat.ui.screens.genericDirectionButtons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -93,19 +100,19 @@ class CustomRemoteWizardViewModelTest {
 
         viewModel.setCategory(DeviceCategory.TV)
         assertEquals(DeviceCategory.TV, viewModel.uiState.value.category)
-        assertTrue(viewModel.uiState.value.keyQueue.any { it.label == "静音" })
+        assertTrue(viewModel.uiState.value.keyQueue.any { it.key == ButtonKey.MUTE })
 
         viewModel.setCategory(DeviceCategory.AC)
         assertEquals(DeviceCategory.AC, viewModel.uiState.value.category)
-        assertTrue(viewModel.uiState.value.keyQueue.any { it.label == "扫风" })
+        assertTrue(viewModel.uiState.value.keyQueue.any { it.key == ButtonKey.SWING })
 
         viewModel.setCategory(DeviceCategory.FAN)
         assertEquals(DeviceCategory.FAN, viewModel.uiState.value.category)
-        assertTrue(viewModel.uiState.value.keyQueue.any { it.label == "摇头" })
+        assertTrue(viewModel.uiState.value.keyQueue.any { it.key == ButtonKey.OSCILLATION })
 
         viewModel.setCategory(DeviceCategory.PROJECTOR)
         assertEquals(DeviceCategory.PROJECTOR, viewModel.uiState.value.category)
-        assertTrue(viewModel.uiState.value.keyQueue.any { it.label == "对焦+" })
+        assertTrue(viewModel.uiState.value.keyQueue.any { it.key == ButtonKey.FOCUS_PLUS })
     }
 
     @Test
@@ -265,7 +272,9 @@ class CustomRemoteWizardViewModelTest {
 
         val btn = createdProfile?.buttons?.firstOrNull()
         assertNotNull(btn)
-        assertEquals("电源", btn?.label)
+        assertEquals(ButtonKey.POWER.name, btn?.label)
+        assertEquals(ButtonKey.POWER.name, btn?.builtinLabel)
+        assertEquals(ButtonKey.POWER, btn?.key)
         assertEquals(SignalType.RAW, btn?.signalType)
         assertEquals(38000, btn?.frequencyHz)
         assertEquals(listOf(9000, 4500, 560, 560, 560, 1690), btn?.rawPattern)
@@ -667,9 +676,81 @@ class CustomRemoteWizardViewModelTest {
 
         vm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.CAMERA)
         assertEquals(org.qinyan.rimoat.data.ApplianceType.CAMERA, vm.uiState.value.selectedApplianceType)
-        assertEquals(listOf("快门", "副快门"), vm.uiState.value.keyQueue.map { it.builtinLabel })
+        assertEquals(listOf(ButtonKey.SHUTTER, ButtonKey.SUB_SHUTTER), vm.uiState.value.keyQueue.map { it.key })
         assertEquals(0, vm.uiState.value.currentIndex)
     }
 
-}
+    @Test fun defaultQueuesPersistStableKeysForEveryApplianceType() {
+        ApplianceType.entries.forEach { type ->
+            val queue = CustomRemoteWizardViewModel.generateDefaultQueue(type)
+            assertTrue(queue.isNotEmpty())
+            assertEquals(queue.size, queue.map { it.key to it.acAction }.distinct().size)
+            queue.forEach { item ->
+                val key = requireNotNull(item.key)
+                assertEquals(key.name, item.label)
+                assertEquals(key.name, item.builtinLabel)
+            }
+        }
+    }
 
+    @Test fun acTemplateSavesLearnedSignalsWithTheirStandardActions() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.AC))
+        vm.setRemoteName("Bedroom")
+        assertTrue(vm.proceedToLearning())
+        val actions = listOf(AcAction.POWER_ON, AcAction.TEMP_UP, AcAction.TEMP_DOWN, AcAction.MODE, AcAction.FAN, AcAction.SWING)
+        assertEquals(actions, vm.uiState.value.keyQueue.map { it.acAction })
+        val signals = actions.map { learnCurrentKey(vm) }
+        var saved: RemoteProfile? = null
+        vm.saveRemote { saved = it }
+        assertTrue(awaitCondition { saved != null })
+        assertTrue(saved!!.useStaticAcButtons)
+        assertEquals(actions, saved!!.buttons.map { it.acAction })
+        assertEquals(signals.map { it.patternMicros.toList() }, saved!!.buttons.map { it.rawPattern })
+        assertTrue(saved!!.buttons.all { it.isLearned && it.key != null && it.builtinLabel == it.key?.name })
+    }
+
+    @Test fun defaultDirectionKeysKeepACompleteDpadAfterSaving() {
+        listOf(DeviceCategory.PROJECTOR, DeviceCategory.AUDIO, DeviceCategory.CUSTOM, DeviceCategory.TV).forEach { category ->
+            val buttons = CustomRemoteWizardViewModel.generateDefaultQueue(category).map { item ->
+                RemoteButton(id = item.id, label = item.label, builtinLabel = item.builtinLabel, key = item.key)
+            }
+            val directions = genericDirectionButtons(buttons).values
+            assertEquals(category.name, DpadDirection.entries.size, directions.size)
+            assertEquals(category.name, DpadDirection.entries.toSet(), directions.mapNotNull { DpadDirection.from(it.key) }.toSet())
+            assertEquals(
+                category.name,
+                buttons.filter { DpadDirection.from(it.key) != null }.map { it.id }.toSet(),
+                directions.map { it.id }.toSet()
+            )
+        }
+    }
+
+    @Test fun savedTvDefaultsUseStableKeysForTheirStandardSlots() {
+        val buttons = CustomRemoteWizardViewModel.generateDefaultQueue(ApplianceType.SET_TOP_BOX).map { item ->
+            RemoteButton(id = item.id, label = item.label, builtinLabel = item.builtinLabel, key = item.key)
+        }
+        val profile = RemoteProfile(id = "learned_tv", name = "Living room", category = DeviceCategory.TV, buttons = buttons)
+        assertEquals(
+            listOf(ButtonKey.POWER, null, ButtonKey.MUTE, ButtonKey.UP, ButtonKey.DOWN, ButtonKey.LEFT,
+                ButtonKey.RIGHT, ButtonKey.OK, ButtonKey.BACK, ButtonKey.HOME, ButtonKey.MENU,
+                ButtonKey.VOLUME_UP, ButtonKey.VOLUME_DOWN, ButtonKey.CHANNEL_UP, ButtonKey.CHANNEL_DOWN),
+            tvStandardButtons(profile).map { it?.key }
+        )
+        val misleading = RemoteButton(id = "tv_up", label = "UP", builtinLabel = ButtonKey.UP.name, key = ButtonKey.VOLUME_UP)
+        val classified = tvStandardButtons(profile.copy(buttons = listOf(misleading)))
+        assertEquals(1, classified.filterNotNull().size)
+        assertEquals(misleading, classified[11])
+        assertEquals(null, classified[3])
+    }
+
+
+
+    private fun learnCurrentKey(vm: CustomRemoteWizardViewModel): IrSignal.Raw {
+        val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560 + vm.uiState.value.currentIndex * 10))
+        learnerManager.mockLearner.triggerManualSignal(signal)
+        vm.startLearningCurrentKey()
+        assertTrue(awaitCondition { vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
+        vm.confirmCurrentKey()
+        return signal
+    }
+}

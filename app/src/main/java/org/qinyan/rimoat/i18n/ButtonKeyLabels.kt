@@ -3,6 +3,14 @@ package org.qinyan.rimoat.i18n
 import androidx.annotation.StringRes
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.ButtonKey
+import org.qinyan.rimoat.data.AcAction
+
+@StringRes
+internal fun defaultLearningLabelRes(key: ButtonKey, action: AcAction?): Int = when {
+    key == ButtonKey.OK -> R.string.control_ok
+    key == ButtonKey.POWER && action == AcAction.POWER_ON -> R.string.control_toggle
+    else -> key.labelRes
+}
 
 val ButtonKey.labelRes: Int
     @StringRes get() = when (this) {

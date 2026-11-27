@@ -1356,10 +1356,13 @@ private data class UnavailableControl(val button: RemoteButton, val reason: AcUn
 internal fun genericDirectionButtons(buttons: List<RemoteButton>): Map<String, RemoteButton> {
     val aliases = mapOf("上" to setOf("up"), "下" to setOf("down"),
         "左" to setOf("left"), "右" to setOf("right"), "OK" to setOf("ok", "enter", "confirm", "select"))
+    val legacyButtons = buttons.filter { it.key == null }
     return aliases.mapNotNull { (label, tokens) ->
-        val button = buttons.firstOrNull { it.id.lowercase() in tokens }
-            ?: buttons.firstOrNull { (it.builtinLabel ?: it.label).equals(label, ignoreCase = true) }
-            ?: buttons.firstOrNull { button ->
+        val button = buttons.firstOrNull {
+            org.qinyan.rimoat.ui.components.DpadDirection.from(it.key)?.name?.lowercase() in tokens
+        } ?: legacyButtons.firstOrNull { it.id.lowercase() in tokens }
+            ?: legacyButtons.firstOrNull { (it.builtinLabel ?: it.label).equals(label, ignoreCase = true) }
+            ?: legacyButtons.firstOrNull { button ->
                 val parts = button.id.lowercase().split(Regex("[^a-z0-9]+"))
                 parts.lastOrNull() in tokens && parts.dropLast(1).none {
                     it in setOf("volume", "vol", "channel", "ch", "temp", "temperature", "page")

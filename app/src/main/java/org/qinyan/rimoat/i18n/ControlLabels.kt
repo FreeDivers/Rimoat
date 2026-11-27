@@ -3,6 +3,7 @@ package org.qinyan.rimoat.i18n
 import android.content.Context
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.RemoteButton
+import org.qinyan.rimoat.data.ButtonKey
 
 fun localizedTimerDurationLabel(minutes: Int): String = when {
     minutes == 0 -> AppStrings.get(R.string.control_disable_timer, "关闭定时")
@@ -263,7 +264,14 @@ fun localizedLabel(raw: String, context: Context? = null): String {
 
 /** A user-created or learned button keeps its chosen label, even if it resembles a built-in one. */
 fun localizedButtonLabel(button: RemoteButton, context: Context? = null): String = when {
-    button.builtinLabel != null -> localizedLabel(button.builtinLabel, context)
+    button.builtinLabel != null -> {
+        val key = ButtonKey.entries.firstOrNull { it.name == button.builtinLabel }
+        if (key == null) localizedLabel(button.builtinLabel, context)
+        else {
+            val resource = defaultLearningLabelRes(key, button.acAction)
+            context?.getString(resource) ?: AppStrings.get(resource, button.label)
+        }
+    }
     button.acAction != null || button.id.startsWith("ac_function_") -> localizedLabel(button.label, context)
     button.sourceKeyType != null -> localizedCatalogKeyLabel(button, context) ?: localizedLabel(button.label, context)
     else -> button.label

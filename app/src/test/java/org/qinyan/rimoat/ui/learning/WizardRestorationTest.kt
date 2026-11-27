@@ -2,6 +2,11 @@ package org.qinyan.rimoat.ui.learning
 
 import androidx.lifecycle.SavedStateHandle
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.data.AcAction
+import org.qinyan.rimoat.data.ApplianceType
+import org.qinyan.rimoat.data.ButtonKey
+import org.qinyan.rimoat.data.DeviceCategory
+import org.qinyan.rimoat.data.LegacyRemoteMigration
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.i18n.UiText
 import kotlinx.coroutines.Dispatchers
@@ -75,12 +80,13 @@ class WizardRestorationTest {
             val vm = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("first", it) }
             await(dispatcher) { !vm.uiState.value.isRestoring }
 
+            val normalizedQueue = vm.uiState.value.keyQueue
             assertTrue(vm.handleBack())
             assertEquals(WizardStep.SETUP, vm.uiState.value.step)
 
             vm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.FAN)
             assertEquals(org.qinyan.rimoat.data.ApplianceType.FAN, vm.uiState.value.selectedApplianceType)
-            assertEquals(original.keyQueue, vm.uiState.value.keyQueue)
+            assertEquals(normalizedQueue, vm.uiState.value.keyQueue)
             assertEquals(1, vm.uiState.value.currentIndex)
 
             await(dispatcher) {
@@ -93,7 +99,7 @@ class WizardRestorationTest {
             await(dispatcher) { !restored.uiState.value.isRestoring }
             assertEquals(org.qinyan.rimoat.data.ApplianceType.FAN, restored.uiState.value.selectedApplianceType)
             assertEquals(1, restored.uiState.value.learnedCount)
-            assertEquals(original.keyQueue, restored.uiState.value.keyQueue)
+            assertEquals(normalizedQueue, restored.uiState.value.keyQueue)
             assertEquals(1, restored.uiState.value.currentIndex)
             assertTrue(restored.proceedToLearning())
             assertEquals(signal, restored.uiState.value.keyQueue.first().capturedSignal)
@@ -487,6 +493,105 @@ class WizardRestorationTest {
             org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
             Dispatchers.resetMain()
             dir.deleteRecursively()
+        }
+    }
+
+    @Test fun legacyBuiltinLabelsMigrateWithoutChangingUserNamesOrSignals() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1690))
+            val legacyPowerLabel = LegacyRemoteMigration.greeAc.buttons.first().label
+            val legacyTemperatureLabel = LegacyRemoteMigration.greeAc.buttons[1].label
+            val original = CustomRemoteWizardUiState(
+                category = DeviceCategory.TV,
+                remoteName = "Living room",
+                keyQueue = listOf(
+                    WizardKeyItem(id = "default", label = legacyPowerLabel, builtinLabel = legacyPowerLabel,
+                        status = KeyLearnStatus.LEARNED, capturedSignal = signal),
+                    WizardKeyItem(id = "custom_1", label = legacyPowerLabel, capturedSignal = signal),
+                    WizardKeyItem(id = "renamed", label = "My temperature button", builtinLabel = legacyTemperatureLabel)
+                )
+            )
+            val vm = CustomRemoteWizardViewModel(savedStateHandle = SavedStateHandle(mapOf(
+                "wizard_state" to Json.encodeToString(CustomRemoteWizardUiState.serializer(), original)
+            ))).also { store.put("wizard", it) }
+            val queue = vm.uiState.value.keyQueue
+            assertEquals(ButtonKey.POWER, queue[0].key)
+            assertEquals(ButtonKey.POWER.name, queue[0].builtinLabel)
+            assertEquals(original.keyQueue[0].label, queue[0].label)
+            assertEquals(original.keyQueue[1], queue[1])
+            assertEquals("My temperature button", queue[2].label)
+            assertEquals(ButtonKey.TEMPERATURE_UP.name, queue[2].builtinLabel)
+            assertEquals(signal, queue[0].capturedSignal)
+            assertEquals(null, vm.uiState.value.templateApplianceType)
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+        }
+    }
+
+
+    @Test fun legacyAcTemplateRestoresActionsOnlyWhenTheWholeTemplateMatches() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1690))
+            val original = CustomRemoteWizardUiState(
+                category = DeviceCategory.AC,
+                remoteName = "Bedroom",
+                keyQueue = LegacyRemoteMigration.greeAc.buttons.map { button ->
+                    WizardKeyItem(id = button.id, label = button.label, builtinLabel = button.label)
+                }
+            )
+            val learned = original.copy(keyQueue = original.keyQueue.mapIndexed { index, item ->
+                if (index == 1) item.copy(status = KeyLearnStatus.LEARNED, capturedSignal = signal) else item
+            })
+            val vm = CustomRemoteWizardViewModel(savedStateHandle = SavedStateHandle(mapOf(
+                "wizard_state" to Json.encodeToString(CustomRemoteWizardUiState.serializer(), learned)
+            ))).also { store.put("wizard", it) }
+            assertEquals(ApplianceType.AC, vm.uiState.value.templateApplianceType)
+            assertEquals(listOf(AcAction.POWER_ON, AcAction.TEMP_UP, AcAction.TEMP_DOWN, AcAction.MODE, AcAction.FAN, AcAction.SWING),
+                vm.uiState.value.keyQueue.map { it.acAction })
+            assertEquals(original.keyQueue.map { it.label }, vm.uiState.value.keyQueue.map { it.label })
+            assertEquals(signal, vm.uiState.value.keyQueue[1].capturedSignal)
+            var saved: org.qinyan.rimoat.data.RemoteProfile? = null
+            vm.saveRemote { saved = it }
+            await(dispatcher) { saved != null }
+            assertTrue(saved!!.useStaticAcButtons)
+            assertEquals(AcAction.TEMP_UP, saved!!.buttons.single().acAction)
+            assertEquals(ButtonKey.TEMPERATURE_UP.name, saved!!.buttons.single().builtinLabel)
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun mixedQueueNeverBecomesAnAcTemplateOnRestore() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1690))
+            val state = CustomRemoteWizardUiState(
+                category = DeviceCategory.AC,
+                applianceType = ApplianceType.AC,
+                remoteName = "Mixed remote",
+                keySchemaVersion = 1,
+                templateApplianceType = null,
+                keyQueue = CustomRemoteWizardViewModel.generateDefaultQueue(ApplianceType.AC).mapIndexed { index, item ->
+                    if (index == 0) item.copy(status = KeyLearnStatus.LEARNED, capturedSignal = signal) else item
+                }
+            )
+            val vm = CustomRemoteWizardViewModel(savedStateHandle = SavedStateHandle(mapOf(
+                "wizard_state" to Json.encodeToString(CustomRemoteWizardUiState.serializer(), state)
+            ))).also { store.put("wizard", it) }
+            assertEquals(null, vm.uiState.value.templateApplianceType)
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
         }
     }
 

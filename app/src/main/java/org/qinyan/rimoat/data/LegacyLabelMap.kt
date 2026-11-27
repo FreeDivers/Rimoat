@@ -1,6 +1,6 @@
 package org.qinyan.rimoat.data
 
-/** Exact legacy spellings, used only by [LegacyRemoteMigration.normalizeKeys]. */
+/** Exact legacy spellings, used only at saved-data migration boundaries. */
 internal object LegacyLabelMap {
     private val labels = mapOf(
         "锁定" to ButtonKey.LOCK, "儿童锁" to ButtonKey.LOCK, "锁" to ButtonKey.LOCK,
@@ -296,7 +296,17 @@ internal object LegacyLabelMap {
         "数字键9" to ButtonKey.DIGIT_9,
     )
 
-    fun key(label: String?): ButtonKey? = labels[label]
+    fun key(label: String?): ButtonKey? = ButtonKey.entries.firstOrNull { it.name == label } ?: labels[label]
+
+    fun wizardAcAction(label: String?): AcAction? = when (label) {
+        "开关" -> AcAction.POWER_ON
+        "温度+" -> AcAction.TEMP_UP
+        "温度-" -> AcAction.TEMP_DOWN
+        "模式" -> AcAction.MODE
+        "风速" -> AcAction.FAN
+        "扫风" -> AcAction.SWING
+        else -> null
+    }
 
     fun catalogAlias(button: RemoteButton): ButtonKey? = when (button.sourceKeyType to button.label) {
         824 to "前进" -> ButtonKey.FAST_FORWARD
