@@ -13,10 +13,10 @@
     <string name="msg_codes_load_failed">加载方案失败：%1$s</string>
     <string name="msg_code_set_closed">方案已关闭</string>
     <string name="msg_simulated_send">模拟发送</string>
-    <string name="msg_button_sent">「%1$s」已发送</string>
+    <string name="msg_button_sent">\"%1$s\"已发送</string>
     <string name="msg_test_failed">测试失败：%1$s</string>
-    <string name="msg_response_recorded">已记录「%1$s」有响应</string>
-    <string name="msg_no_response_recorded">已记录「%1$s」无响应</string>
+    <string name="msg_response_recorded">已记录\"%1$s\"有响应</string>
+    <string name="msg_no_response_recorded">已记录\"%1$s\"无响应</string>
     <string name="msg_remote_save_failed">保存遥控器失败: %1$s</string>
     <string name="msg_captured_save_failed">保存失败，已保留本次捕获信号：%1$s</string>
     <string name="msg_recent_history_save_failed">最近使用记录保存失败</string>
