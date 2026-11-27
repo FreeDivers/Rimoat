@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.data.ApplianceType
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
@@ -49,6 +50,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class AdversarialUiWorkflowTest {
     @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
+
 
     private val testDispatcher = StandardTestDispatcher()
     private val stores = ViewModelStore()
@@ -356,14 +358,19 @@ class AdversarialUiWorkflowTest {
             assertEquals(0, viewModel.uiState.value.currentIndex)
         }
 
-        // Proceed to LEARNING, then change category: category field updates, but queue should NOT be wiped
+        // Existing learning progress remains unchanged while a category change awaits confirmation.
         viewModel.setRemoteName("电视品类保护测试")
         viewModel.proceedToLearning()
         viewModel.skipCurrentKey() // Advance to index 1
 
         viewModel.setCategory(DeviceCategory.AC)
-        assertEquals(DeviceCategory.AC, viewModel.uiState.value.category)
-        // Key queue should NOT have been wiped to AC (6 keys); must remain TV (12 keys)
+        assertEquals(DeviceCategory.TV, viewModel.uiState.value.category)
+        assertEquals(ApplianceType.AC, viewModel.uiState.value.pendingApplianceType)
+        assertEquals(12, viewModel.uiState.value.keyQueue.size)
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        viewModel.cancelApplianceTypeChange()
+        assertNull(viewModel.uiState.value.pendingApplianceType)
+        assertEquals(DeviceCategory.TV, viewModel.uiState.value.category)
         assertEquals(12, viewModel.uiState.value.keyQueue.size)
         assertEquals(1, viewModel.uiState.value.currentIndex)
     }
@@ -399,7 +406,7 @@ class AdversarialUiWorkflowTest {
 
         assertEquals(KeyLearnStatus.PENDING, viewModel.uiState.value.currentKey?.status)
         assertEquals(
-            UiText.resource(R.string.screen_learning_error_e, UiText.Dynamic("Mock hardware simulation failure")),
+            UiText.resource(R.string.screen_learning_error_e, UiText.Resource(R.string.msg_mock_failure)),
             viewModel.uiState.value.errorMessage
         )
 
@@ -595,8 +602,8 @@ class AdversarialUiWorkflowTest {
             feedback
         )
         assertEquals(
-            "testFeedbackMessage should report transmission failure with reason",
-            UiText.resource(R.string.screen_send_error_t, UiText.Dynamic("IR blaster busy or disconnected")),
+            "testFeedbackMessage should expose a localizable transmission failure",
+            UiText.resource(R.string.screen_send_error_t, UiText.Resource(R.string.screen_hardware_error)),
             feedback
         )
     }
