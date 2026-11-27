@@ -584,12 +584,17 @@ fun ConfirmRemoteView(
 
         Spacer(modifier = Modifier.height(Spacing.page))
 
+        val summaryParts = listOfNotNull(
+            model?.brandDisplayName(context), state.selectedCategory?.displayName(context),
+            stringResource(R.string.screen_code_number, state.currentRemoteIndex + 1)
+        ).filter(String::isNotBlank)
+        val summaryText = when (summaryParts.size) {
+            3 -> stringResource(R.string.screen_save_summary, summaryParts[0], summaryParts[1], summaryParts[2])
+            2 -> stringResource(R.string.screen_save_summary_short, summaryParts[0], summaryParts[1])
+            else -> summaryParts.singleOrNull().orEmpty()
+        }
         Text(
-            text = listOfNotNull(
-                model?.brandDisplayName(context),
-                state.selectedCategory?.displayName(context),
-                stringResource(R.string.screen_code_number, state.currentRemoteIndex + 1)
-            ).filter { it.isNotBlank() }.joinToString("  "),
+            text = summaryText,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center

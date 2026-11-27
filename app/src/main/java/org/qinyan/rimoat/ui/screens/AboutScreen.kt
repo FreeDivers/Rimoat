@@ -1,6 +1,5 @@
 package org.qinyan.rimoat.ui.screens
 
-import org.qinyan.rimoat.i18n.AppStrings
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.Configuration
@@ -80,8 +79,8 @@ private fun AboutContent(versionName: String, onBack: () -> Unit, onLicensesClic
                 wide = wide,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(AppStrings.get(R.string.screen_back), onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back))
+                    ActionIconButton(stringResource(R.string.screen_back), onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.screen_back))
                     }
                 }
             )

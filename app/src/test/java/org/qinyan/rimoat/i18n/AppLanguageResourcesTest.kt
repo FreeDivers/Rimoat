@@ -113,6 +113,19 @@ class AppLanguageResourcesTest {
     }
 
     @Test
+    fun displayTemplatesPreserveTheirExistingSpacingInEveryLanguage() {
+        for (tag in listOf("zh-CN", "zh-Hant", "en", "ja")) {
+            val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tag))
+            })
+            assertEquals("2.0  /  MIT", context.getString(R.string.licenses_version_license, "2.0", "MIT"))
+            assertEquals("Living room  Example", context.getString(R.string.screen_remote_room_brand, "Living room", "Example"))
+            assertEquals("TV  Example  Model", context.getString(R.string.screen_save_summary, "TV", "Example", "Model"))
+            assertEquals("24°  Cool", context.getString(R.string.widget_temperature_mode, 24, "Cool"))
+        }
+    }
+
+    @Test
     fun backgroundAndPreviouslyLocalizedContextsFollowTheCurrentChoice() {
         select("ja")
         val japanese = AppLanguage.wrap(app)

@@ -3,7 +3,6 @@
 package org.qinyan.rimoat.ui.screens
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import org.qinyan.rimoat.i18n.AppStrings
 import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -122,8 +121,8 @@ private fun OpenSourceLicensesContent(
                 wide = !isListRoot,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(AppStrings.get(R.string.screen_back), onClick = { if (active) onBack() }, enabled = active) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back))
+                    ActionIconButton(stringResource(R.string.screen_back), onClick = { if (active) onBack() }, enabled = active) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.screen_back))
                     }
                 }
             )
@@ -177,7 +176,7 @@ private fun OpenSourceLicensesContent(
                                     headlineContent = { Text(entry.name) },
                                     supportingContent = {
                                         Column {
-                                            Text("${entry.version}  /  ${entry.license}")
+                                            Text(stringResource(R.string.licenses_version_license, entry.version, entry.license))
                                             if (entry.debugOnly) Text(stringResource(R.string.licenses_debug_only))
                                         }
                                     },
