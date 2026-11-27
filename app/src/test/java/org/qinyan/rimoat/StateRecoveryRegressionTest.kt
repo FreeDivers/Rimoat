@@ -16,8 +16,9 @@ import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.i18n.UiText
+import org.qinyan.rimoat.ui.components.DpadDirection
+import org.qinyan.rimoat.ui.components.genericDirectionButtons
 import org.qinyan.rimoat.ui.learning.*
-import org.qinyan.rimoat.ui.screens.genericDirectionButtons
 import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import org.qinyan.rimoat.widget.WidgetSnapshot
@@ -50,8 +51,8 @@ class StateRecoveryRegressionTest {
             RemoteButton("remote-down", "South"), RemoteButton("remote:left", "West"),
             RemoteButton("remote.right", "East"), RemoteButton("remote_enter", "Confirm"))
         val result = genericDirectionButtons(buttons)
-        assertEquals("up", result["上"]?.id)
-        assertEquals("remote_enter", result["OK"]?.id)
+        assertEquals("up", result[DpadDirection.UP]?.id)
+        assertEquals("remote_enter", result[DpadDirection.OK]?.id)
         assertEquals(5, result.size)
         assertFalse(result.values.any { it in unrelated })
     }

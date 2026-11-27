@@ -64,7 +64,7 @@ internal fun pairingKeyGroup(button: RemoteButton, context: Context): String = w
     button.isPowerKey() -> context.getString(R.string.screen_power_group)
     button.label in setOf("上", "下", "左", "右", "OK", "确定", "返回", "主页", "菜单", "信源", "输入", "信息") -> context.getString(R.string.screen_navigation_sources)
     button.label.contains("音量") || button.label.contains("静音") || button.label.contains("频道") -> context.getString(R.string.screen_volume_channels)
-    else -> localizedLabel(remoteFunctionGroup(button), context)
+    else -> context.getString(remoteFunctionGroup(button).labelRes)
 }
 
 @Composable

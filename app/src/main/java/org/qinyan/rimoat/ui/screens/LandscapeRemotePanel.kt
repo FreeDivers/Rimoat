@@ -57,11 +57,12 @@ internal fun remotePaneButtons(profile: RemoteProfile): RemotePaneButtons {
     val numeric = buttons.filter { remoteButtonNumber(it) != null }
     if (profile.category == DeviceCategory.TV) {
         val standard = tvStandardButtons(profile)
-        val primary = ((3..7).mapNotNull { standard[it] } +
-            (8..10).mapNotNull { standard[it] }.sortedBy { profile.panelLayout.rank(panelKey(it)) }).distinctBy { it.id }
+        val primary = (standard.dpadButtons +
+            standard.navigation.sortedBy { profile.panelLayout.rank(panelKey(it)) }).distinctBy { it.id }
         val primaryIds = primary.map { it.id }.toSet()
-        val common = (listOfNotNull(standard[0]) + listOfNotNull(standard[1], standard[2]).sortedBy { profile.panelLayout.rank(panelKey(it)) } +
-            (11..14).mapNotNull { standard[it] }).distinctBy { it.id }.filter { it.id !in primaryIds }
+        val common = (listOfNotNull(standard.power) +
+            listOfNotNull(standard.source, standard.mute).sortedBy { profile.panelLayout.rank(panelKey(it)) } +
+            standard.rockers).distinctBy { it.id }.filter { it.id !in primaryIds }
         val commonIds = common.map { it.id }.toSet()
         val numbers = numeric.filter { it.id !in primaryIds && it.id !in commonIds }
         val used = primaryIds + commonIds + numbers.map { it.id }
@@ -70,11 +71,22 @@ internal fun remotePaneButtons(profile: RemoteProfile): RemotePaneButtons {
         val power = buttons.firstOrNull { it.isPowerKey() }
         val directions = genericDirectionButtons(buttons)
         val primary = if (profile.category == DeviceCategory.FAN) {
-            listOfNotNull(power, buttons.firstOrNull { it != power && ("speed" in it.id.lowercase() || (it.builtinLabel ?: it.label) in setOf("风速", "风量")) })
-        } else listOfNotNull(power) + if (directions.keys.containsAll(listOf("上", "下", "左", "右"))) directions.values else emptyList()
+            listOfNotNull(
+                power,
+                buttons.firstOrNull {
+                    it != power && (it.key in setOf(ButtonKey.FAN_SPEED, ButtonKey.AIRFLOW) ||
+                        (it.key == null && "speed" in it.id.lowercase()))
+                }
+            )
+        } else listOfNotNull(power) + if (directions.keys.containsAll(DpadDirection.cardinal)) directions.values else emptyList()
         if (primary.isNotEmpty()) {
             val remaining = buttons.filter { it !in primary && it !in numeric }
-            return RemotePaneButtons(primary.distinctBy { it.id }, remaining.take(6), numeric.filter { it !in primary }, remaining.drop(6))
+            return RemotePaneButtons(
+                primary.distinctBy { it.id },
+                remaining.take(MAIN_PANEL_KEY_COUNT),
+                numeric.filter { it !in primary },
+                remaining.drop(MAIN_PANEL_KEY_COUNT)
+            )
         }
     }
     val nonNumeric = buttons.filter { it !in numeric }
@@ -84,9 +96,9 @@ internal fun remotePaneButtons(profile: RemoteProfile): RemotePaneButtons {
 
 private fun tvLearningProfile(profile: RemoteProfile): RemoteProfile {
     val standard = tvStandardButtons(profile)
-    val directions = listOf("上" to 3, "下" to 4, "左" to 5, "右" to 6, "OK" to 7)
-        .filter { (label, index) -> standard[index] == null && "key:direction_$label" !in profile.panelLayout.hidden }
-        .map { (label, _) -> RemoteButton("direction_$label", label) }
+    val directions = DpadDirection.entries
+        .filter { direction -> standard.dpadButton(direction) == null && panelKey(direction.placeholderId) !in profile.panelLayout.hidden }
+        .map { direction -> direction.placeholderButton(AppStrings.get(direction.labelRes)) }
     val numbers = (0..9).mapNotNull { number ->
         if (profile.buttons.any { remoteButtonNumber(it) == number } || "key:num_$number" in profile.panelLayout.hidden ||
             "key:tv_num_$number" in profile.panelLayout.hidden) null
@@ -248,7 +260,7 @@ private fun PanelScroll(tag: String, state: ScrollState, content: @Composable Co
 @Composable
 private fun PanelTabs(selected: Int, onSelect: (Int) -> Unit) {
     ExpressivePageSwitcher(
-        labels = listOf(localizedLabel("常规功能"), localizedLabel("更多功能")),
+        labels = listOf(stringResource(R.string.control_regular_page), stringResource(R.string.control_more_page)),
         selectedIndex = selected,
         onSelect = onSelect
     )
@@ -281,21 +293,26 @@ private fun RemoteIdentity(profile: RemoteProfile, transmitterType: TransmitterT
 @Composable
 private fun PrimaryRemoteControls(profile: RemoteProfile, buttons: List<RemoteButton>, onSend: (RemoteButton) -> Unit,
     onLearn: (RemoteButton) -> Unit, learning: Boolean, onRepeat: (RemoteButton) -> Unit, onUnavailable: (RemoteButton) -> Unit) {
-    val directions = if (profile.category == DeviceCategory.TV) {
-        val standard = tvStandardButtons(profile)
-        listOf("上" to 3, "下" to 4, "左" to 5, "右" to 6, "OK" to 7).mapNotNull { (label, index) -> standard[index]?.let { label to it } }.toMap()
-    } else genericDirectionButtons(buttons)
-    val useDpad = directions.isNotEmpty() && (profile.category == DeviceCategory.TV || directions.keys.containsAll(listOf("上", "下", "左", "右")))
+    val directions = if (profile.category == DeviceCategory.TV) tvStandardButtons(profile).dpad
+    else genericDirectionButtons(buttons)
+    val useDpad = directions.isNotEmpty() && (profile.category == DeviceCategory.TV || directions.keys.containsAll(DpadDirection.cardinal))
     val dpadKeys = if (useDpad) directions.values.map { it.id }.toSet() else emptySet()
     if (useDpad) {
+        val dpadPlaceholders = DpadDirection.entries.associateWith {
+            directions[it] ?: it.placeholderButton(stringResource(it.labelRes))
+        }
         DpadController(
-            onUp = { directions["上"]?.let(onSend) }, onDown = { directions["下"]?.let(onSend) },
-            onLeft = { directions["左"]?.let(onSend) }, onRight = { directions["右"]?.let(onSend) },
-            onOk = { directions["OK"]?.let(onSend) }, availableKeys = directions.filterValues { it.hasSignal }.keys,
-            isLearningMode = learning, onRepeat = { directions[it]?.let(onRepeat) },
-            onLearn = { onLearn(directions[it] ?: RemoteButton("direction_$it", it)) },
-            onUnavailable = { onUnavailable(directions[it] ?: RemoteButton("direction_$it", it)) },
-            visibleKeys = if (learning && profile.category == DeviceCategory.TV) directions.keys else setOf("上", "下", "左", "右", "OK")
+            onUp = { directions[DpadDirection.UP]?.let(onSend) },
+            onDown = { directions[DpadDirection.DOWN]?.let(onSend) },
+            onLeft = { directions[DpadDirection.LEFT]?.let(onSend) },
+            onRight = { directions[DpadDirection.RIGHT]?.let(onSend) },
+            onOk = { directions[DpadDirection.OK]?.let(onSend) },
+            availableKeys = directions.filterValues { it.hasSignal }.keys,
+            isLearningMode = learning,
+            onRepeat = { direction -> directions[direction]?.let(onRepeat) },
+            onLearn = { direction -> onLearn(dpadPlaceholders.getValue(direction)) },
+            onUnavailable = { direction -> onUnavailable(dpadPlaceholders.getValue(direction)) },
+            visibleKeys = if (learning && profile.category == DeviceCategory.TV) directions.keys else DpadDirection.entries.toSet()
         )
     }
     val remaining = buttons.filter { it.id !in dpadKeys }
@@ -372,9 +389,19 @@ private fun LandscapeAcPanelPreview() {
 @Preview(showBackground = true, widthDp = 891, heightDp = 411, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun LandscapeTvPanelPreview() {
-    val keys = listOf("power" to "电源", "tv_up" to "上", "tv_down" to "下", "tv_left" to "左", "tv_right" to "右",
-        "tv_ok" to "OK", "back" to "返回", "vol_up" to "音量+", "vol_down" to "音量-")
-        .map { (id, label) -> RemoteButton(id, label, builtinLabel = label, rawPattern = listOf(9000, 4500, 560)) }
+    val keys = listOf(
+        "power" to ButtonKey.POWER,
+        "tv_up" to ButtonKey.UP,
+        "tv_down" to ButtonKey.DOWN,
+        "tv_left" to ButtonKey.LEFT,
+        "tv_right" to ButtonKey.RIGHT,
+        "tv_ok" to ButtonKey.OK,
+        "back" to ButtonKey.BACK,
+        "vol_up" to ButtonKey.VOLUME_UP,
+        "vol_down" to ButtonKey.VOLUME_DOWN
+    ).map { (id, key) ->
+        RemoteButton(id, stringResource(key.labelRes), builtinLabel = key.name, key = key, rawPattern = listOf(9000, 4500, 560))
+    }
     IrRemoteTheme(dynamicColor = false) {
         LandscapePanelPreviewContent(RemoteProfile("preview_tv", stringResource(R.string.screen_category_tv), category = DeviceCategory.TV, buttons = keys))
     }

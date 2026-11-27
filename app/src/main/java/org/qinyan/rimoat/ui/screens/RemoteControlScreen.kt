@@ -676,21 +676,22 @@ internal fun LazyListScope.tvRemoteItems(
     onNumberPadChange: ((Boolean) -> Unit)? = null
 ) {
     val standard = tvStandardButtons(profile)
-    val powerBtn = standard[0]
-    val sourceBtn = standard[1]
-    val muteBtn = standard[2]
-    val upBtn = standard[3]
-    val downBtn = standard[4]
-    val leftBtn = standard[5]
-    val rightBtn = standard[6]
-    val okBtn = standard[7]
-    val backBtn = standard[8]
-    val homeBtn = standard[9]
-    val menuBtn = standard[10]
-    val volUpBtn = standard[11]
-    val volDownBtn = standard[12]
-    val chUpBtn = standard[13]
-    val chDownBtn = standard[14]
+    val powerBtn = standard.power
+    val sourceBtn = standard.source
+    val muteBtn = standard.mute
+    val upBtn = standard.up
+    val downBtn = standard.down
+    val leftBtn = standard.left
+    val rightBtn = standard.right
+    val okBtn = standard.ok
+    val backBtn = standard.back
+    val homeBtn = standard.home
+    val menuBtn = standard.menu
+    val volUpBtn = standard.volUp
+    val volDownBtn = standard.volDown
+    val chUpBtn = standard.chUp
+    val chDownBtn = standard.chDown
+    val dpad = standard.dpad
     if (morePage) {
         remoteItem("tv_functions") { RemoteFunctionGroups(remoteExtraButtons(profile), onSendButton, onLearnButton, isLearningMode, onRepeatButton, preserveOrder = profile.panelLayout.order.isNotEmpty(), onUnavailable = onUnavailable) }
         return
@@ -713,25 +714,33 @@ internal fun LazyListScope.tvRemoteItems(
     }
 
     remoteItem("tv_section_1") {
-        if (!isLearningMode && listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).isEmpty()) return@remoteItem
+        val visibleDpadKeys = if (isLearningMode) {
+            org.qinyan.rimoat.ui.components.DpadDirection.entries.filterTo(mutableSetOf()) { direction ->
+                dpad[direction] != null || panelKey(direction.placeholderId) !in profile.panelLayout.hidden
+            }
+        } else {
+            org.qinyan.rimoat.ui.components.DpadDirection.entries.toSet()
+        }
+        if ((!isLearningMode && dpad.isEmpty()) || visibleDpadKeys.isEmpty()) return@remoteItem
+        val dpadPlaceholders = org.qinyan.rimoat.ui.components.DpadDirection.entries.associateWith { direction ->
+            dpad[direction] ?: direction.placeholderButton(stringResource(direction.labelRes))
+        }
         // 2. D-Pad Controller
         DpadController(
-            onUnavailable = onUnavailable?.let { explain -> { label ->
-                explain(listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).firstOrNull { it.label == label }
-                    ?: RemoteButton(id = "direction_$label", label = label))
+            onUnavailable = onUnavailable?.let { explain -> { direction ->
+                explain(dpadPlaceholders.getValue(direction))
             } },
-            onRepeat = { label -> listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).firstOrNull { it.label == label }?.let { onRepeatButton?.invoke(it) } },
+            onRepeat = { direction -> dpad[direction]?.let { onRepeatButton?.invoke(it) } },
             onUp = { upBtn?.let { onSendButton(it) } },
             onDown = { downBtn?.let { onSendButton(it) } },
             onLeft = { leftBtn?.let { onSendButton(it) } },
             onRight = { rightBtn?.let { onSendButton(it) } },
             onOk = { okBtn?.takeIf { it.hasSignal }?.let(onSendButton) },
             isLearningMode = isLearningMode,
-            availableKeys = listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).filter { it.hasSignal }.map { it.label }.toSet(),
-            onLearn = onLearnButton?.let { learn -> { label ->
-                val button = listOfNotNull(upBtn, downBtn, leftBtn, rightBtn, okBtn).firstOrNull { it.label == label }
-                    ?: RemoteButton(id = "direction_$label", label = label)
-                learn(button)
+            availableKeys = dpad.filterValues { it.hasSignal }.keys,
+            visibleKeys = visibleDpadKeys,
+            onLearn = onLearnButton?.let { learn -> { direction ->
+                learn(dpadPlaceholders.getValue(direction))
             } }
         )
 
@@ -1081,7 +1090,7 @@ fun AcRemoteLayout(
         statusSummary = AppStrings.get(R.string.control_ac_status,
             "%1\$s：%2\$s，%3\$d 摄氏度，模式 %4\$s，风速 %5\$s",
             AppStrings.get(if (isDemonstrating) R.string.control_simulation_setting else R.string.control_target_temp),
-            localizedLabel(if (acState.powerOn) "开启" else "关闭"), acState.temperature,
+            stringResource(if (acState.powerOn) R.string.control_enabled else R.string.control_disabled), acState.temperature,
             stringResource(acState.mode.labelRes), stringResource(acState.fanSpeed.labelRes))
     )
     }
@@ -1271,7 +1280,7 @@ internal fun LazyListScope.fanRemoteItems(
     }
 
     remoteItem("fan_functions") {
-        val visibleButtons = if (inlineExtensions) otherButtons else otherButtons.take(6)
+        val visibleButtons = if (inlineExtensions) otherButtons else otherButtons.take(org.qinyan.rimoat.ui.components.MAIN_PANEL_KEY_COUNT)
         if (visibleButtons.isNotEmpty()) Surface(
             shape = RoundedCornerShape(24.dp),
             color = ExpressiveSurface.card,
@@ -1312,9 +1321,9 @@ internal fun LazyListScope.genericRemoteItems(
         return
     }
     val powerBtn = profile.buttons.firstOrNull { it.isPowerKey() }
-    val directions = genericDirectionButtons(profile.buttons)
+    val directions = org.qinyan.rimoat.ui.components.genericDirectionButtons(profile.buttons)
     val directionButtons = directions.values.toList()
-    val useDpad = directions.keys.containsAll(setOf("上", "下", "左", "右"))
+    val useDpad = directions.keys.containsAll(org.qinyan.rimoat.ui.components.DpadDirection.cardinal)
     val otherButtons = profile.buttons.filter { it != powerBtn && (!useDpad || it !in directionButtons) }
 
     remoteItem("generic_header") {
@@ -1338,17 +1347,20 @@ internal fun LazyListScope.genericRemoteItems(
 
         // D-Pad if direction buttons exist
         if (useDpad) {
-            val up = directions["上"]
-            val down = directions["下"]
-            val left = directions["左"]
-            val right = directions["右"]
-            val ok = directions["OK"]
+            val up = directions[org.qinyan.rimoat.ui.components.DpadDirection.UP]
+            val down = directions[org.qinyan.rimoat.ui.components.DpadDirection.DOWN]
+            val left = directions[org.qinyan.rimoat.ui.components.DpadDirection.LEFT]
+            val right = directions[org.qinyan.rimoat.ui.components.DpadDirection.RIGHT]
+            val ok = directions[org.qinyan.rimoat.ui.components.DpadDirection.OK]
+            val dpadPlaceholders = org.qinyan.rimoat.ui.components.DpadDirection.entries.associateWith { direction ->
+                directions[direction] ?: direction.placeholderButton(stringResource(direction.labelRes))
+            }
 
             DpadController(
-                onUnavailable = onUnavailable?.let { explain -> { label ->
-                    explain(directions[label] ?: RemoteButton(id = "direction_$label", label = label))
+                onUnavailable = onUnavailable?.let { explain -> { direction ->
+                    explain(dpadPlaceholders.getValue(direction))
                 } },
-                onRepeat = { label -> directions[label]?.let { onRepeatButton?.invoke(it) } },
+                onRepeat = { direction -> directions[direction]?.let { onRepeatButton?.invoke(it) } },
                 onUp = { up?.let { onSendButton(it) } },
                 onDown = { down?.let { onSendButton(it) } },
                 onLeft = { left?.let { onSendButton(it) } },
@@ -1356,8 +1368,8 @@ internal fun LazyListScope.genericRemoteItems(
                 onOk = { ok?.let { onSendButton(it) } },
                 isLearningMode = isLearningMode,
                 availableKeys = directions.filterValues { it.hasSignal }.keys,
-                onLearn = onLearnButton?.let { learn -> { label ->
-                    learn(directions[label] ?: RemoteButton(id = "direction_$label", label = label))
+                onLearn = onLearnButton?.let { learn -> { direction ->
+                    learn(dpadPlaceholders.getValue(direction))
                 } }
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -1379,7 +1391,7 @@ internal fun LazyListScope.genericRemoteItems(
             }
             if (functions.isNotEmpty()) Spacer(Modifier.height(14.dp))
         }
-        val visibleFunctions = if (inlineExtensions) functions else functions.take(6)
+        val visibleFunctions = if (inlineExtensions) functions else functions.take(org.qinyan.rimoat.ui.components.MAIN_PANEL_KEY_COUNT)
         if (visibleFunctions.isNotEmpty()) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
@@ -1416,22 +1428,3 @@ internal fun acPanelActions(profile: RemoteProfile, available: Set<AcAction>, le
 }
 
 private data class UnavailableControl(val button: RemoteButton, val reason: AcUnavailableReason)
-
-internal fun genericDirectionButtons(buttons: List<RemoteButton>): Map<String, RemoteButton> {
-    val aliases = mapOf("上" to setOf("up"), "下" to setOf("down"),
-        "左" to setOf("left"), "右" to setOf("right"), "OK" to setOf("ok", "enter", "confirm", "select"))
-    val legacyButtons = buttons.filter { it.key == null }
-    return aliases.mapNotNull { (label, tokens) ->
-        val button = buttons.firstOrNull {
-            org.qinyan.rimoat.ui.components.DpadDirection.from(it.key)?.name?.lowercase() in tokens
-        } ?: legacyButtons.firstOrNull { it.id.lowercase() in tokens }
-            ?: legacyButtons.firstOrNull { (it.builtinLabel ?: it.label).equals(label, ignoreCase = true) }
-            ?: legacyButtons.firstOrNull { button ->
-                val parts = button.id.lowercase().split(Regex("[^a-z0-9]+"))
-                parts.lastOrNull() in tokens && parts.dropLast(1).none {
-                    it in setOf("volume", "vol", "channel", "ch", "temp", "temperature", "page")
-                }
-            }
-        button?.let { label to it }
-    }.toMap()
-}

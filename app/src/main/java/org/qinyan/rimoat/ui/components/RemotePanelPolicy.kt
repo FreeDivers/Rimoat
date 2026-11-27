@@ -3,9 +3,11 @@ package org.qinyan.rimoat.ui.components
 import androidx.annotation.StringRes
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.*
-import org.qinyan.rimoat.ui.screens.genericDirectionButtons
+
+internal const val MAIN_PANEL_KEY_COUNT = 6
 
 fun panelKey(button: RemoteButton) = "key:${button.id}"
+fun panelKey(buttonId: String) = "key:$buttonId"
 fun panelAction(action: AcAction) = "ac:${action.name}"
 
 fun RemoteProfile.hasAcControlPanel(): Boolean = category == DeviceCategory.AC &&
@@ -17,6 +19,28 @@ internal fun remoteButtonNumber(button: RemoteButton): Int? =
     NUMERIC_BUTTON_ID.matchEntire(button.id)?.groupValues?.get(1)?.toIntOrNull()
         ?: (button.builtinLabel ?: button.label).toIntOrNull()?.takeIf { it in 0..9 }
 
+internal fun genericDirectionButtons(buttons: List<RemoteButton>): Map<DpadDirection, RemoteButton> {
+    val aliases = mapOf(
+        DpadDirection.UP to setOf("up"),
+        DpadDirection.DOWN to setOf("down"),
+        DpadDirection.LEFT to setOf("left"),
+        DpadDirection.RIGHT to setOf("right"),
+        DpadDirection.OK to setOf("ok", "enter", "confirm", "select")
+    )
+    val legacyButtons = buttons.filter { it.key == null }
+    return aliases.mapNotNull { (direction, tokens) ->
+        val button = buttons.firstOrNull { it.key == direction.key }
+            ?: legacyButtons.firstOrNull { it.id.lowercase() in tokens }
+            ?: legacyButtons.firstOrNull { button ->
+                val parts = button.id.lowercase().split(Regex("[^a-z0-9]+"))
+                parts.lastOrNull() in tokens && parts.dropLast(1).none {
+                    it in setOf("volume", "vol", "channel", "ch", "temp", "temperature", "page")
+                }
+            }
+        button?.let { direction to it }
+    }.toMap()
+}
+
 /** Spatial combinations retain their geometry and their complete signal set. */
 fun fixedPanelKeys(profile: RemoteProfile): Set<String> {
     if (profile.hasAcControlPanel()) return emptySet()
@@ -25,11 +49,12 @@ fun fixedPanelKeys(profile: RemoteProfile): Set<String> {
     power?.let { fixed += it.id }
     if (profile.category == DeviceCategory.TV) {
         val standard = tvStandardButtons(profile)
-        (3..7).plus(11..14).forEach { standard[it]?.let { b -> fixed += b.id } }
+        standard.dpadButtons.forEach { fixed += it.id }
+        standard.rockers.forEach { fixed += it.id }
         profile.buttons.filter { remoteButtonNumber(it) != null }.forEach { fixed += it.id }
     } else {
         val directions = genericDirectionButtons(profile.buttons)
-        if (directions.keys.containsAll(listOf("上", "下", "左", "右"))) fixed += directions.values.map { it.id }
+        if (directions.keys.containsAll(DpadDirection.cardinal)) fixed += directions.values.map { it.id }
         profile.buttons.filter { remoteButtonNumber(it) != null }.forEach { fixed += it.id }
     }
     return fixed
@@ -114,10 +139,26 @@ val ButtonKey.group: FunctionGroup
         else -> FunctionGroup.OTHER
     }
 
-enum class DpadDirection(val key: ButtonKey) {
-    UP(ButtonKey.UP), DOWN(ButtonKey.DOWN), LEFT(ButtonKey.LEFT), RIGHT(ButtonKey.RIGHT), OK(ButtonKey.OK);
+enum class DpadDirection(
+    val key: ButtonKey,
+    @StringRes val labelRes: Int,
+    val placeholderId: String
+) {
+    UP(ButtonKey.UP, R.string.control_up, "direction_up"),
+    DOWN(ButtonKey.DOWN, R.string.control_down, "direction_down"),
+    LEFT(ButtonKey.LEFT, R.string.control_left, "direction_left"),
+    RIGHT(ButtonKey.RIGHT, R.string.control_right, "direction_right"),
+    OK(ButtonKey.OK, R.string.control_ok, "direction_ok");
+
+    fun placeholderButton(label: String): RemoteButton = RemoteButton(
+        id = placeholderId,
+        label = label,
+        builtinLabel = key.name,
+        key = key
+    )
 
     companion object {
+        val cardinal: Set<DpadDirection> = setOf(UP, DOWN, LEFT, RIGHT)
         fun from(key: ButtonKey?): DpadDirection? = entries.firstOrNull { it.key == key }
     }
 }

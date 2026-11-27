@@ -163,13 +163,14 @@ fun AcTemperatureCard(
                         isLearningMode = isLearningMode, onLearn = onIncrease)
                     }
                 }
+                val settingLabel = stringResource(if (isDemonstrating) R.string.control_simulation_setting else R.string.control_target_temp)
                 val readout: @Composable () -> Unit = {
                     AnimatedContent(
                         targetState = temperature,
                         transitionSpec = { fadeIn(motion.fastEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()) },
                         label = "Temperature",
                         modifier = Modifier.clearAndSetSemantics {
-                            contentDescription = statusSummary ?: AppStrings.get(R.string.control_temperature_description, "%1\$s %2\$d 摄氏度", localizedLabel(if (isDemonstrating) "模拟设定" else "设定温度"), temperature)
+                            contentDescription = statusSummary ?: AppStrings.get(R.string.control_temperature_description, "%1\$s %2\$d 摄氏度", settingLabel, temperature)
                             liveRegion = LiveRegionMode.Polite
                         }
                     ) { value ->

@@ -27,6 +27,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.TransmitterType
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.labelRes
 import org.qinyan.rimoat.ui.components.panelKey
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.robolectric.RobolectricTestRunner
@@ -47,12 +48,19 @@ class LandscapeRemotePanelRoborazziTest {
     private val learned = mutableListOf<String>()
     private val repeated = mutableListOf<String>()
 
-    private fun key(id: String, label: String, icon: String? = null) =
-        RemoteButton(id, label, iconName = icon, rawPattern = listOf(9000, 4500, 560))
+    private fun key(id: String, label: String, icon: String? = null, buttonKey: ButtonKey? = null) =
+        RemoteButton(id, label, iconName = icon, key = buttonKey, rawPattern = listOf(9000, 4500, 560))
 
     private fun tv() = RemoteProfile("pane_tv", "客厅电视", category = DeviceCategory.TV, buttons = listOf(
-        key("power", "电源", "power"), key("tv_up", "上"), key("tv_down", "下"), key("tv_left", "左"),
-        key("tv_right", "右"), key("tv_ok", "OK"), key("back", "返回"), key("vol_up", "音量+"), key("vol_down", "音量-")
+        key("power", "电源", "power", ButtonKey.POWER),
+        key("tv_up", "上", buttonKey = ButtonKey.UP),
+        key("tv_down", "下", buttonKey = ButtonKey.DOWN),
+        key("tv_left", "左", buttonKey = ButtonKey.LEFT),
+        key("tv_right", "右", buttonKey = ButtonKey.RIGHT),
+        key("tv_ok", "OK", buttonKey = ButtonKey.OK),
+        key("back", "返回", buttonKey = ButtonKey.BACK),
+        key("vol_up", "音量+", buttonKey = ButtonKey.VOLUME_UP),
+        key("vol_down", "音量-", buttonKey = ButtonKey.VOLUME_DOWN)
     ) + (0..9).map { key("tv_num_$it", "$it") } + (1..8).map { key("extra_$it", "扩展功能$it") })
 
     private fun show(profile: RemoteProfile, dark: Boolean = false, fontScale: Float = 1f, learning: Boolean = false) {
@@ -109,7 +117,12 @@ class LandscapeRemotePanelRoborazziTest {
 
     @Test
     fun tvKeepsEditedNavigationAndInputOrder() {
-        val profile = tv().copy(buttons = tv().buttons + listOf(key("source", "信源"), key("mute", "静音"), key("home", "主页"), key("menu", "菜单")),
+        val profile = tv().copy(buttons = tv().buttons + listOf(
+            key("source", "信源", buttonKey = ButtonKey.SOURCE),
+            key("mute", "静音", buttonKey = ButtonKey.MUTE),
+            key("home", "主页", buttonKey = ButtonKey.HOME),
+            key("menu", "菜单", buttonKey = ButtonKey.MENU)
+        ),
             panelLayout = RemotePanelLayout(order = listOf("key:menu", "key:back", "key:home", "key:mute", "key:source")))
         show(profile)
         val mute = composeRule.onNodeWithContentDescription("静音").fetchSemanticsNode().boundsInRoot
@@ -125,25 +138,25 @@ class LandscapeRemotePanelRoborazziTest {
     @Test
     fun tvLearningOffersMissingDirectionAndNumberKeys() {
         val app = RuntimeEnvironment.getApplication()
-        show(RemoteProfile("pane_tv_learning", "学习电视", category = DeviceCategory.TV, buttons = listOf(key("power", "电源", "power"))), learning = true)
+        show(RemoteProfile("pane_tv_learning", "学习电视", category = DeviceCategory.TV, buttons = listOf(key("power", "电源", "power").copy(key = ButtonKey.POWER))), learning = true)
         capture("landscape_tv_learning_missing_keys_before")
         val direction = composeRule.onNodeWithContentDescription(app.getString(R.string.control_learn, "上"))
         direction.performTouchInput { click() }
-        assertEquals(listOf("direction_上"), learned)
+        assertEquals(listOf("direction_up"), learned)
         assertTrue(sent.isEmpty())
         assertTrue(repeated.isEmpty())
         direction.performTouchInput { down(center) }
         composeRule.mainClock.advanceTimeBy(1000)
         composeRule.waitForIdle()
-        assertEquals(listOf("direction_上"), learned)
+        assertEquals(listOf("direction_up"), learned)
         assertTrue(sent.isEmpty())
         assertTrue(repeated.isEmpty())
         direction.performTouchInput { up() }
         composeRule.waitForIdle()
-        assertEquals(listOf("direction_上", "direction_上"), learned)
+        assertEquals(listOf("direction_up", "direction_up"), learned)
         composeRule.onNodeWithContentDescription(app.getString(R.string.screen_expand_numbers)).performScrollTo().performClick()
         composeRule.onNodeWithContentDescription(app.getString(R.string.control_learn, "3")).performScrollTo().performClick()
-        assertEquals(listOf("direction_上", "direction_上", "num_3"), learned)
+        assertEquals(listOf("direction_up", "direction_up", "num_3"), learned)
         assertTrue(sent.isEmpty())
         assertTrue(repeated.isEmpty())
         capture("landscape_tv_learning_missing_keys_after")
@@ -153,8 +166,8 @@ class LandscapeRemotePanelRoborazziTest {
     fun tvLearningKeepsRenamedNumberUniqueAndDoesNotRestoreHiddenNumber() {
         val app = RuntimeEnvironment.getApplication()
         val profile = RemoteProfile("pane_tv_number_metadata", "数字学习电视", category = DeviceCategory.TV,
-            buttons = listOf(key("power", "电源", "power"), key("catalog_key", "自定义数字").copy(builtinLabel = "3")),
-            panelLayout = RemotePanelLayout(hidden = setOf("key:num_4", "key:direction_下")))
+            buttons = listOf(key("power", "电源", "power").copy(key = ButtonKey.POWER), key("catalog_key", "自定义数字").copy(builtinLabel = "3")),
+            panelLayout = RemotePanelLayout(hidden = setOf("key:num_4", "key:direction_down")))
         show(profile, learning = true)
         composeRule.onNodeWithContentDescription(app.getString(R.string.control_learn, "下")).assertDoesNotExist()
         composeRule.onNodeWithContentDescription(app.getString(R.string.screen_expand_numbers)).performScrollTo().performClick()
@@ -165,6 +178,92 @@ class LandscapeRemotePanelRoborazziTest {
         assertEquals(listOf("catalog_key"), learned)
         assertTrue(sent.isEmpty())
         capture("landscape_tv_learning_number_metadata")
+    }
+
+    @Test
+    fun migratedLegacyHiddenDirectionsStayHiddenInLandscapeLearningMode() {
+        val app = RuntimeEnvironment.getApplication()
+        val legacy = RemoteProfile(
+            id = "pane_tv_migrated_hidden",
+            name = "客厅旧电视",
+            category = DeviceCategory.TV,
+            keySchemaVersion = 1,
+            buttons = listOf(
+                key("power", "电源", "power").copy(key = ButtonKey.POWER),
+                RemoteButton("direction_上", "上", builtinLabel = "上", key = ButtonKey.UP,
+                    isLearned = true, rawPattern = listOf(9000, 4500, 560))
+            ),
+            panelLayout = RemotePanelLayout(hidden = setOf("key:direction_下", "key:direction_左"))
+        )
+        val migrated = LegacyRemoteMigration.normalizeKeys(legacy)
+        assertEquals(setOf("key:direction_down", "key:direction_left"), migrated.panelLayout.hidden)
+        show(migrated, learning = true)
+        composeRule.onNodeWithContentDescription(app.getString(R.string.control_learn, app.getString(R.string.control_up))).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(app.getString(R.string.control_learn, app.getString(R.string.control_right))).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(app.getString(R.string.control_learn, app.getString(R.string.control_down))).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(app.getString(R.string.control_learn, app.getString(R.string.control_left))).assertDoesNotExist()
+        capture("remote_tv_migrated_hidden_learning_landscape")
+    }
+
+    @Test
+    @Config(qualifiers = "en-rUS-w891dp-h411dp-land-mdpi")
+    fun learnedTvRemoteRendersDpadIconsAndGroupHeadingsInEnglishLandscape() =
+        exerciseLearnedTvLandscapeLocale("en")
+
+    @Test
+    @Config(qualifiers = "ja-w891dp-h411dp-land-mdpi")
+    fun learnedTvRemoteRendersDpadIconsAndGroupHeadingsInJapaneseLandscape() =
+        exerciseLearnedTvLandscapeLocale("ja")
+
+    private fun exerciseLearnedTvLandscapeLocale(localeSuffix: String) {
+        val app = RuntimeEnvironment.getApplication()
+        fun learned(id: String, key: ButtonKey) = RemoteButton(
+            id = id,
+            label = app.getString(key.labelRes),
+            builtinLabel = key.name,
+            key = key,
+            isLearned = true,
+            rawPattern = listOf(9000, 4500, 560)
+        )
+        val profile = RemoteProfile(
+            id = "land_learned_tv_$localeSuffix",
+            name = "Living room TV",
+            category = DeviceCategory.TV,
+            keySchemaVersion = 2,
+            buttons = listOf(
+                learned("power", ButtonKey.POWER),
+                learned("source", ButtonKey.SOURCE),
+                learned("mute", ButtonKey.MUTE),
+                learned("direction_up", ButtonKey.UP),
+                learned("direction_down", ButtonKey.DOWN),
+                learned("direction_left", ButtonKey.LEFT),
+                learned("direction_right", ButtonKey.RIGHT),
+                learned("direction_ok", ButtonKey.OK),
+                learned("back", ButtonKey.BACK),
+                learned("home", ButtonKey.HOME),
+                learned("menu", ButtonKey.MENU),
+                learned("vol_up", ButtonKey.VOLUME_UP),
+                learned("vol_down", ButtonKey.VOLUME_DOWN),
+                learned("ch_up", ButtonKey.CHANNEL_UP),
+                learned("ch_down", ButtonKey.CHANNEL_DOWN),
+                learned("play", ButtonKey.PLAY),
+                learned("pause", ButtonKey.PAUSE),
+                learned("stop", ButtonKey.STOP),
+                learned("subtitles", ButtonKey.SUBTITLES),
+                learned("brightness", ButtonKey.BRIGHTNESS),
+                learned("osd", ButtonKey.OSD),
+                learned("timer", ButtonKey.TIMER),
+                learned("sleep", ButtonKey.SLEEP),
+                learned("info", ButtonKey.INFO)
+            )
+        )
+        show(profile)
+        composeRule.onNodeWithContentDescription(app.getString(R.string.control_up)).assertIsDisplayed()
+        composeRule.onNodeWithText(app.getString(R.string.control_more_page)).performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription(app.getString(R.string.control_play)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(app.getString(R.string.control_picture_group)).performScrollTo().assertIsDisplayed()
+        capture("remote_tv_learned_${localeSuffix}_landscape")
     }
 
     @Test
@@ -227,7 +326,7 @@ class LandscapeRemotePanelRoborazziTest {
 
     @Test
     fun singleKeyKeepsIdentityBesideItsOnlyAction() {
-        show(RemoteProfile("pane_single", "照明开关", room = "客厅", buttons = listOf(key("toggle", "开关", "power"))))
+        show(RemoteProfile("pane_single", "照明开关", room = "客厅", buttons = listOf(key("toggle", "开关", "power", ButtonKey.POWER))))
         val name = composeRule.onNodeWithText("照明开关").fetchSemanticsNode().boundsInRoot
         val action = composeRule.onNodeWithContentDescription("开关").fetchSemanticsNode().boundsInRoot
         assertTrue(name.right < action.left)
@@ -242,7 +341,12 @@ class LandscapeRemotePanelRoborazziTest {
         val app = RuntimeEnvironment.getApplication()
         AppStrings.initialize(app)
         val profile = RemoteProfile("pane_editor", "风扇", category = DeviceCategory.FAN,
-            buttons = listOf(key("power", "电源", "power"), key("speed", "风速"), key("timer", "定时"), key("mode", "模式")))
+            buttons = listOf(
+                key("power", "电源", "power", ButtonKey.POWER),
+                key("speed", "风速", buttonKey = ButtonKey.FAN_SPEED),
+                key("timer", "定时", buttonKey = ButtonKey.TIMER),
+                key("mode", "模式", buttonKey = ButtonKey.MODE)
+            ))
         var saved = RemotePanelLayout()
         composeRule.setContent {
             IrRemoteTheme(darkTheme = false, dynamicColor = false) {

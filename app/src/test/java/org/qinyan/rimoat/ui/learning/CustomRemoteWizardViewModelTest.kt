@@ -18,8 +18,8 @@ import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.ui.components.DpadDirection
+import org.qinyan.rimoat.ui.components.genericDirectionButtons
 import org.qinyan.rimoat.ui.components.tvStandardButtons
-import org.qinyan.rimoat.ui.screens.genericDirectionButtons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -736,17 +736,20 @@ class CustomRemoteWizardViewModelTest {
             RemoteButton(id = item.id, label = item.label, builtinLabel = item.builtinLabel, key = item.key)
         }
         val profile = RemoteProfile(id = "learned_tv", name = "Living room", category = DeviceCategory.TV, buttons = buttons)
+        val standard = tvStandardButtons(profile)
         assertEquals(
             listOf(ButtonKey.POWER, null, ButtonKey.MUTE, ButtonKey.UP, ButtonKey.DOWN, ButtonKey.LEFT,
                 ButtonKey.RIGHT, ButtonKey.OK, ButtonKey.BACK, ButtonKey.HOME, ButtonKey.MENU,
                 ButtonKey.VOLUME_UP, ButtonKey.VOLUME_DOWN, ButtonKey.CHANNEL_UP, ButtonKey.CHANNEL_DOWN),
-            tvStandardButtons(profile).map { it?.key }
+            listOf(standard.power, standard.source, standard.mute, standard.up, standard.down, standard.left,
+                standard.right, standard.ok, standard.back, standard.home, standard.menu,
+                standard.volUp, standard.volDown, standard.chUp, standard.chDown).map { it?.key }
         )
         val misleading = RemoteButton(id = "tv_up", label = "UP", builtinLabel = ButtonKey.UP.name, key = ButtonKey.VOLUME_UP)
         val classified = tvStandardButtons(profile.copy(buttons = listOf(misleading)))
-        assertEquals(1, classified.filterNotNull().size)
-        assertEquals(misleading, classified[11])
-        assertEquals(null, classified[3])
+        assertEquals(1, classified.all.size)
+        assertEquals(misleading, classified.volUp)
+        assertEquals(null, classified.up)
     }
 
     @Test fun customStandardActionBindingIsExplicitAndDoesNotDuplicateTheSlot() {

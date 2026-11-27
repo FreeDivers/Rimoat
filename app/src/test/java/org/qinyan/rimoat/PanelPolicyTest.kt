@@ -19,7 +19,8 @@ class PanelPolicyTest {
             button("mode", AcAction.MODE.label)
         ).map { it.copy(isLearned = true) }
         val profile = RemoteProfile("ac", "AC", category = DeviceCategory.AC, acProtocolId = 27, buttons = keys)
-        assertEquals(keys, acRawExtensionButtons(profile))
+        assertEquals(listOf(keys[2]), acRawExtensionButtons(profile))
+        assertEquals(keys[0], acButtonForAction(profile, AcAction.POWER_ON))
         assertEquals(keys[1], acButtonForAction(profile, AcAction.TEMP_UP))
         val hidden = profile.copy(panelLayout = RemotePanelLayout(hidden = keys.map(::panelKey).toSet())).withPanelPresentation()
         assertTrue(acRawExtensionButtons(hidden).isEmpty())
@@ -28,7 +29,7 @@ class PanelPolicyTest {
     }
 
     @Test fun hidingAcActionNeverResurrectsItsLegacyOrMetadataKeyAsRawExtension() {
-        val fan = button("legacy_wind", "风量")
+        val fan = button("legacy_wind", "风量").copy(key = ButtonKey.AIRFLOW)
         val swing = button("swing", "User swing").copy(sourceKeyType = AcAction.SWING.keyType)
         val light = button("lamp", "User light").copy(acAction = AcAction.LIGHT)
         val custom = button("custom", "Custom")
@@ -44,10 +45,13 @@ class PanelPolicyTest {
     }
 
     @Test fun duplicateBindingsAndLegacyExtensionAliasesDoNotEscapeHiddenActions() {
-        val aliases = listOf(button("old_fan", "风量"), button("other_fan", "风速"))
+        val aliases = listOf(
+            button("old_fan", "风量").copy(key = ButtonKey.AIRFLOW),
+            button("other_fan", "风速").copy(key = ButtonKey.FAN_SPEED)
+        )
         val source = button("source_fan").copy(sourceKeyType = AcAction.FAN.keyType)
         val explicit = button("explicit_fan").copy(acAction = AcAction.FAN)
-        val sleep = button("legacy_sleep", AcAction.SLEEP.label)
+        val sleep = button("legacy_sleep", AcAction.SLEEP.label).copy(key = ButtonKey.SLEEP)
         val custom = button("custom", "Custom")
         val profile = RemoteProfile("ac", "AC", category = DeviceCategory.AC, acProtocolId = 1,
             buttons = aliases + listOf(source, explicit, sleep, custom),
@@ -195,17 +199,19 @@ class PanelPolicyTest {
                 val profile = RemoteProfile("remote", "Remote", category = category, buttons = ordinary + power)
                 assertTrue(power.isPowerKey())
                 assertTrue(ordinary.none { it.isPowerKey() })
-                assertEquals(setOf(power.id), fixedPanelKeys(profile))
+                val expectedFixed = if (category == DeviceCategory.TV) setOf(power.id, "renamed_volume") else setOf(power.id)
+                assertEquals(expectedFixed, fixedPanelKeys(profile))
                 if (category == DeviceCategory.TV) {
-                    assertEquals(power, tvStandardButtons(profile).first())
-                    assertEquals(ordinary, remoteExtraButtons(profile))
+                    assertEquals(power, tvStandardButtons(profile).power)
+                    assertEquals(ordinary.filter { it.id != "renamed_volume" }, remoteExtraButtons(profile))
                 } else {
                     assertEquals(ordinary.drop(6), remoteExtraButtons(profile))
                 }
                 val hidden = profile.copy(panelLayout = RemotePanelLayout(
                     hidden = profile.buttons.map(::panelKey).toSet()
                 )).withPanelPresentation()
-                assertEquals(listOf(power), hidden.buttons)
+                val expectedVisible = if (category == DeviceCategory.TV) listOf(ordinary[3], power) else listOf(power)
+                assertEquals(expectedVisible, hidden.buttons)
                 assertEquals(ordinary + power, profile.buttons)
             }
         }

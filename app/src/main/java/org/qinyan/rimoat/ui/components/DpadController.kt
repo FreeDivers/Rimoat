@@ -1,7 +1,5 @@
 package org.qinyan.rimoat.ui.components
 
-import org.qinyan.rimoat.i18n.localizedLabel
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.ui.motion.AppMotion
 import androidx.compose.animation.core.animateFloatAsState
@@ -46,6 +44,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -68,11 +67,11 @@ fun DpadController(
     modifier: Modifier = Modifier,
     size: Dp = 208.dp,
     isLearningMode: Boolean = false,
-    onLearn: ((String) -> Unit)? = null,
-    availableKeys: Set<String> = setOf("上", "下", "左", "右", "OK"),
-    onRepeat: ((String) -> Unit)? = null,
-    onUnavailable: ((String) -> Unit)? = null,
-    visibleKeys: Set<String> = setOf("上", "下", "左", "右", "OK")
+    onLearn: ((DpadDirection) -> Unit)? = null,
+    availableKeys: Set<DpadDirection> = DpadDirection.entries.toSet(),
+    onRepeat: ((DpadDirection) -> Unit)? = null,
+    onUnavailable: ((DpadDirection) -> Unit)? = null,
+    visibleKeys: Set<DpadDirection> = DpadDirection.entries.toSet()
 ) {
     SoundEffectOnInteraction(enabled = false) {
     MaterialTheme(motionScheme = MotionScheme.standard()) {
@@ -90,19 +89,27 @@ fun DpadController(
             contentAlignment = Alignment.Center
         ) {
             listOf(
-                Triple("上", Alignment.TopCenter, onUp), Triple("下", Alignment.BottomCenter, onDown),
-                Triple("左", androidx.compose.ui.AbsoluteAlignment.CenterLeft, onLeft), Triple("右", androidx.compose.ui.AbsoluteAlignment.CenterRight, onRight),
-                Triple("OK", Alignment.Center, onOk)
-            ).filter { it.first in visibleKeys }.forEach { (label, alignment, send) ->
+                Triple(DpadDirection.UP, Alignment.TopCenter, onUp),
+                Triple(DpadDirection.DOWN, Alignment.BottomCenter, onDown),
+                Triple(DpadDirection.LEFT, androidx.compose.ui.AbsoluteAlignment.CenterLeft, onLeft),
+                Triple(DpadDirection.RIGHT, androidx.compose.ui.AbsoluteAlignment.CenterRight, onRight),
+                Triple(DpadDirection.OK, Alignment.Center, onOk)
+            ).filter { it.first in visibleKeys }.forEach { (direction, alignment, send) ->
                 DpadKey(
-                    label = label,
+                    direction = direction,
                     onClick = send,
-                    onRepeat = onRepeat?.let { { it(label) } },
-                    enabled = label in availableKeys || (isLearningMode && onLearn != null),
+                    onRepeat = onRepeat?.let { { it(direction) } },
+                    enabled = direction in availableKeys || (isLearningMode && onLearn != null),
                     isLearningMode = isLearningMode,
-                    onLearn = { onLearn?.invoke(label) },
-                    onUnavailable = onUnavailable?.let { explain -> { explain(label) } },
-                    traversalOrder = when (label) { "上" -> 0f; "左" -> 1f; "右" -> 3f; "下" -> 4f; else -> 2f },
+                    onLearn = { onLearn?.invoke(direction) },
+                    onUnavailable = onUnavailable?.let { explain -> { explain(direction) } },
+                    traversalOrder = when (direction) {
+                        DpadDirection.UP -> 0f
+                        DpadDirection.LEFT -> 1f
+                        DpadDirection.OK -> 2f
+                        DpadDirection.RIGHT -> 3f
+                        DpadDirection.DOWN -> 4f
+                    },
                     modifier = Modifier.align(alignment)
                 )
             }
@@ -114,7 +121,7 @@ fun DpadController(
 
 @Composable
 private fun DpadKey(
-    label: String,
+    direction: DpadDirection,
     onClick: () -> Unit,
     onRepeat: (() -> Unit)?,
     enabled: Boolean,
@@ -133,13 +140,13 @@ private fun DpadKey(
     val pressShape = rememberExpressiveShape(
         interactionSource,
         CircleShape,
-        if (label == "OK") RoundedCornerShape(20.dp) else RoundedCornerShape(40)
+        if (direction == DpadDirection.OK) RoundedCornerShape(20.dp) else RoundedCornerShape(40)
     )
     val clickHaptic = org.qinyan.rimoat.ui.rememberPressHaptic(interactionSource, enabled, isLearningMode)
     val pressed by interactionSource.collectIsPressedAsState()
     var repeated by remember { mutableStateOf(false) }
-    var unavailableTaps by remember(label, enabled) { mutableStateOf(0) }
-    var lastUnavailableTap by remember(label, enabled) { mutableStateOf(0L) }
+    var unavailableTaps by remember(direction, enabled) { mutableStateOf(0) }
+    var lastUnavailableTap by remember(direction, enabled) { mutableStateOf(0L) }
     val diagnose: () -> Unit = {
         if (active && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             val now = android.os.SystemClock.uptimeMillis()
@@ -195,12 +202,16 @@ private fun DpadKey(
         repeated = false
     }
     val accessibilityRepeat = rememberAccessibleRepeat(enabled && !isLearningMode, onRepeat)
-    val keyModifier = Modifier.then(clickHaptic.modifier).size(if (label == "OK") 64.dp else 56.dp)
+    val label = stringResource(direction.labelRes)
+    val spokenLabel = if (isLearningMode) stringResource(R.string.control_learn, label) else label
+    val unavailableActionLabel = stringResource(R.string.control_unavailable_action, spokenLabel)
+    val showReasonLabel = stringResource(R.string.control_show_reason)
+    val repeatActionLabel = stringResource(R.string.control_repeat_action, spokenLabel)
+    val keyModifier = Modifier.then(clickHaptic.modifier).size(if (direction == DpadDirection.OK) 64.dp else 56.dp)
         .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
         .clearAndSetSemantics {
             role = Role.Button
             if (!enabled && onUnavailable == null) disabled()
-            val spokenLabel = if (isLearningMode) AppStrings.get(R.string.control_learn, "学习%1\$s", localizedLabel(label)) else localizedLabel(label)
             contentDescription = spokenLabel
             traversalIndex = traversalOrder
             if (enabled) onClick {
@@ -210,23 +221,22 @@ private fun DpadKey(
                 true
             }
             if (!enabled && onUnavailable != null) {
-                onClick(context.getString(R.string.control_unavailable_action, spokenLabel)) { diagnose(); true }
-                customActions = listOf(CustomAccessibilityAction(AppStrings.get(R.string.control_show_reason)) {
+                onClick(unavailableActionLabel) { diagnose(); true }
+                customActions = listOf(CustomAccessibilityAction(showReasonLabel) {
                     if (!active || !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) false
                     else { onUnavailable(); true }
                 })
             }
             if (enabled && !isLearningMode && onRepeat != null) {
-                customActions = listOf(CustomAccessibilityAction(
-                    AppStrings.get(R.string.control_repeat_action, "短时连发%1\$s", spokenLabel)
-                ) { accessibilityRepeat() })
+                customActions = listOf(CustomAccessibilityAction(repeatActionLabel) { accessibilityRepeat() })
             }
         }
     Box(modifier) {
-    HoldTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn, "学习%1\$s", localizedLabel(label)) else localizedLabel(label), pressed) {
-    if (label == "OK") {
+    HoldTooltip(spokenLabel, pressed) {
+    if (direction == DpadDirection.OK) {
+        val okLabel = stringResource(R.string.control_ok)
         val content: @Composable () -> Unit = {
-            Text("OK", style = MaterialTheme.typography.titleMedium, modifier = Modifier.clearAndSetSemantics {})
+            Text(okLabel, style = MaterialTheme.typography.titleMedium, modifier = Modifier.clearAndSetSemantics {})
         }
         if (isLearningMode) OutlinedButton(
             onClick = click, enabled = acceptsClick, modifier = keyModifier,
@@ -241,10 +251,7 @@ private fun DpadKey(
         ) { content() }
     } else {
         val content: @Composable () -> Unit = {
-            Icon(requireNotNull(getIconVector(when (label) {
-                "上" -> "keyboard_arrow_up"; "下" -> "keyboard_arrow_down"
-                "左" -> "keyboard_arrow_left"; else -> "keyboard_arrow_right"
-            })), contentDescription = null, modifier = Modifier.size(28.dp))
+            Icon(requireNotNull(direction.key.icon), contentDescription = null, modifier = Modifier.size(28.dp))
         }
         if (isLearningMode) OutlinedIconButton(
             onClick = click, enabled = acceptsClick, modifier = keyModifier,

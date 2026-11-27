@@ -27,6 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.BackupFileStore
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemotePanelLayout
@@ -58,25 +59,39 @@ class LandscapeLayoutRoborazziTest {
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private fun key(id: String, label: String, icon: String? = null) =
-        RemoteButton(id, label, iconName = icon, rawPattern = listOf(9000, 4500, 560))
+    private fun key(id: String, label: String, icon: String? = null, buttonKey: ButtonKey? = null) =
+        RemoteButton(id, label, iconName = icon, key = buttonKey, rawPattern = listOf(9000, 4500, 560))
 
     private fun tv() = RemoteProfile(
         id = "land_tv", name = "客厅电视", category = DeviceCategory.TV,
         buttons = listOf(
-            key("power", "电源", "power"), key("source", "信源"), key("mute", "静音"),
-            key("tv_up", "上"), key("tv_down", "下"), key("tv_left", "左"), key("tv_right", "右"), key("tv_ok", "OK"),
-            key("back", "返回"), key("home", "主页"), key("menu", "菜单"),
-            key("vol_up", "音量+", "volume_up"), key("vol_down", "音量-", "volume_down"),
-            key("ch_up", "频道+", "arrow_drop_up"), key("ch_down", "频道-", "arrow_drop_down")
+            key("power", "电源", "power", ButtonKey.POWER),
+            key("source", "信源", buttonKey = ButtonKey.SOURCE),
+            key("mute", "静音", buttonKey = ButtonKey.MUTE),
+            key("tv_up", "上", buttonKey = ButtonKey.UP),
+            key("tv_down", "下", buttonKey = ButtonKey.DOWN),
+            key("tv_left", "左", buttonKey = ButtonKey.LEFT),
+            key("tv_right", "右", buttonKey = ButtonKey.RIGHT),
+            key("tv_ok", "OK", buttonKey = ButtonKey.OK),
+            key("back", "返回", buttonKey = ButtonKey.BACK),
+            key("home", "主页", buttonKey = ButtonKey.HOME),
+            key("menu", "菜单", buttonKey = ButtonKey.MENU),
+            key("vol_up", "音量+", "volume_up", ButtonKey.VOLUME_UP),
+            key("vol_down", "音量-", "volume_down", ButtonKey.VOLUME_DOWN),
+            key("ch_up", "频道+", "arrow_drop_up", ButtonKey.CHANNEL_UP),
+            key("ch_down", "频道-", "arrow_drop_down", ButtonKey.CHANNEL_DOWN)
         ) + (0..9).map { key("tv_num_$it", "$it") }
     )
 
     private fun fan() = RemoteProfile(
         id = "land_fan", name = "卧室风扇", category = DeviceCategory.FAN,
         buttons = listOf(
-            key("power", "电源", "power"), key("speed", "风速"), key("swing", "摇头"),
-            key("timer", "定时"), key("mode", "模式"), key("natural", "自然风")
+            key("power", "电源", "power", ButtonKey.POWER),
+            key("speed", "风速", buttonKey = ButtonKey.FAN_SPEED),
+            key("swing", "摇头", buttonKey = ButtonKey.OSCILLATION),
+            key("timer", "定时", buttonKey = ButtonKey.TIMER),
+            key("mode", "模式", buttonKey = ButtonKey.MODE),
+            key("natural", "自然风", buttonKey = ButtonKey.WIND_TYPE)
         )
     )
 

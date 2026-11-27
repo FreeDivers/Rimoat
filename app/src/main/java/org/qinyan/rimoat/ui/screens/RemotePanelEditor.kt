@@ -128,8 +128,8 @@ fun RemotePanelEditor(
             val editable = profile.buttons.filter { it.id !in fixed }
             if (profile.category == DeviceCategory.TV) {
                 val standard = tvStandardButtons(profile)
-                val top = listOfNotNull(standard[1], standard[2])
-                val nav = (8..10).mapNotNull { standard[it] }
+                val top = listOfNotNull(standard.source, standard.mute)
+                val nav = standard.navigation
                 add(PanelGroup(R.string.panel_group_controls, top.map { buttonEntry(it, localizedButtonLabel(it)) }))
                 add(PanelGroup(R.string.panel_group_navigation, nav.map { buttonEntry(it, localizedButtonLabel(it)) }))
                 add(PanelGroup(R.string.panel_group_extensions, (editable - top.toSet() - nav.toSet()).map { buttonEntry(it, localizedButtonLabel(it)) }))
