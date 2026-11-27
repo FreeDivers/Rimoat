@@ -18,14 +18,22 @@ class AppReleaseTest {
 
     @Test fun releaseNotesKeepChosenSectionVerbatimAndFollowChineseLanguageVariants() {
         val release = AppRelease("v1.2.0", "### 简体中文\r\n\r\n- 新增更新检查\r\n- 修复遥控问题\r\n### English\r\n\r\n- Check for updates\r\n- Fix remote controls", null)
-        listOf("zh-CN", "zh-Hant", "zh-TW", "zh-HK").forEach {
+        listOf("zh-Hans", "zh-CN", "zh-Hant", "zh-TW", "zh-HK").forEach {
             assertEquals("- 新增更新检查\r\n- 修复遥控问题", release.notes(it))
         }
         listOf("en", "ja", "de").forEach {
             assertEquals("- Check for updates\r\n- Fix remote controls", release.notes(it))
         }
-        assertEquals("", release.copy(body = "### English\nEnglish only").notes("zh-CN"))
+        val englishOnly = release.copy(body = "### English\nEnglish only")
+        listOf("zh-Hans", "zh-Hant", "zh-TW", "zh-CN").forEach {
+            assertEquals("English only", englishOnly.notes(it))
+        }
+        val chineseOnly = release.copy(body = "### 简体中文\n仅中文说明")
+        listOf("en", "ja").forEach {
+            assertEquals("仅中文说明", chineseOnly.notes(it))
+        }
         assertEquals("Legacy release notes", release.copy(body = "Legacy release notes").notes("en"))
+        assertEquals("Legacy release notes", release.copy(body = "Legacy release notes").notes("zh-Hans"))
     }
 
     @Test fun parserSelectsPublishedRepositoryApkAndRejectsInvalidReleases() {

@@ -52,8 +52,7 @@ internal data class AppRelease(val tag: String, val body: String, val asset: Rel
         val heading = if (Locale.forLanguageTag(languageTag).language == "zh") "简体中文" else "English"
         val sections = Regex("(?m)^###\\s+(简体中文|English)\\s*$").findAll(body).toList()
         if (sections.isEmpty()) return body.trim()
-        val index = sections.indexOfFirst { it.groupValues[1] == heading }
-        if (index < 0) return ""
+        val index = sections.indexOfFirst { it.groupValues[1] == heading }.takeIf { it >= 0 } ?: 0
         return body.substring(sections[index].range.last + 1,
             sections.getOrNull(index + 1)?.range?.first ?: body.length).trim()
     }
