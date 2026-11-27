@@ -218,7 +218,8 @@ class AdversarialPersistenceAndHapticTest {
 
         // Verify button 0 ("电源")
         val btn0 = saved.buttons[0]
-        assertEquals("电源", btn0.label)
+        assertEquals(org.qinyan.rimoat.data.ButtonKey.POWER.name, btn0.label)
+        assertEquals(org.qinyan.rimoat.data.ButtonKey.POWER, btn0.key)
         assertEquals(SignalType.RAW, btn0.signalType)
         assertEquals(38000, btn0.frequencyHz)
         assertEquals(pwrPulses.toList(), btn0.rawPattern)
@@ -227,7 +228,8 @@ class AdversarialPersistenceAndHapticTest {
 
         // Verify button 1 ("音量+")
         val btn1 = saved.buttons[1]
-        assertEquals("音量+", btn1.label)
+        assertEquals(org.qinyan.rimoat.data.ButtonKey.VOLUME_UP.name, btn1.label)
+        assertEquals(org.qinyan.rimoat.data.ButtonKey.VOLUME_UP, btn1.key)
         assertEquals(SignalType.RAW, btn1.signalType)
         assertEquals(40000, btn1.frequencyHz)
         assertEquals(volUpPulses.toList(), btn1.rawPattern)

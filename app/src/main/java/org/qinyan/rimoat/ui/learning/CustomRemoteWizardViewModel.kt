@@ -14,7 +14,6 @@ import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.ApplianceType
 import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.data.ButtonKey
-import org.qinyan.rimoat.data.LegacyLabelMap
 import org.qinyan.rimoat.data.LegacyRemoteMigration
 import org.qinyan.rimoat.data.buttonKey
 import org.qinyan.rimoat.data.RemoteButton
@@ -150,7 +149,7 @@ private fun CustomRemoteWizardUiState.toDraftSnapshot(): WizardDraftSnapshot = W
 
 private fun normalizeRestored(state: CustomRemoteWizardUiState): CustomRemoteWizardUiState {
     val normalizedQueue = state.keyQueue.map { item ->
-        val key = item.key ?: item.builtinLabel?.let(LegacyLabelMap::key)
+        val key = item.key ?: LegacyRemoteMigration.restoredBuiltinKey(item.builtinLabel)
         item.copy(
             key = key,
             builtinLabel = if (item.builtinLabel != null && key != null) key.name else item.builtinLabel,

@@ -60,7 +60,7 @@ private val HEX_DIGITS = "0123456789abcdef".toCharArray()
 internal fun pairingFingerprint(button: RemoteButton): String {
     val digest = java.security.MessageDigest
         .getInstance("SHA-256")
-        .digest(Json.encodeToString(button).toByteArray(Charsets.UTF_8))
+        .digest(Json.encodeToString(button.copy(catalogLabel = null)).toByteArray(Charsets.UTF_8))
     val chars = CharArray(16)
     for (i in 0 until 8) {
         val byte = digest[i].toInt() and 0xFF

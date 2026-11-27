@@ -4,8 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -14,6 +17,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.qinyan.rimoat.clearViewModelsAndAwait
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.ApplianceType
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteProfile
@@ -43,17 +47,17 @@ class LearningApplianceTypeTest {
         vm.setBrand("Example")
         vm.setApplianceType(ApplianceType.SET_TOP_BOX)
         assertEquals(DeviceCategory.TV, vm.uiState.value.category)
-        assertTrue(vm.uiState.value.keyQueue.any { it.builtinLabel == "频道+" })
+        assertTrue(vm.uiState.value.keyQueue.any { it.key == ButtonKey.CHANNEL_UP })
         vm.setApplianceType(ApplianceType.STREAMING_BOX)
         assertEquals(DeviceCategory.TV, vm.uiState.value.category)
-        assertFalse(vm.uiState.value.keyQueue.any { it.builtinLabel == "频道+" })
+        assertFalse(vm.uiState.value.keyQueue.any { it.key == ButtonKey.CHANNEL_UP })
         vm.setApplianceType(ApplianceType.CAMERA)
-        assertEquals(listOf("快门", "副快门"), vm.uiState.value.keyQueue.map { it.builtinLabel })
+        assertEquals(listOf(ButtonKey.SHUTTER, ButtonKey.SUB_SHUTTER), vm.uiState.value.keyQueue.map { it.key })
         vm.setApplianceType(ApplianceType.LIGHT)
         assertEquals(DeviceCategory.CUSTOM, vm.uiState.value.category)
-        assertEquals(listOf("电源", "亮度"), vm.uiState.value.keyQueue.map { it.builtinLabel })
+        assertEquals(listOf(ButtonKey.POWER, ButtonKey.BRIGHTNESS), vm.uiState.value.keyQueue.map { it.key })
         vm.setApplianceType(ApplianceType.DVD)
-        assertTrue(vm.uiState.value.keyQueue.any { it.builtinLabel == "播放/暂停" })
+        assertTrue(vm.uiState.value.keyQueue.any { it.key == ButtonKey.PLAY_PAUSE })
         assertEquals("Living room", vm.uiState.value.remoteName)
         assertEquals("Example", vm.uiState.value.brand)
         assertTrue(vm.proceedToLearning())
@@ -68,24 +72,27 @@ class LearningApplianceTypeTest {
         )
         val vm = viewModel(state)
         vm.setApplianceType(ApplianceType.CAMERA)
-        assertEquals(state, vm.uiState.value)
+        assertEquals(state.remoteName, vm.uiState.value.remoteName)
+        assertEquals(state.keyQueue.single().label, vm.uiState.value.keyQueue.single().label)
+        assertEquals(ButtonKey.SHUTTER, vm.uiState.value.keyQueue.single().key)
+        assertEquals(ButtonKey.SHUTTER.name, vm.uiState.value.keyQueue.single().builtinLabel)
         assertTrue(vm.proceedToLearning())
         assertEquals(1, vm.uiState.value.learnedCount)
         assertEquals(signal, vm.uiState.value.currentKey?.capturedSignal)
     }
 
-    @Test fun everyTypeSurvivesSavingAndProfileSerialization() {
+    @Test fun everyTypeSurvivesSavingAndProfileSerialization() = runTest(dispatcher) {
         ApplianceType.entries.forEach { type ->
             val state = CustomRemoteWizardUiState(
                 step = WizardStep.REVIEW, remoteName = "Remote", category = type.category, applianceType = type,
+                templateApplianceType = type, keySchemaVersion = 1,
                 keyQueue = CustomRemoteWizardViewModel.generateDefaultQueue(type).take(1).map {
                     it.copy(status = KeyLearnStatus.LEARNED, capturedSignal = signal)
                 }
             )
             val vm = viewModel(state)
             vm.saveRemote()
-            dispatcher.scheduler.advanceUntilIdle()
-            val saved = checkNotNull(vm.savedRemote.value)
+            val saved = vm.savedRemote.filterNotNull().first()
             val restored = Json.decodeFromString<RemoteProfile>(Json.encodeToString(saved))
             assertEquals(type, restored.applianceType)
             assertEquals(type.category, restored.category)
@@ -105,7 +112,10 @@ class LearningApplianceTypeTest {
                 """{"category":"${category.name}","remoteName":"Remote"}"""
             )
             assertEquals(ApplianceType.fromCategory(category), state.selectedApplianceType)
-            assertEquals(state, viewModel(state).uiState.value)
+            val restored = viewModel(state).uiState.value
+            assertEquals(state.remoteName, restored.remoteName)
+            assertEquals(state.category, restored.category)
+            assertEquals(state.keyQueue, restored.keyQueue)
         }
     }
 
@@ -114,6 +124,6 @@ class LearningApplianceTypeTest {
         vm.setApplianceType(ApplianceType.IPTV)
         vm.reset(DeviceCategory.FAN)
         assertEquals(ApplianceType.FAN, vm.uiState.value.selectedApplianceType)
-        assertTrue(vm.uiState.value.keyQueue.any { it.builtinLabel == "摇头" })
+        assertTrue(vm.uiState.value.keyQueue.any { it.key == ButtonKey.OSCILLATION })
     }
 }

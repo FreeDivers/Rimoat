@@ -21,6 +21,15 @@ import java.nio.file.Files
 @OptIn(ExperimentalCoroutinesApi::class)
 class PairingProgressTest {
     @get:org.junit.Rule val strings = AppStringsResourceRule()
+
+    @Test fun displayMetadataKeepsExistingPairingFingerprintsValid() {
+        val button = RemoteButton("catalog", "timer", rawPattern = listOf(9000, 4500, 560), sourceKeyType = 875)
+        assertEquals("07abf331874fc3ca", pairingFingerprint(button))
+        val translated = button.copy(catalogLabel = CatalogLabelMetadata(fallbackKey = ButtonKey.TIMER))
+        assertEquals(pairingFingerprint(button), pairingFingerprint(translated))
+        assertNotEquals(pairingFingerprint(button), pairingFingerprint(translated.copy(rawPattern = listOf(9000, 4500, 570))))
+    }
+
     private class Catalog : IrCatalog {
         val category = IrCategory(1, "电视", "TV", "tv")
         val brands = listOf(IrBrand(1, "A", "A", "a", 3), IrBrand(2, "B", "B", "b", 3))

@@ -636,10 +636,7 @@ internal fun LearningReviewContent(page: CustomRemoteWizardUiState, onContinue: 
 /** Default queue labels are translated for display; custom key names remain untouched. */
 @Composable
 internal fun WizardKeyItem.displayLabel(): String {
-    LocalConfiguration.current
-    val context = LocalContext.current
-    if (builtinLabel != null && key != null) return context.getString(defaultLearningLabelRes(key, acAction))
-    return builtinLabel?.let { org.qinyan.rimoat.i18n.localizedLabel(it, context) } ?: label
+    return if (builtinLabel != null && key != null) stringResource(defaultLearningLabelRes(key, acAction)) else label
 }
 
 private fun CustomRemoteWizardUiState.suggestedAcAction(context: android.content.Context): AcAction? {

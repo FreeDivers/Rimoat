@@ -14,6 +14,7 @@ import org.qinyan.rimoat.widget.WidgetShortcut
 
 class ButtonKeyMigrationTest {
     @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private fun migrate(vararg buttons: RemoteButton) = LegacyRemoteMigration.normalizeKeys(
         RemoteProfile("remote", "Remote", updatedAt = 1L, buttons = buttons.toList()))
@@ -136,6 +137,42 @@ class ButtonKeyMigrationTest {
         assertEquals(listOf(ButtonKey.FAST_FORWARD, null, ButtonKey.HUMIDIFY, null, null), migrated.buttons.map { it.key })
     }
 
+    @Test fun catalogDisplayMetadataPreservesConflictingTypesPresetsAndCustomLabels() {
+        val buttons = listOf(
+            RemoteButton("timer", "定时", sourceKeyType = 875),
+            RemoteButton("preset", "开机_制冷_26度", sourceKeyType = 800),
+            RemoteButton("wrong_digit", "数字键 6", sourceKeyType = 5),
+            RemoteButton("custom", "卧室窗帘", sourceKeyType = -100),
+            RemoteButton("clear", "清除", sourceKeyType = -100),
+            RemoteButton("literal", "清除"))
+        val profile = RemoteProfile("catalog", "Catalog", buttons = buttons,
+            keySchemaVersion = LegacyRemoteMigration.KEY_SCHEMA_VERSION)
+        val migrated = LegacyRemoteMigration.normalizeKeys(profile)
+        assertEquals(buttons, migrated.buttons.map { it.copy(catalogLabel = null) })
+        assertEquals(ButtonKey.TIMER, migrated.buttons[0].catalogLabel?.fallbackKey)
+        assertNull(migrated.buttons[0].catalogLabel?.key)
+        assertEquals(AcMode.COOL, migrated.buttons[1].catalogLabel?.mode)
+        assertEquals("26", migrated.buttons[1].catalogLabel?.temperature)
+        assertNull(migrated.buttons[2].catalogLabel)
+        assertNull(migrated.buttons[3].catalogLabel)
+        assertNotNull(migrated.buttons[4].catalogLabel?.fallbackLabel)
+        assertNull(migrated.buttons[5].catalogLabel)
+        assertSame(migrated, LegacyRemoteMigration.normalizeKeys(migrated))
+        assertEquals(migrated, json.decodeFromString<RemoteProfile>(json.encodeToString(migrated)))
+    }
+
+    @Test fun savingACustomCatalogNameClearsPreviousDisplayMetadata() {
+        val original = migrate(RemoteButton("timer", "定时", sourceKeyType = 875)).buttons.single()
+        assertNotNull(original.catalogLabel)
+        val renamed = original.copy(label = "My evening timer")
+        val profile = RemoteProfile("catalog", "Catalog", buttons = listOf(renamed),
+            keySchemaVersion = LegacyRemoteMigration.KEY_SCHEMA_VERSION)
+        val result = LegacyRemoteMigration.normalizeKeys(profile).buttons.single()
+        assertEquals(renamed.copy(catalogLabel = null), result)
+        assertNull(result.catalogLabel)
+        assertNull(json.decodeFromString<RemoteButton>("""{"id":"old","label":"My custom key"}""").catalogLabel)
+    }
+
     @Test fun applianceMigrationHandlesCatalogPrefixesAndPreservesExplicitTypesAndCustomBrands() {
         for ((code, type) in mapOf("stb" to ApplianceType.SET_TOP_BOX, "dvd" to ApplianceType.DVD,
             "cam" to ApplianceType.CAMERA, "light" to ApplianceType.LIGHT, "box" to ApplianceType.STREAMING_BOX, "ipt" to ApplianceType.IPTV)) {
@@ -165,6 +202,7 @@ class ButtonKeyMigrationTest {
             verifiedFunctions = listOf("POWER", "VOLUME_UP"))
         val result = profile.withoutVerifiedButtons(listOf(power.copy(label = "New name")))
         assertEquals(listOf("VOLUME_UP"), result.verifiedFunctions)
-        assertEquals(profile.buttons, result.buttons)
+        assertEquals(profile.buttons, result.buttons.map { it.copy(catalogLabel = null) })
+        assertEquals(ButtonKey.POWER, result.buttons.first().catalogLabel?.fallbackKey)
     }
 }

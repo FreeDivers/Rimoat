@@ -141,7 +141,7 @@ class AcLearningControlsRoborazziTest {
             awaitUi { sent.size == 1 && !vm.isTransmitting.value }
             assertEquals(recorded, sent.single())
             assertEquals(26, vm.acState.value.temperature)
-            compose.onNodeWithContentDescription(localizedLabel(AcAction.MODE.label)).performScrollTo().performClick()
+            compose.onNodeWithContentDescription(localizedLabel(AcAction.MODE)).performScrollTo().performClick()
             awaitUi { vm.acState.value.mode == AcMode.HEAT && !vm.isTransmitting.value }
             compose.onNodeWithContentDescription(increase).performScrollTo()
             capture("${prefix}_dynamic")

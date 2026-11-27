@@ -30,6 +30,7 @@ import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.AcSettings
 import org.qinyan.rimoat.data.AppColorMode
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
@@ -123,7 +124,7 @@ class WidgetPickerPreviewRoborazziTest {
         fun appliance(id: String, category: DeviceCategory, name: String) = RemoteProfile(
             id = id, name = name, category = category,
             buttons = listOf(RemoteButton("power", context.getString(R.string.widget_power),
-                iconName = "power", rawPattern = listOf(9000, 4500, 560)))
+                key = ButtonKey.POWER, iconName = "power", rawPattern = listOf(9000, 4500, 560)))
         )
         val television = appliance("preview_tv", DeviceCategory.TV, context.getString(R.string.widget_category_tv))
         val fan = appliance("preview_fan", DeviceCategory.FAN, context.getString(R.string.widget_category_fan))

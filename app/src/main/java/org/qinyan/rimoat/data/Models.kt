@@ -44,6 +44,17 @@ data class RemoteProfile(
 )
 
 @Serializable
+data class CatalogLabelMetadata(
+    val key: ButtonKey? = null,
+    val customType: Int? = null,
+    val literalOk: Boolean = false,
+    val mode: AcMode? = null,
+    val temperature: String? = null,
+    val fallbackKey: ButtonKey? = null,
+    val fallbackLabel: CatalogFallbackLabel? = null
+)
+
+@Serializable
 data class RemoteButton(
     val id: String,
     val label: String,
@@ -66,7 +77,9 @@ data class RemoteButton(
     val builtinLabel: String? = null,
     /** Missing flags preserve the address convention used by existing saved remotes. */
     val necExtended: Boolean = ((necAddress ?: 0) and 0xFF00) != 0,
-    val key: ButtonKey? = null
+    val key: ButtonKey? = null,
+    /** Semantic catalog labels are resolved while loading, before presentation. */
+    val catalogLabel: CatalogLabelMetadata? = null
 ) {
     val hasSignal: Boolean
         get() = when (signalType) {

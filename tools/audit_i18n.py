@@ -168,9 +168,18 @@ def audit_resources(errors):
 
 def catalog_translation_maps():
     """Read the narrow Kotlin mapping declarations instead of duplicating the catalog taxonomy."""
-    controls = (SOURCE / "i18n/ControlLabels.kt").read_text("utf-8")
-    translated = dict(re.findall(r'"([^"\n]+)"\s*->\s*R\.string\.(\w+)', controls))
-    catalog = (SOURCE / "i18n/CatalogKeyLabels.kt").read_text("utf-8")
+    legacy = (SOURCE / "data/LegacyLabelMap.kt").read_text("utf-8")
+    labels = (SOURCE / "i18n/ButtonKeyLabels.kt").read_text("utf-8")
+    resources = dict(re.findall(r'ButtonKey\.(\w+)\s*->\s*R\.string\.(\w+)', labels))
+    translated = {label: resources[key] for label, key in
+                  re.findall(r'"([^"\n]+)"\s+to\s+ButtonKey\.(\w+)', legacy) if key in resources}
+    catalog_labels = (SOURCE / "i18n/CatalogKeyLabels.kt").read_text("utf-8")
+    fallback_resources = dict(re.findall(
+        r'CatalogFallbackLabel\.(\w+)\s*->\s*R\.string\.(\w+)', catalog_labels))
+    translated.update({label: fallback_resources[key] for label, key in re.findall(
+        r'"([^"\n]+)"\s*->\s*CatalogFallbackLabel\.(\w+)', legacy) if key in fallback_resources})
+    translated["OK"] = "control_ok"
+    catalog = legacy
     typed_block = catalog.split("private val catalogAliases", 1)[1].split("private val catalogLabelAliases", 1)[0]
     typed = {}
     for number, mappings in re.findall(r'(-?\d+)\s+to\s+mapOf\((.*?)\)', typed_block, re.S):
@@ -224,7 +233,7 @@ def audit_catalog(bundles):
             }
     return {
         "asset": relative(database), "read_only": True, "sets": summaries,
-        "method": "Static estimate of source label display translation using current ControlLabels/CatalogKeyLabels mappings and packaged English resources. Runtime category construction and normalized profile labels can differ.",
+        "method": "Static estimate of source label display translation using legacy metadata, stable ButtonKey resources and packaged English resources. Runtime category construction and normalized profile labels can differ.",
         "boundary": "Manufacturer/custom catalog labels without a reviewed semantic mapping remain source text. Negative shape/color IDs and shifted legacy IDs are not replaced solely from numeric type. User-entered names/labels are preserved; database assets are not rewritten.",
     }
 

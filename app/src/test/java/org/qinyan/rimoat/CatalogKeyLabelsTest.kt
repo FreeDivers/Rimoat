@@ -8,7 +8,10 @@ import org.qinyan.rimoat.i18n.localizedCatalogKeyLabel
 
 class CatalogKeyLabelsTest {
     @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
-    private fun button(type: Int, label: String) = RemoteButton("catalog-$type", label, sourceKeyType = type)
+    private fun button(type: Int, label: String) = org.qinyan.rimoat.data.LegacyRemoteMigration.normalizeKeys(
+        org.qinyan.rimoat.data.RemoteProfile("catalog", "Remote", keySchemaVersion = org.qinyan.rimoat.data.LegacyRemoteMigration.KEY_SCHEMA_VERSION,
+            buttons = listOf(RemoteButton("catalog-$type", label, sourceKeyType = type)))
+    ).buttons.single()
 
     @Test fun legacyDigitsAndDirectionAliasesKeepMeaning() {
         assertEquals("3", localizedCatalogKeyLabel(button(3, "数字键 3")))

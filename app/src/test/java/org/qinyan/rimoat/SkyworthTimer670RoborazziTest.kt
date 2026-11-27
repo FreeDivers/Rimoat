@@ -67,7 +67,7 @@ class SkyworthTimer670RoborazziTest {
                 IrRemoteTheme(darkTheme = false, dynamicColor = false) { RemoteControlScreen(vm, onBack = {}) }
             }
             compose.waitUntil(5_000) { AcAction.TIMER in vm.availableAcActions.value }
-            compose.onNodeWithContentDescription(localizedLabel(AcAction.TIMER.label))
+            compose.onNodeWithContentDescription(localizedLabel(AcAction.TIMER))
                 .performScrollTo().assertIsEnabled().performClick()
             compose.onNodeWithText(app.getString(if (powerOn) R.string.control_timer_off else R.string.control_timer_on))
                 .assertIsDisplayed()

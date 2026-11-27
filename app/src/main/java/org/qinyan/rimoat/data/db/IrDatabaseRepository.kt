@@ -9,6 +9,7 @@ import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.SignalType
 import org.qinyan.rimoat.data.CatalogUpgrade
+import org.qinyan.rimoat.data.LegacyRemoteMigration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -294,7 +295,7 @@ class IrDatabaseRepository(
         val iconName = resolveIconName(detail.keyType, detail.keyName, legacy)
         val label = cleanLabel(detail.keyName)
 
-        return RemoteButton(
+        return LegacyRemoteMigration.normalizeCatalogLabel(RemoteButton(
             id = if (detail.sourceSlot != null) "${remoteId}_slot_${detail.sourceSlot}"
                 else "${remoteId}_${detail.keyType}_${abs(detail.keyName.hashCode())}",
             label = label,
@@ -306,7 +307,7 @@ class IrDatabaseRepository(
             sourceSlot = detail.sourceSlot,
             alternateRawPattern = detail.alternatePulses.split(',').mapNotNull { it.toIntOrNull()?.let(::abs) },
             alternateFrequencyHz = detail.alternateFrequency
-        )
+        ))
     }
 
     private fun resolveIconName(keyType: Int, keyName: String, legacy: Boolean = false): String? {
@@ -389,10 +390,10 @@ class IrDatabaseRepository(
         return encoder.availableActions(protocol).map { action ->
             val state = org.qinyan.rimoat.data.AcSettings().apply(action, if (action == org.qinyan.rimoat.data.AcAction.TIMER) 60 else 0)
             val signal = if (encoder.supportsAction(protocol, state, action)) encoder.encode(protocol, state, action).firstOrNull() else null
-            RemoteButton(id = "${source}_ac_${action.name.lowercase()}", label = action.label,
+            LegacyRemoteMigration.normalizeCatalogLabel(RemoteButton(id = "${source}_ac_${action.name.lowercase()}", label = action.label,
                 iconName = resolveIconName(action.keyType, action.label), sourceKeyType = action.keyType,
                 sourceSlot = "ac_${action.name.lowercase()}", acAction = action,
-                rawPattern = signal?.patternMicros?.toList() ?: emptyList(), frequencyHz = signal?.frequencyHz ?: 38000)
+                rawPattern = signal?.patternMicros?.toList() ?: emptyList(), frequencyHz = signal?.frequencyHz ?: 38000))
         }
     }
 }

@@ -1,23 +1,24 @@
 package org.qinyan.rimoat.hardware
 
-import org.qinyan.rimoat.i18n.localizedLabel
+import androidx.annotation.StringRes
+import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.R
 import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Supported IR transmission channel types across built-in, USB dongles, 3.5mm audio and simulation.
  */
-enum class TransmitterType(private val sourceName: String) {
-    BUILT_IN("内置红外"),
-    USB("USB 外设"),
-    USB_TIQIAA("遥控精灵 USB"),
-    USB_ELKSMART("小蛮腰 USB"),
-    USB_SERIAL("串口红外模块"),
-    AUDIO("音频口红外"),
-    MOCK("模拟模式"),
-    NONE("无可用设备");
+enum class TransmitterType(@param:StringRes val labelRes: Int) {
+    BUILT_IN(R.string.control_builtin_ir),
+    USB(R.string.control_usb),
+    USB_TIQIAA(R.string.control_tiqiaa),
+    USB_ELKSMART(R.string.control_elksmart),
+    USB_SERIAL(R.string.control_serial_module),
+    AUDIO(R.string.control_audio_ir),
+    MOCK(R.string.control_simulation_mode),
+    NONE(R.string.control_no_devices);
 
-    val displayName: String get() = org.qinyan.rimoat.i18n.localizedLabel(sourceName)
+    val displayName: String get() = AppStrings.get(labelRes)
 
     val isUsb: Boolean get() = this == USB || this == USB_TIQIAA || this == USB_ELKSMART || this == USB_SERIAL
     val isPhysical: Boolean get() = this != MOCK && this != NONE

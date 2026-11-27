@@ -451,7 +451,7 @@ private fun AcReading(profile: RemoteProfile, snapshot: WidgetSnapshot, compact:
             listOf(AcAction.FAN, AcAction.SWING).forEachIndexed { index, action ->
                 if (index > 0) Spacer(GlanceModifier.width(12.dp))
                 val appearance = settings.controlAppearance(action)
-                Image(widgetImage(appearance.icon), "${localizedLabel(action, context)} ${appearance.state?.let { localizedLabel(it, context) }.orEmpty()}",
+                Image(widgetImage(appearance.icon), "${localizedLabel(action, context)} ${appearance.state.orEmpty()}",
                     GlanceModifier.size(24.dp), colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant))
             }
             if (settings.timerMinutes > 0) {
@@ -503,7 +503,7 @@ private fun ShortcutIcon(id: Int, shortcut: WidgetShortcut, state: WidgetSnapsho
                 if (acAction == AcAction.TIMER && profile != null) {
                     val minutes = widgetAcSettings(profile, state.records[profile.id], state.simulated).timerMinutes
                     if (minutes > 0) context.getString(R.string.widget_minutes_short, minutes) else context.getString(R.string.widget_off)
-                } else appearance?.state?.let { localizedLabel(it, context) },
+                } else appearance?.state,
                 failure?.let { context.getString(R.string.widget_failure_retry, it.text.resolve(context)) }).joinToString(" "),
             shortcutAction(shortcut), enabled = enabled,
             primary = primary || power, size = size,

@@ -382,4 +382,306 @@ internal object LegacyLabelMap {
         "wb_sunny" -> ButtonKey.QUICK_HEAT
         else -> null
     }
+    fun catalogFallbackLabel(label: String): CatalogFallbackLabel? = when (label) {
+        "清除" -> CatalogFallbackLabel.CLEAR
+        "关" -> CatalogFallbackLabel.OFF
+        "开" -> CatalogFallbackLabel.ON
+        "关闭" -> CatalogFallbackLabel.DISABLED
+        "取消" -> CatalogFallbackLabel.CANCEL
+        "显示" -> CatalogFallbackLabel.DISPLAY
+        "声音" -> CatalogFallbackLabel.SOUND
+        "电视" -> CatalogFallbackLabel.TELEVISION
+        "自定义" -> CatalogFallbackLabel.CUSTOM
+        "定时关机" -> CatalogFallbackLabel.TIMER_OFF
+        "保存" -> CatalogFallbackLabel.SAVE
+        "降温" -> CatalogFallbackLabel.TEMPERATURE_DOWN
+        "开启" -> CatalogFallbackLabel.ENABLED
+        "音响" -> CatalogFallbackLabel.AUDIO
+        "画面" -> CatalogFallbackLabel.PICTURE
+        "开关" -> CatalogFallbackLabel.TOGGLE
+        else -> null
+    }
+
+    fun catalogFallbackKey(label: String): ButtonKey? = when (label) {
+        "扫风" -> ButtonKey.SWING
+        "对焦+" -> ButtonKey.FOCUS_PLUS
+        "对焦-" -> ButtonKey.FOCUS_MINUS
+        "电源" -> ButtonKey.POWER
+        "信源" -> ButtonKey.SOURCE
+        "信息" -> ButtonKey.INFO
+        "回看" -> ButtonKey.RECALL
+        "静音" -> ButtonKey.MUTE
+        "数位" -> ButtonKey.DIGITS
+        "返回" -> ButtonKey.BACK
+        "频道+" -> ButtonKey.CHANNEL_UP
+        "频道-" -> ButtonKey.CHANNEL_DOWN
+        "音量+" -> ButtonKey.VOLUME_UP
+        "音量-" -> ButtonKey.VOLUME_DOWN
+        "温度+" -> ButtonKey.TEMPERATURE_UP
+        "温度-" -> ButtonKey.TEMPERATURE_DOWN
+        "放大" -> ButtonKey.ZOOM_IN
+        "缩小" -> ButtonKey.ZOOM_OUT
+        "记忆1" -> ButtonKey.MEMORY_1
+        "记忆2" -> ButtonKey.MEMORY_2
+        "上" -> ButtonKey.UP
+        "下" -> ButtonKey.DOWN
+        "左" -> ButtonKey.LEFT
+        "右" -> ButtonKey.RIGHT
+        "菜单" -> ButtonKey.MENU
+        "退出" -> ButtonKey.EXIT
+        "快进" -> ButtonKey.FAST_FORWARD
+        "快退" -> ButtonKey.REWIND
+        "播放/暂停" -> ButtonKey.PLAY_PAUSE
+        "停止" -> ButtonKey.STOP
+        "上一曲" -> ButtonKey.PREVIOUS
+        "下一曲" -> ButtonKey.NEXT
+        "到顶" -> ButtonKey.TOP
+        "到底" -> ButtonKey.BOTTOM
+        "模式" -> ButtonKey.MODE
+        "风量" -> ButtonKey.AIRFLOW
+        "左右扫风" -> ButtonKey.HORIZONTAL_SWING
+        "上下扫风" -> ButtonKey.VERTICAL_SWING
+        "摇头" -> ButtonKey.OSCILLATION
+        "风类" -> ButtonKey.WIND_TYPE
+        "风速" -> ButtonKey.FAN_SPEED
+        "开仓" -> ButtonKey.EJECT
+        "标题" -> ButtonKey.TITLE
+        "语言" -> ButtonKey.LANGUAGE
+        "屏显" -> ButtonKey.OSD
+        "声道" -> ButtonKey.AUDIO_CHANNEL
+        "制式" -> ButtonKey.STANDARD
+        "字幕" -> ButtonKey.SUBTITLES
+        "双画面" -> ButtonKey.PICTURE_IN_PICTURE
+        "冻结" -> ButtonKey.FREEZE
+        "复位" -> ButtonKey.RESET
+        "视频" -> ButtonKey.VIDEO
+        "慢放" -> ButtonKey.SLOW_PLAY
+        "快门" -> ButtonKey.SHUTTER
+        "副快门" -> ButtonKey.SUB_SHUTTER
+        "连续上" -> ButtonKey.CONTINUOUS_UP
+        "连续下" -> ButtonKey.CONTINUOUS_DOWN
+        "连续右" -> ButtonKey.CONTINUOUS_RIGHT
+        "连续左" -> ButtonKey.CONTINUOUS_LEFT
+        "风向" -> ButtonKey.WIND_DIRECTION
+        "灯光" -> ButtonKey.LIGHT
+        "超强" -> ButtonKey.TURBO
+        "睡眠" -> ButtonKey.SLEEP
+        "换气" -> ButtonKey.VENTILATION
+        "辅热" -> ButtonKey.AUXILIARY_HEAT
+        "定时" -> ButtonKey.TIMER
+        "干燥" -> ButtonKey.DRY
+        "加湿" -> ButtonKey.HUMIDIFY
+        "负离子" -> ButtonKey.ION
+        "节能" -> ButtonKey.ECO
+        "舒适" -> ButtonKey.COMFORT
+        "温度显示" -> ButtonKey.TEMPERATURE_DISPLAY
+        "一键制冷" -> ButtonKey.QUICK_COOL
+        "一键制热" -> ButtonKey.QUICK_HEAT
+        "自清洁" -> ButtonKey.CLEAN
+        "自动" -> ButtonKey.AUTO
+        "信号" -> ButtonKey.SIGNAL
+        "亮度" -> ButtonKey.BRIGHTNESS
+        "电脑" -> ButtonKey.COMPUTER
+        "冷风" -> ButtonKey.COOL_WIND
+        "主页" -> ButtonKey.HOME
+        "设置" -> ButtonKey.SETTINGS
+        "弹出菜单" -> ButtonKey.POPUP_MENU
+        "顶菜单" -> ButtonKey.TOP_MENU
+        "中温保温" -> ButtonKey.KEEP_WARM
+        "预约洗浴" -> ButtonKey.BATH_TIMER
+        "确认" -> ButtonKey.OK
+        "小数点" -> ButtonKey.DECIMAL
+        "连接符" -> ButtonKey.HYPHEN
+        "开机" -> ButtonKey.POWER_ON
+        "关机" -> ButtonKey.POWER_OFF
+        "播放" -> ButtonKey.PLAY
+        "暂停" -> ButtonKey.PAUSE
+        "录制" -> ButtonKey.RECORD
+        "第二电源" -> ButtonKey.SECOND_POWER
+        "收藏" -> ButtonKey.FAVORITE
+        "数字" -> ButtonKey.NUMBERS
+        "红色键" -> ButtonKey.RED
+        "橙色键" -> ButtonKey.ORANGE
+        "黄色键" -> ButtonKey.YELLOW
+        "绿色键" -> ButtonKey.GREEN
+        "蓝色键" -> ButtonKey.BLUE
+        "青色键" -> ButtonKey.CYAN
+        "紫色键" -> ButtonKey.PURPLE
+        "记忆键" -> ButtonKey.MEMORY
+        else -> null
+    }
+
+    fun catalogLabel(button: RemoteButton): CatalogLabelMetadata? {
+        val type = button.sourceKeyType ?: return null
+        val raw = button.label.trim()
+        if (type in 0..9 && raw in setOf(type.toString(), "数字键 $type", "数字键$type")) {
+            return CatalogLabelMetadata(key = ButtonKey.valueOf("DIGIT_$type"))
+        }
+        val preset = Regex("开机_(制冷|制热)_(\\d{2})度").matchEntire(raw)
+        if (preset != null) return CatalogLabelMetadata(
+            mode = if (preset.groupValues[1] == "制冷") AcMode.COOL else AcMode.HEAT,
+            temperature = preset.groupValues[2]
+        )
+        val canonical = catalogAliases[type]?.get(raw) ?: catalogLabelAliases[raw]
+            ?: catalogCanonicalNames[type]?.takeIf { it == raw }
+            ?: return when {
+                catalogFallbackKey(button.label) != null -> CatalogLabelMetadata(fallbackKey = catalogFallbackKey(button.label))
+                catalogFallbackLabel(button.label) != null -> CatalogLabelMetadata(fallbackLabel = catalogFallbackLabel(button.label))
+                else -> null
+            }
+        if (canonical == "OK") return CatalogLabelMetadata(literalOk = true)
+        val key = if (canonical == "+10") ButtonKey.PLUS_TEN else key(canonical)
+        return CatalogLabelMetadata(key = key, customType = type.takeIf { key == null })
+    }
+
+    private val catalogAliases: Map<Int, Map<String, String>> = mapOf(
+        824 to mapOf("前进" to "快进"),
+        825 to mapOf("后退键" to "快退"),
+        828 to mapOf("上一个" to "上一曲"),
+        829 to mapOf("下一个" to "下一曲"),
+        839 to mapOf("打开" to "开仓"),
+        843 to mapOf("屏幕" to "屏显"),
+        852 to mapOf("单反主键" to "快门"),
+        853 to mapOf("单反副键" to "副快门"),
+        854 to mapOf("连续+" to "连续上"),
+        855 to mapOf("连续-" to "连续下"),
+        // Legacy AC type 876 means humidify for these labels, not the current timer action.
+        876 to mapOf("加湿" to "加湿")
+    )
+
+    private val catalogLabelAliases = mapOf(
+        "信源键" to "信源", "输入源" to "信源", "输入选择" to "信源", "信息显示" to "信息",
+        "OK键" to "OK", "确定" to "确认", "菜单键" to "菜单", "电源键" to "电源",
+        "上翻" to "上", "上方" to "上", "下翻" to "下", "下方" to "下",
+        "左翻" to "左", "左方" to "左", "右翻" to "右", "右方" to "右",
+        "温度加" to "温度+", "温度减" to "温度-", "音量加" to "音量+", "音量减" to "音量-",
+        "频道加" to "频道+", "频道减" to "频道-", "暂停/播放" to "播放/暂停",
+        "水平风向" to "左右扫风", "垂直风向" to "上下扫风", "画面冻结" to "冻结",
+        "重置" to "复位", "收藏按钮" to "收藏", "数字按钮" to "数字", "第二电源键" to "第二电源",
+        "首页" to "主页",
+        "红" to "红色键", "橙" to "橙色键", "黄" to "黄色键", "绿" to "绿色键",
+        "蓝" to "蓝色键", "青" to "青色键", "青鍵" to "青色键", "紫" to "紫色键",
+        "錄影" to "录制"
+    )
+
+    // Canonical catalog key names; names are matched before numeric IDs.
+    private val catalogCanonicalNames = mapOf(
+        0 to "0",
+        1 to "1",
+        2 to "2",
+        3 to "3",
+        4 to "4",
+        5 to "5",
+        6 to "6",
+        7 to "7",
+        8 to "8",
+        9 to "9",
+        800 to "电源",
+        801 to "信源",
+        802 to "信息",
+        803 to "回看",
+        804 to "静音",
+        805 to "数位",
+        806 to "返回",
+        807 to "频道+",
+        808 to "频道-",
+        809 to "音量+",
+        810 to "音量-",
+        811 to "温度+",
+        812 to "温度-",
+        813 to "放大",
+        814 to "缩小",
+        815 to "记忆1",
+        816 to "记忆2",
+        817 to "OK",
+        818 to "上",
+        819 to "下",
+        820 to "左",
+        821 to "右",
+        822 to "菜单",
+        823 to "退出",
+        824 to "快进",
+        825 to "快退",
+        826 to "播放/暂停",
+        827 to "停止",
+        828 to "上一曲",
+        829 to "下一曲",
+        830 to "到顶",
+        831 to "到底",
+        832 to "模式",
+        833 to "风量",
+        834 to "左右扫风",
+        835 to "上下扫风",
+        836 to "摇头",
+        837 to "风类",
+        838 to "风速",
+        839 to "开仓",
+        840 to "标题",
+        841 to "+10",
+        842 to "语言",
+        843 to "屏显",
+        844 to "声道",
+        845 to "制式",
+        846 to "字幕",
+        847 to "双画面",
+        848 to "冻结",
+        849 to "复位",
+        850 to "视频",
+        851 to "慢放",
+        852 to "快门",
+        853 to "副快门",
+        854 to "连续上",
+        855 to "连续下",
+        856 to "连续右",
+        857 to "连续左",
+        870 to "风向",
+        871 to "灯光",
+        872 to "超强",
+        873 to "睡眠",
+        874 to "换气",
+        875 to "辅热",
+        876 to "定时",
+        877 to "干燥",
+        878 to "负离子",
+        879 to "节能",
+        880 to "舒适",
+        881 to "温度显示",
+        882 to "一键制冷",
+        883 to "一键制热",
+        884 to "自清洁",
+        900 to "自动",
+        901 to "信号",
+        902 to "亮度",
+        903 to "电脑",
+        1000 to "冷风",
+        1010 to "主页",
+        1011 to "设置",
+        1012 to "弹出菜单",
+        1013 to "顶菜单",
+        1020 to "中温保温",
+        1021 to "预约洗浴",
+        1022 to "确认",
+        1023 to "小数点",
+        1024 to "连接符",
+        1025 to "开机",
+        1026 to "关机",
+        1027 to "播放",
+        1028 to "暂停",
+        1029 to "录制",
+        1800 to "第二电源",
+        2001 to "收藏",
+        2002 to "数字",
+        2003 to "自定义",
+        -100 to "自定义圆形",
+        -99 to "自定义椭圆",
+        -98 to "自定义方形",
+        -97 to "红色键",
+        -96 to "橙色键",
+        -95 to "黄色键",
+        -94 to "绿色键",
+        -93 to "蓝色键",
+        -92 to "青色键",
+        -91 to "紫色键",
+        -90 to "记忆键"
+    )
 }

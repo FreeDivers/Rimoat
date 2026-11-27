@@ -66,6 +66,15 @@ class AddLearningLandscapeRoborazziTest {
         assertEquals(left.top, right.top, 1f)
     }
 
+    @Test fun pairingGroupsFollowStableKeysInsteadOfVisibleLabels() {
+        assertEquals(app.getString(R.string.screen_navigation_sources),
+            pairingKeyGroup(RemoteButton("navigation", "Personal label", key = org.qinyan.rimoat.data.ButtonKey.UP), app))
+        assertEquals(app.getString(R.string.screen_volume_channels),
+            pairingKeyGroup(RemoteButton("volume", "Personal label", key = org.qinyan.rimoat.data.ButtonKey.VOLUME_UP), app))
+        assertEquals(app.getString(R.string.screen_power_group),
+            pairingKeyGroup(RemoteButton("switch", "Personal label", key = org.qinyan.rimoat.data.ButtonKey.POWER), app))
+    }
+
     @Test fun categoriesKeepLearningEntryBesideSelectableTypes() {
         var clicks = 0
         var selected: IrCategory? = null

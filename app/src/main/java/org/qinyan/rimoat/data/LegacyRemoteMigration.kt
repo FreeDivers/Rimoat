@@ -4,11 +4,37 @@ object LegacyRemoteMigration {
 
     const val KEY_SCHEMA_VERSION = 2
 
+    /** Resolve source labels at loading boundaries without changing editable text or signals. */
+    fun normalizeCatalogLabel(button: RemoteButton): RemoteButton {
+        val metadata = when {
+            button.builtinLabel != null && !button.isLearned -> {
+                val key = LegacyLabelMap.catalogFallbackKey(button.builtinLabel)
+                val label = LegacyLabelMap.catalogFallbackLabel(button.builtinLabel)
+                if (key == null && label == null) null else CatalogLabelMetadata(fallbackKey = key, fallbackLabel = label)
+            }
+            button.builtinLabel != null -> null
+            button.sourceKeyType != null -> LegacyLabelMap.catalogLabel(button)
+            button.isLearned && !button.id.startsWith("ac_function_") -> null
+            button.acAction != null || button.id.startsWith("ac_function_") -> {
+                val key = LegacyLabelMap.catalogFallbackKey(button.label)
+                val label = LegacyLabelMap.catalogFallbackLabel(button.label)
+                if (key == null && label == null) null else CatalogLabelMetadata(fallbackKey = key, fallbackLabel = label)
+            }
+            else -> null
+        }
+        return if (button.catalogLabel == metadata) button else button.copy(catalogLabel = metadata)
+    }
+
+    fun restoredBuiltinKey(value: String?): ButtonKey? = LegacyLabelMap.key(value)
+
+
     /** Add semantic metadata without changing signal IDs, labels, or panel references. */
     fun normalizeKeys(profile: RemoteProfile): RemoteProfile {
         val learnedProfile = normalizeLearnedDefaults(profile)
         val step1 = if (learnedProfile.keySchemaVersion < 1) normalizeSemanticKeys(learnedProfile) else learnedProfile
-        return if (step1.keySchemaVersion < KEY_SCHEMA_VERSION) migrateDirectionIds(step1) else step1
+        val migrated = if (step1.keySchemaVersion < KEY_SCHEMA_VERSION) migrateDirectionIds(step1) else step1
+        val buttons = migrated.buttons.map(::normalizeCatalogLabel)
+        return if (buttons == migrated.buttons) migrated else migrated.copy(buttons = buttons)
     }
 
     private fun normalizeSemanticKeys(profile: RemoteProfile): RemoteProfile {

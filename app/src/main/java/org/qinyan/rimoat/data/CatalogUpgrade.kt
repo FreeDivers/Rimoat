@@ -18,7 +18,8 @@ object CatalogUpgrade {
             val index = old?.let { definition -> remaining.indexOfFirst { it.id == definition.id } } ?: -1
             if (index < 0) fresh else {
                 val saved = remaining.removeAt(index)
-                val unchanged = !saved.isLearned && saved.copy(sourceKeyType = old!!.sourceKeyType, key = old.key) == old
+                val unchanged = !saved.isLearned && saved.copy(sourceKeyType = old!!.sourceKeyType,
+                    key = old.key, catalogLabel = old.catalogLabel) == old
                 if (unchanged) {
                     if (saved.label != fresh.label || saved.toIrSignal() != fresh.toIrSignal()) changedButtons += saved
                     fresh.copy(id = saved.id, label = saved.label, builtinLabel = saved.builtinLabel, iconName = saved.iconName,
@@ -29,7 +30,8 @@ object CatalogUpgrade {
         // Old invented keys can be removed only if they are byte-for-byte stock.
         remaining.forEach { saved ->
             val old = legacy.firstOrNull { it.id == saved.id }
-            if (old == null || saved.isLearned || saved.copy(sourceKeyType = old.sourceKeyType, key = old.key) != old) result += saved
+            if (old == null || saved.isLearned || saved.copy(sourceKeyType = old.sourceKeyType,
+                    key = old.key, catalogLabel = old.catalogLabel) != old) result += saved
             else changedButtons += saved
         }
         val ids = mutableSetOf<String>()
@@ -40,7 +42,7 @@ object CatalogUpgrade {
                 button.copy(id = id)
             }
         }
-        return normalized.withoutVerifiedButtons(changedButtons).copy(
-            buttons = unique, sourceRemoteId = source, catalogVersion = VERSION)
+        return LegacyRemoteMigration.normalizeKeys(normalized.withoutVerifiedButtons(changedButtons).copy(
+            buttons = unique, sourceRemoteId = source, catalogVersion = VERSION))
     }
 }

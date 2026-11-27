@@ -201,11 +201,6 @@ fun resolveButtonIcon(key: ButtonKey?, iconName: String?): ImageVector? {
 
 fun resolveButtonIcon(button: RemoteButton): ImageVector? = resolveButtonIcon(button.key, button.iconName)
 
-/** Legacy wizard metadata is translated without interpreting its editable display label. */
-@Suppress("UNUSED_PARAMETER")
-fun resolveButtonIcon(iconName: String?, label: String, id: String = "", builtinLabel: String? = null): ImageVector? =
-    resolveButtonIcon(builtinLabel?.let(LegacyLabelMap::key) ?: LegacyLabelMap.id(id), iconName)
-
 internal fun AcSettings.controlIcon(action: AcAction): ImageVector = when (action) {
     AcAction.MODE -> when (mode) {
         AcMode.COOL -> Icons.Rounded.AcUnit

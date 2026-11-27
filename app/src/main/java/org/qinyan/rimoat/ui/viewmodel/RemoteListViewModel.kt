@@ -86,10 +86,8 @@ class RemoteListViewModel(
                 remote.name.contains(query, ignoreCase = true) ||
                 remote.brand.contains(query, ignoreCase = true) ||
                 remote.room.contains(query, ignoreCase = true) ||
-                when (remote.category) {
-                    DeviceCategory.TV -> "电视"; DeviceCategory.AC -> "空调"; DeviceCategory.FAN -> "风扇"
-                    DeviceCategory.AUDIO -> "音响"; DeviceCategory.PROJECTOR -> "投影仪"; DeviceCategory.CUSTOM -> "自定义"
-                }.let { it.contains(query, ignoreCase = true) || localizedLabel(it).contains(query, ignoreCase = true) }
+                remote.category.catalogSearchAlias.contains(query, ignoreCase = true) ||
+                localizedLabel(remote.category).contains(query, ignoreCase = true)
             matchesCategory && matchesQuery && (room == null || remote.room == room)
         }.let { if (recent) it.sortedByDescending { remote -> remote.lastUsedAt } else it }
     }.distinctUntilChanged { old, new ->

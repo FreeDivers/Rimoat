@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.RemoteButton
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.i18n.localizedButtonLabel
@@ -62,10 +63,15 @@ internal fun pairingKeys(state: AddRemoteUiState): List<RemoteButton> =
 internal fun pairingKeyGroup(button: RemoteButton, context: Context): String = when {
     button.label.toIntOrNull() in 0..9 -> context.getString(R.string.screen_number_keys)
     button.isPowerKey() -> context.getString(R.string.screen_power_group)
-    button.label in setOf("上", "下", "左", "右", "OK", "确定", "返回", "主页", "菜单", "信源", "输入", "信息") -> context.getString(R.string.screen_navigation_sources)
-    button.label.contains("音量") || button.label.contains("静音") || button.label.contains("频道") -> context.getString(R.string.screen_volume_channels)
+    button.key in pairingNavigationKeys -> context.getString(R.string.screen_navigation_sources)
+    button.key in pairingVolumeChannelKeys -> context.getString(R.string.screen_volume_channels)
     else -> context.getString(remoteFunctionGroup(button).labelRes)
 }
+
+private val pairingNavigationKeys = setOf(ButtonKey.UP, ButtonKey.DOWN, ButtonKey.LEFT, ButtonKey.RIGHT,
+    ButtonKey.OK, ButtonKey.BACK, ButtonKey.HOME, ButtonKey.MENU, ButtonKey.SOURCE, ButtonKey.INFO)
+private val pairingVolumeChannelKeys = setOf(ButtonKey.VOLUME_UP, ButtonKey.VOLUME_DOWN, ButtonKey.MUTE,
+    ButtonKey.CHANNEL_UP, ButtonKey.CHANNEL_DOWN)
 
 @Composable
 fun CodeMatchingWizardView(
