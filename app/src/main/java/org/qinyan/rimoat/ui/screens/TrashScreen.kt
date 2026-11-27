@@ -4,7 +4,6 @@ package org.qinyan.rimoat.ui.screens
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.i18n.rememberLocalizedDateTimeFormatter
 import androidx.compose.foundation.layout.*
@@ -71,12 +70,12 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
         containerColor = ExpressiveSurface.canvas,
         topBar = {
             ExpressivePageTopBar(
-                title = AppStrings.get(R.string.screen_trash),
+                title = stringResource(R.string.screen_trash),
                 wide = wide,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(AppStrings.get(R.string.screen_back), onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back))
+                    ActionIconButton(stringResource(R.string.screen_back), onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.screen_back))
                     }
                 }
             )
@@ -197,27 +196,27 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
     }
     if (active) trash?.firstOrNull { it.entryId == deleteEntryId }?.let { entry ->
         MotionAlertDialog(onDismissRequest = { if (!busy) deleteEntryId = null },
-            title = { Text(AppStrings.get(R.string.screen_delete_forever_question)) },
-            text = { Text(AppStrings.get(R.string.screen_delete_irreversible, entry.profile.name), Modifier.verticalScroll(rememberScrollState())) },
+            title = { Text(stringResource(R.string.screen_delete_forever_question)) },
+            text = { Text(stringResource(R.string.screen_delete_irreversible, entry.profile.name), Modifier.verticalScroll(rememberScrollState())) },
             confirmButton = {
                 TextButton(onClick = { viewModel.permanentlyDelete(entry.entryId) { deleteEntryId = null } },
                     enabled = !busy,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     shapes = ButtonDefaults.shapes()
-                ) { Text(if (busy) AppStrings.get(R.string.screen_deleting) else AppStrings.get(R.string.screen_delete_forever)) }
+                ) { Text(if (busy) stringResource(R.string.screen_deleting) else stringResource(R.string.screen_delete_forever)) }
             },
-            dismissButton = { TextButton(onClick = { deleteEntryId = null }, enabled = !busy, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel)) } })
+            dismissButton = { TextButton(onClick = { deleteEntryId = null }, enabled = !busy, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.screen_cancel)) } })
     }
 }
 
 @Composable
 private fun TrashEntryActions(name: String, enabled: Boolean, onRestore: () -> Unit, onDelete: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ActionIconButton(AppStrings.get(R.string.screen_restore_name, name), onRestore, enabled = enabled) {
-            Icon(Icons.Rounded.Restore, AppStrings.get(R.string.screen_restore_name, name))
+        ActionIconButton(stringResource(R.string.screen_restore_name, name), onRestore, enabled = enabled) {
+            Icon(Icons.Rounded.Restore, stringResource(R.string.screen_restore_name, name))
         }
-        ActionIconButton(AppStrings.get(R.string.screen_delete_name, name), onDelete, enabled = enabled) {
-            Icon(Icons.Rounded.DeleteForever, AppStrings.get(R.string.screen_delete_name, name),
+        ActionIconButton(stringResource(R.string.screen_delete_name, name), onDelete, enabled = enabled) {
+            Icon(Icons.Rounded.DeleteForever, stringResource(R.string.screen_delete_name, name),
                 tint = if (enabled) MaterialTheme.colorScheme.error else LocalContentColor.current)
         }
     }

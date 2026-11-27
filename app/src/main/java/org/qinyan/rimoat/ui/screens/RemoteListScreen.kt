@@ -16,7 +16,6 @@ import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.ui.semantics.Role
 import org.qinyan.rimoat.ui.components.getCategoryIcon
 import androidx.compose.material3.LinearWavyProgressIndicator
-import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.ui.components.openStorageSettings
@@ -221,7 +220,7 @@ fun RemoteListScreen(
     val trulyEmpty = allRemotes.isEmpty()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
-    val categories = categoryOptions().map { it.first }
+    val categories = remoteCategoryFilters
     val layoutDirection = LocalLayoutDirection.current
     val transmitterType by viewModel.transmitterType.collectAsStateWithLifecycle()
     val isHardwareReady by viewModel.isHardwareReady.collectAsStateWithLifecycle()
@@ -266,6 +265,7 @@ fun RemoteListScreen(
         null
     }
     val undoLabel = stringResource(R.string.screen_undo)
+    val addRemoteLabel = stringResource(R.string.screen_add_remote)
     val transferBusy by viewModel.transferBusy.collectAsStateWithLifecycle()
     val transferMessage by viewModel.transferMessage.collectAsStateWithLifecycle()
     val displayedTransfer = transferMessage?.asString()
@@ -315,8 +315,8 @@ fun RemoteListScreen(
                         onClick = { showTransmitterSheet = true }
                     )
                     Spacer(Modifier.width(4.dp))
-                    ActionIconButton(AppStrings.get(R.string.screen_settings), onClick = onSettingsClick) {
-                        Icon(Icons.Rounded.Settings, contentDescription = AppStrings.get(R.string.screen_settings))
+                    ActionIconButton(stringResource(R.string.screen_settings), onClick = onSettingsClick) {
+                        Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.screen_settings))
                     }
                 }
             )
@@ -332,13 +332,13 @@ fun RemoteListScreen(
                         .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
                         .clearAndSetSemantics {
                         if (!trulyEmpty) {
-                            contentDescription = AppStrings.get(R.string.screen_add_remote)
+                            contentDescription = addRemoteLabel
                             role = androidx.compose.ui.semantics.Role.Button
                             onClick { onAddRemoteClick(); true }
                         }
                     },
                     icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                    text = { Text(AppStrings.get(R.string.screen_add_remote)) })
+                    text = { Text(stringResource(R.string.screen_add_remote)) })
             }
         }
     ) { padding ->
@@ -370,7 +370,7 @@ fun RemoteListScreen(
                 org.qinyan.rimoat.ui.components.RemoteSearchBar(
                     query = searchQuery,
                     onQueryChange = viewModel::setSearchQuery,
-                    placeholder = AppStrings.get(R.string.screen_search_remote),
+                    placeholder = stringResource(R.string.screen_search_remote),
                     modifier = barModifier,
                     focusController = searchFocus
                 )
@@ -508,16 +508,16 @@ fun RemoteListScreen(
         remotes.firstOrNull { it.id == editingId }?.let { profile ->
             var name by rememberSaveable(profile.id) { mutableStateOf(profile.name) }
             var room by rememberSaveable(profile.id) { mutableStateOf(profile.room) }
-            MotionAlertDialog(onDismissRequest = { editingId = null }, title = { Text(AppStrings.get(R.string.screen_edit_remote)) },
+            MotionAlertDialog(onDismissRequest = { editingId = null }, title = { Text(stringResource(R.string.screen_edit_remote)) },
                 modifier = Modifier.safeDrawingPadding(),
                 properties = DialogProperties(decorFitsSystemWindows = false),
                 text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ExpressiveTextField(value = name, onValueChange = { if (it.length <= 100) name = it }, label = { Text(AppStrings.get(R.string.screen_remote_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    ExpressiveTextField(value = room, onValueChange = { if (it.length <= 60) room = it }, label = { Text(AppStrings.get(R.string.screen_room_optional)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    ExpressiveTextField(value = name, onValueChange = { if (it.length <= 100) name = it }, label = { Text(stringResource(R.string.screen_remote_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    ExpressiveTextField(value = room, onValueChange = { if (it.length <= 60) room = it }, label = { Text(stringResource(R.string.screen_room_optional)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     displayedError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 } },
-                confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { viewModel.updateDetails(profile.id, name, room) { editingId = null } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_save)) } },
-                dismissButton = { TextButton(onClick = { editingId = null }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel)) } })
+                confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { viewModel.updateDetails(profile.id, name, room) { editingId = null } }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.screen_save)) } },
+                dismissButton = { TextButton(onClick = { editingId = null }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.screen_cancel)) } })
         }
         exportedUri?.let { saved ->
             BackupSavedDialog(saved, onDismiss = { exportedUri = null }, onError = viewModel::reportTransferError)
@@ -532,15 +532,18 @@ fun RemoteListScreen(
     }
 }
 
-private fun categoryOptions(): List<Pair<DeviceCategory?, String>> = listOf(
-    null to AppStrings.get(R.string.screen_category_all),
-    DeviceCategory.TV to AppStrings.get(R.string.screen_category_tv),
-    DeviceCategory.AC to AppStrings.get(R.string.screen_category_ac),
-    DeviceCategory.FAN to AppStrings.get(R.string.screen_category_fan),
-    DeviceCategory.PROJECTOR to AppStrings.get(R.string.screen_category_projector),
-    DeviceCategory.AUDIO to AppStrings.get(R.string.screen_category_audio),
-    DeviceCategory.CUSTOM to AppStrings.get(R.string.screen_category_custom)
+private data class CategoryOption(val category: DeviceCategory?, @androidx.annotation.StringRes val labelRes: Int)
+
+private val categoryOptions = listOf(
+    CategoryOption(null, R.string.screen_category_all),
+    CategoryOption(DeviceCategory.TV, R.string.screen_category_tv),
+    CategoryOption(DeviceCategory.AC, R.string.screen_category_ac),
+    CategoryOption(DeviceCategory.FAN, R.string.screen_category_fan),
+    CategoryOption(DeviceCategory.PROJECTOR, R.string.screen_category_projector),
+    CategoryOption(DeviceCategory.AUDIO, R.string.screen_category_audio),
+    CategoryOption(DeviceCategory.CUSTOM, R.string.screen_category_custom)
 )
+private val remoteCategoryFilters = categoryOptions.map { it.category }
 
 /** Wrapping choices keep every category reachable in a narrow landscape pane. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -554,7 +557,7 @@ private fun CategoryFilterChips(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        categoryOptions().forEach { (category, label) ->
+        categoryOptions.forEach { (category, labelRes) ->
             val checked = selectedCategory == category
             ToggleButton(
                 checked = checked,
@@ -569,7 +572,7 @@ private fun CategoryFilterChips(
                     selected = checked
                     role = Role.RadioButton
                 }
-            ) { Text(label) }
+            ) { Text(stringResource(labelRes)) }
         }
     }
 }
@@ -649,7 +652,7 @@ fun CategoryFilterBar(
     selectedCategory: DeviceCategory?,
     onSelectCategory: (DeviceCategory?) -> Unit
 ) {
-    val categories = categoryOptions()
+    val categories = categoryOptions
     val buttonPadding = PaddingValues(
         horizontal = CategoryButtonRigidHorizontalPadding,
         vertical = 8.dp
@@ -662,7 +665,7 @@ fun CategoryFilterBar(
         expandedRatio = .08f,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        categories.forEach { (category, label) ->
+        categories.forEach { (category, labelRes) ->
             customItem(
                 buttonGroupContent = {
                     val checked = selectedCategory == category
@@ -693,14 +696,14 @@ fun CategoryFilterBar(
                             }
                     ) {
                         CompressibleHorizontalSlot(CategoryButtonCompressibleHorizontalPadding) {
-                            Text(label, maxLines = 1, softWrap = false)
+                            Text(stringResource(labelRes), maxLines = 1, softWrap = false)
                         }
                     }
                 },
                 menuContent = { menu ->
                     SoundEffectOnInteraction(enabled = false) {
                         DropdownMenuItem(
-                            text = { Text(label) },
+                            text = { Text(stringResource(labelRes)) },
                             onClick = { menu.dismiss(); onSelectCategory(category) }
                         )
                     }
@@ -721,6 +724,12 @@ private fun RoomAndSortBar(
     val screenActive = LocalMotionActive.current
     var showRooms by remember { mutableStateOf(false) }
     var showSort by remember { mutableStateOf(false) }
+    val roomLabel = stringResource(R.string.screen_room)
+    val allRoomsLabel = stringResource(R.string.screen_all_rooms)
+    val selectedRoomLabel = selectedRoom ?: allRoomsLabel
+    val roomExpansionLabel = stringResource(R.string.screen_room_expansion, selectedRoomLabel,
+        stringResource(if (showRooms) R.string.screen_expanded else R.string.screen_collapsed))
+    val sortStateLabel = stringResource(if (recentFirst) R.string.screen_recent else R.string.screen_default_sort)
     LaunchedEffect(screenActive) {
         if (!screenActive) {
             showRooms = false
@@ -740,8 +749,8 @@ private fun RoomAndSortBar(
             FilledTonalButton(
                 onClick = { showRooms = true },
                 modifier = Modifier.heightIn(min = 48.dp).semantics {
-                    contentDescription = AppStrings.get(R.string.screen_room)
-                    stateDescription = AppStrings.get(R.string.screen_room_expansion, selectedRoom ?: AppStrings.get(R.string.screen_all_rooms), if (showRooms) AppStrings.get(R.string.screen_expanded) else AppStrings.get(R.string.screen_collapsed))
+                    contentDescription = roomLabel
+                    stateDescription = roomExpansionLabel
                 },
                 contentPadding = PaddingValues(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
@@ -758,7 +767,7 @@ private fun RoomAndSortBar(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = selectedRoom ?: AppStrings.get(R.string.screen_all_rooms),
+                    text = selectedRoomLabel,
                     modifier = Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
@@ -768,7 +777,7 @@ private fun RoomAndSortBar(
                 Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
             }
             val roomOptions = buildList {
-                add(null to AppStrings.get(R.string.screen_all_rooms))
+                add(null to allRoomsLabel)
                 rooms.forEach { add(it to it) }
             }
             ExpressiveDropdownMenu(
@@ -796,18 +805,18 @@ private fun RoomAndSortBar(
                 color = if (recentFirst) MaterialTheme.colorScheme.secondaryContainer else ExpressiveSurface.card,
                 contentColor = if (recentFirst) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
             ) {
-                ActionIconButton(AppStrings.get(R.string.screen_sort),
+                ActionIconButton(stringResource(R.string.screen_sort),
                     onClick = { showSort = true },
                     modifier = Modifier.semantics {
-                        stateDescription = if (recentFirst) AppStrings.get(R.string.screen_recent) else AppStrings.get(R.string.screen_default_sort)
+                        stateDescription = sortStateLabel
                     }
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = AppStrings.get(R.string.screen_sort))
+                    Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = stringResource(R.string.screen_sort))
                 }
             }
             val sortOptions = listOf(
-                false to AppStrings.get(R.string.screen_default_sort),
-                true to AppStrings.get(R.string.screen_recent)
+                false to stringResource(R.string.screen_default_sort),
+                true to stringResource(R.string.screen_recent)
             )
             ExpressiveDropdownMenu(
                 expanded = screenActive && showSort,
@@ -852,11 +861,11 @@ fun RemoteCard(
             showActions = false
         }
     }
-    val subtitle = remember(remote.room, remote.brand, remote.name) {
-        buildList {
-            if (remote.room.isNotBlank()) add(remote.room)
-            if (remote.brand.isNotBlank() && !remote.name.contains(remote.brand, ignoreCase = true)) add(remote.brand)
-        }.joinToString("  ")
+    val visibleBrand = remote.brand.takeIf { it.isNotBlank() && !remote.name.contains(it, ignoreCase = true) }
+    val subtitle = when {
+        remote.room.isNotBlank() && visibleBrand != null -> stringResource(R.string.screen_remote_room_brand, remote.room, visibleBrand)
+        remote.room.isNotBlank() -> remote.room
+        else -> visibleBrand.orEmpty()
     }
     Card(
         onClick = onClick,
@@ -911,15 +920,15 @@ fun RemoteCard(
             Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) {
                 if (remote.isFavorite) Icon(
                     imageVector = Icons.Rounded.Star,
-                    contentDescription = AppStrings.get(R.string.screen_favorited),
+                    contentDescription = stringResource(R.string.screen_favorited),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(16.dp)
                 )
             }
 
             Box {
-                ActionIconButton(AppStrings.get(R.string.screen_manage_name, remote.name), onClick = { showActions = true }) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = AppStrings.get(R.string.screen_manage_name, remote.name))
+                ActionIconButton(stringResource(R.string.screen_manage_name, remote.name), onClick = { showActions = true }) {
+                    Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.screen_manage_name, remote.name))
                 }
                 ExpressiveDropdownMenuPopup(
                     expanded = LocalMotionActive.current && showActions,
@@ -938,7 +947,7 @@ fun RemoteCard(
                     ExpressiveDropdownMenuGroup(index = 0, count = 2) {
                         ExpressiveMenuItem(
                             onClick = { closeWithAction(onToggleFavorite) },
-                            text = { Text(if (remote.isFavorite) AppStrings.get(R.string.screen_unfavorite) else AppStrings.get(R.string.screen_favorite)) },
+                            text = { Text(if (remote.isFavorite) stringResource(R.string.screen_unfavorite) else stringResource(R.string.screen_favorite)) },
                             index = 0,
                             count = 3,
                             leadingIcon = {
@@ -950,14 +959,14 @@ fun RemoteCard(
                         )
                         ExpressiveMenuItem(
                             onClick = { closeWithAction(onEdit) },
-                            text = { Text(AppStrings.get(R.string.screen_edit_details)) },
+                            text = { Text(stringResource(R.string.screen_edit_details)) },
                             index = 1,
                             count = 3,
                             leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) }
                         )
                         ExpressiveMenuItem(
                             onClick = { closeWithAction(onExport) },
-                            text = { Text(AppStrings.get(R.string.screen_export_remote)) },
+                            text = { Text(stringResource(R.string.screen_export_remote)) },
                             index = 2,
                             count = 3,
                             leadingIcon = { Icon(Icons.Rounded.Upload, contentDescription = null) }
@@ -966,7 +975,7 @@ fun RemoteCard(
                     ExpressiveDropdownMenuGroup(index = 1, count = 2) {
                         ExpressiveMenuItem(
                             onClick = { closeWithAction(onDelete) },
-                            text = { Text(AppStrings.get(R.string.screen_trash_remote)) },
+                            text = { Text(stringResource(R.string.screen_trash_remote)) },
                             index = 0,
                             count = 1,
                             leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null) }
@@ -1010,7 +1019,7 @@ private fun EmptyStateView(
         }
         Spacer(modifier = Modifier.height(Spacing.large))
         Text(
-            text = if (isSearch) AppStrings.get(if (hasSearchQuery) R.string.screen_search_empty else R.string.screen_filter_empty) else AppStrings.get(R.string.screen_no_saved_remotes),
+            text = if (isSearch) stringResource(if (hasSearchQuery) R.string.screen_search_empty else R.string.screen_filter_empty) else stringResource(R.string.screen_no_saved_remotes),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface
@@ -1018,11 +1027,11 @@ private fun EmptyStateView(
         Spacer(modifier = Modifier.height(Spacing.large))
         if (isSearch) {
             TextButton(onClick = onResetSearch, enabled = actionsEnabled, shapes = ButtonDefaults.shapes()) {
-                Text(AppStrings.get(if (hasSearchQuery) R.string.screen_clear_search else R.string.screen_reset_filters))
+                Text(stringResource(if (hasSearchQuery) R.string.screen_clear_search else R.string.screen_reset_filters))
             }
         } else if (showAddAction) {
             androidx.compose.material3.Button(onClick = onAddRemote, enabled = actionsEnabled, shapes = ButtonDefaults.shapes()) {
-                Text(AppStrings.get(R.string.screen_add_remote))
+                Text(stringResource(R.string.screen_add_remote))
             }
         }
     }
