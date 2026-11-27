@@ -65,6 +65,7 @@ class IrRemoteApplication : Application() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        org.qinyan.rimoat.i18n.AppLanguage.invalidate()
         refreshShortcuts()
         if (::widgets.isInitialized) applicationScope.launch { widgets.configurationChanged() }
     }

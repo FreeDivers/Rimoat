@@ -1,5 +1,8 @@
 package org.qinyan.rimoat.i18n
 
+import org.qinyan.rimoat.IrRemoteApplication
+import org.junit.Assert.assertSame
+import kotlinx.coroutines.cancel
 import android.app.Application
 import android.app.LocaleManager
 import android.content.Context
@@ -26,6 +29,68 @@ class AppLanguageResourcesTest {
         } else {
             app.getSharedPreferences("rimoat_language", Context.MODE_PRIVATE)
                 .edit().putString("language_tag", tag).commit()
+        }
+    }
+
+    @Test
+    fun resourceReadsReuseTheLocaleContextUntilInvalidated() {
+        select("ja")
+        val trackedContext = object : android.content.ContextWrapper(app) {
+            var serviceLookups = 0
+            override fun getApplicationContext(): Context = this
+            override fun getSystemService(name: String): Any? {
+                serviceLookups++
+                return super.getSystemService(name)
+            }
+        }
+        AppStrings.initialize(trackedContext)
+        val japanese = AppStrings.resourceContext()
+        val initialLookups = trackedContext.serviceLookups
+        repeat(20) {
+            assertEquals("設定", AppStrings.get(R.string.settings_title))
+            assertSame(japanese, AppStrings.resourceContext())
+        }
+        assertEquals(initialLookups, trackedContext.serviceLookups)
+        select("en")
+        AppLanguage.invalidate()
+        assertEquals("Settings", AppStrings.get(R.string.settings_title))
+        assertNotSame(japanese, AppStrings.resourceContext())
+    }
+
+    @Test
+    @Config(sdk = [32])
+    fun settingTheLanguageInvalidatesPreviouslyResolvedStrings() {
+        select("ja")
+        AppStrings.initialize(app)
+        assertEquals("設定", AppStrings.get(R.string.settings_title))
+        val activity = org.robolectric.Robolectric.buildActivity(android.app.Activity::class.java).setup().get()
+        AppLanguage.set(activity, "en")
+        assertEquals("Settings", AppStrings.get(R.string.settings_title))
+        activity.finish()
+    }
+
+    @Test
+    @Config(sdk = [35])
+    fun applicationConfigurationCallbackRefreshesLocalesAndFontScale() {
+        select("ja,en")
+        AppStrings.initialize(app)
+        val previous = AppStrings.resourceContext()
+        val originalFontScale = app.resources.configuration.fontScale
+        val application = IrRemoteApplication()
+        try {
+            select("zh-Hant,en")
+            RuntimeEnvironment.setFontScale(1.6f)
+            application.onConfigurationChanged(Configuration(app.resources.configuration))
+            val refreshed = AppStrings.resourceContext()
+            assertNotSame(previous, refreshed)
+            assertEquals("zh-Hant", refreshed.resources.configuration.locales[0].toLanguageTag())
+            assertEquals("en", refreshed.resources.configuration.locales[1].toLanguageTag())
+            assertEquals(1.6f, refreshed.resources.configuration.fontScale, 0.001f)
+            assertEquals(refreshed.getString(R.string.settings_title), AppStrings.get(R.string.settings_title))
+        } finally {
+            RuntimeEnvironment.setFontScale(originalFontScale)
+            application.applicationScope.cancel()
+            AppLanguage.invalidate()
         }
     }
 

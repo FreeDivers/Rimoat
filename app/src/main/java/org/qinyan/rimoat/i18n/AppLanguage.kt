@@ -19,6 +19,7 @@ object AppLanguage {
     private const val MIGRATED = "migrated_to_platform"
 
     fun initialize(context: Context) {
+        invalidate()
         if (Build.VERSION.SDK_INT >= 33) {
             migrateToPlatform(context)
         } else {
@@ -66,6 +67,11 @@ object AppLanguage {
     @Volatile
     private var cachedAppLocaleWrap: Triple<Context, Configuration, Context>? = null
 
+    fun invalidate() {
+        cachedAppLocaleWrap = null
+        AppStrings.invalidate()
+    }
+
     /** Background and widget contexts can still carry the previous Activity's locale. */
     fun wrap(context: Context): Context {
         val requested: LocaleList
@@ -100,5 +106,6 @@ object AppLanguage {
                 .edit().putString(LANGUAGE, tag).apply()
         }
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
+        invalidate()
     }
 }
