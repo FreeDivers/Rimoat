@@ -1,8 +1,8 @@
 """Read-only audit of packaged translations, resource references, and catalog label coverage.
 
 Run: python -B tools/audit_i18n.py
-Prints JSON to stdout and returns nonzero for structural resource errors. Catalog
-coverage and Japanese Han matches are reported for review.
+Prints JSON to stdout and returns nonzero for structural resource errors. UI source
+counts, catalog coverage and Japanese Han matches are reported for review.
 No databases, assets, resources, or user data are modified.
 """
 
@@ -24,11 +24,13 @@ HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 KOTLIN_COMMENT_OR_STRING = re.compile(
     r'//[^\n]*|/\*[\s\S]*?\*/|"""([\s\S]*?)"""|"([^"\n\\]*(?:\\.[^"\n\\]*)*)"'
 )
-APP_STRINGS_CHINESE_FALLBACK = re.compile(
-    r'AppStrings\.get\(\s*(?:org\.qinyan\.rimoat\.)?R\.string\.(\w+)\s*,\s*"([^"\n]*)"'
+APP_STRINGS_LITERAL_ARGUMENT = re.compile(
+    r'AppStrings\.get\(\s*(?:org\.qinyan\.rimoat\.)?R\.string\.(\w+)\s*,\s*'
+    r'("""[\s\S]*?"""|"(?:\\.|[^"\\])*")'
 )
 LOCALIZED_LABEL_CHINESE_LITERAL = re.compile(
-    r'(?:org\.qinyan\.rimoat\.i18n\.)?localizedLabel\(\s*"([^"\n]*)"'
+    r'(?:org\.qinyan\.rimoat\.i18n\.)?localizedLabel\(\s*'
+    r'("""[\s\S]*?"""|"(?:\\.|[^"\\])*")'
 )
 FORMAT = re.compile(r"%(?:(\d+)\$)?([-#+ 0,(<]*)(?:\d+)?(?:\.\d+)?([tT][a-zA-Z]|[a-zA-Z%])")
 REFERENCE = re.compile(r"(?<![\w.])(?:org\.qinyan\.rimoat\.)?R\.(string|plurals)\.(\w+)")
@@ -254,11 +256,13 @@ def kotlin_string_literals(text):
 
 
 def audit_ui_i18n_counts(bundles):
+    app_strings_literal_argument = 0
     app_strings_chinese_fallback = 0
     localized_label_chinese_literal = 0
     for path in sorted(SOURCE.rglob("*.kt")):
         cleaned = strip_kotlin_comments(path.read_text(encoding="utf-8-sig"))
-        for match in APP_STRINGS_CHINESE_FALLBACK.finditer(cleaned):
+        for match in APP_STRINGS_LITERAL_ARGUMENT.finditer(cleaned):
+            app_strings_literal_argument += 1
             if HAN.search(match.group(2)):
                 app_strings_chinese_fallback += 1
         for match in LOCALIZED_LABEL_CHINESE_LITERAL.finditer(cleaned):
@@ -282,6 +286,7 @@ def audit_ui_i18n_counts(bundles):
                     resource_u00b7 += 1
 
     return {
+        "app_strings_get_literal_argument": app_strings_literal_argument,
         "app_strings_get_chinese_fallback": app_strings_chinese_fallback,
         "localized_label_chinese_literal": localized_label_chinese_literal,
         "resource_u00b7": resource_u00b7,
@@ -295,8 +300,9 @@ def audit_ui_i18n_counts(bundles):
 def audit():
     errors = []
     bundles, resources = audit_resources(errors)
+    counts = audit_ui_i18n_counts(bundles)
     return {"status": "PASS" if not errors else "FAIL", "resources": resources,
-            "ui_i18n_counts": audit_ui_i18n_counts(bundles),
+            "ui_i18n_counts": counts,
             "catalog": audit_catalog(bundles), "errors": errors}
 
 

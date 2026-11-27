@@ -1,23 +1,27 @@
 package org.qinyan.rimoat.i18n
 
-import org.junit.Assert.assertTrue
-import org.qinyan.rimoat.IrRemoteApplication
-import org.junit.Assert.assertSame
-import kotlinx.coroutines.cancel
 import android.app.Application
 import android.app.LocaleManager
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.LocaleList
+import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.IrRemoteApplication
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.w3c.dom.Element
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [32, 35], qualifiers = "en-rUS", application = Application::class)
@@ -109,6 +113,79 @@ class AppLanguageResourcesTest {
             RuntimeEnvironment.setFontScale(originalFontScale)
             application.applicationScope.cancel()
             AppLanguage.invalidate()
+        }
+    }
+
+    @Test
+    @Config(sdk = [35])
+    fun everySupportedLanguageHasMatchingResourceKeysAndArgumentTypes() {
+        val root = listOf(File("src/main/res"), File("app/src/main/res"))
+            .firstOrNull { it.isDirectory } ?: error("Packaged Android resources were not found")
+        val baseline = readResourceEntries(File(root, "values"))
+        val requiredKeys = baseline.filterValues { it.translatable }.keys
+        for (directory in listOf("values", "values-en", "values-zh", "values-b+zh+Hant", "values-ja")) {
+            val entries = readResourceEntries(File(root, directory))
+            assertEquals("$directory missing resources", emptySet<String>(), requiredKeys - entries.keys)
+            assertEquals("$directory extra resources", emptySet<String>(), entries.keys - baseline.keys)
+            for ((key, entry) in entries) {
+                val original = baseline.getValue(key)
+                if (key.startsWith("plurals/")) {
+                    val requiredForms = if (directory in setOf("values", "values-en")) setOf("one", "other") else setOf("other")
+                    assertTrue("$directory $key plural forms", entry.values.keys.containsAll(requiredForms))
+                }
+                if (directory == "values-en") assertEquals("$directory $key default English", original, entry)
+                if (!original.formatted) continue
+                val expected = argumentTypes(original.values["value"] ?: original.values.getValue("other"))
+                for ((quantity, value) in entry.values) {
+                    assertEquals("$directory $key/$quantity arguments", expected, argumentTypes(value))
+                }
+            }
+        }
+    }
+
+    private data class ResourceEntry(val values: Map<String, String>, val translatable: Boolean, val formatted: Boolean)
+
+    private fun readResourceEntries(directory: File): Map<String, ResourceEntry> {
+        val entries = mutableMapOf<String, ResourceEntry>()
+        val factory = DocumentBuilderFactory.newInstance().apply {
+            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        }
+        directory.listFiles { file -> file.extension == "xml" }.orEmpty().forEach { file ->
+            val children = factory.newDocumentBuilder().parse(file).documentElement.childNodes
+            for (index in 0 until children.length) {
+                val element = children.item(index) as? Element ?: continue
+                if (element.tagName !in setOf("string", "plurals")) continue
+                val key = element.tagName + "/" + element.getAttribute("name")
+                val values = if (element.tagName == "string") mapOf("value" to element.textContent) else {
+                    val items = element.getElementsByTagName("item")
+                    (0 until items.length).associate { itemIndex ->
+                        val item = items.item(itemIndex) as Element
+                        item.getAttribute("quantity") to item.textContent
+                    }.also { assertEquals("$key duplicate plural forms", items.length, it.size) }
+                }
+                assertNull("Duplicate resource $key", entries.put(key, ResourceEntry(values,
+                    element.getAttribute("translatable") != "false", element.getAttribute("formatted") != "false")))
+            }
+        }
+        return entries
+    }
+
+    private fun argumentTypes(value: String): Set<Pair<Int?, String>> {
+        val format = Regex("""%(?:(\d+)\$)?([-#+ 0,(<]*)(?:\d+)?(?:\.\d+)?([tT][a-zA-Z]|[a-zA-Z%])""")
+        var implicit = 0
+        var previous: Int? = null
+        return buildSet {
+            for (match in format.findAll(value)) {
+                val (index, flags, conversion) = match.destructured
+                if (conversion == "%" || conversion == "n") continue
+                val argument = when {
+                    '<' in flags -> previous
+                    index.isNotEmpty() -> index.toInt()
+                    else -> ++implicit
+                }
+                add(argument to conversion.lowercase(java.util.Locale.ROOT))
+                previous = argument
+            }
         }
     }
 
