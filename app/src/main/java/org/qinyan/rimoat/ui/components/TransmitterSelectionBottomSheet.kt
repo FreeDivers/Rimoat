@@ -95,14 +95,14 @@ fun TransmitterSelectionBottomSheet(
                 Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(AppStrings.get(R.string.control_ir_channel, "红外发射通道"), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = { scope.launch { sheetState.hide(); onDismissRequest() } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_done, "完成")) }
+                Text(AppStrings.get(R.string.control_ir_channel), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                TextButton(onClick = { scope.launch { sheetState.hide(); onDismissRequest() } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_done)) }
             }
             val choices: @Composable () -> Unit = {
                 Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ChannelChoice(AppStrings.get(R.string.control_auto_select, "自动选择"), Icons.Rounded.AutoMode, automatic, onClick = { select(null) })
+                    ChannelChoice(AppStrings.get(R.string.control_auto_select), Icons.Rounded.AutoMode, automatic, onClick = { select(null) })
                     if (usable.isNotEmpty()) {
-                        ChannelSectionTitle(AppStrings.get(R.string.control_available_devices, "可用设备"))
+                        ChannelSectionTitle(AppStrings.get(R.string.control_available_devices))
                         Column(verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)) {
                             usable.forEachIndexed { index, channel ->
                                 HardwareChannelItem(channel, usbDevices.any { it.pending },
@@ -113,7 +113,7 @@ fun TransmitterSelectionBottomSheet(
                         }
                     }
                     if (attention.isNotEmpty()) {
-                        ChannelSectionTitle(AppStrings.get(R.string.control_pending_devices, "待处理设备"))
+                        ChannelSectionTitle(AppStrings.get(R.string.control_pending_devices))
                         Column(verticalArrangement = Arrangement.spacedBy(ExpressiveShapeTokens.SegmentedGap)) {
                             attention.forEachIndexed { index, channel ->
                                 HardwareChannelItem(channel, usbDevices.any { it.pending },
@@ -131,13 +131,13 @@ fun TransmitterSelectionBottomSheet(
                         TextButton(
                             onClick = { showUnavailable = !showUnavailable },
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp).semantics {
-                                stateDescription = if (showUnavailable) AppStrings.get(R.string.control_expanded, "已展开") else AppStrings.get(R.string.control_collapsed, "已收起")
+                                stateDescription = if (showUnavailable) AppStrings.get(R.string.control_expanded) else AppStrings.get(R.string.control_collapsed)
                             },
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
                             shapes = ButtonDefaults.shapes()
                         ) {
-                            Text(AppStrings.get(R.string.control_unavailable_count, "不可用通道（%1\$d）", unavailable.size), Modifier.weight(1f))
+                            Text(AppStrings.get(R.string.control_unavailable_count, unavailable.size), Modifier.weight(1f))
                             Icon(if (showUnavailable) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
                         }
                         ExpandSection(visible = showUnavailable) {
@@ -147,14 +147,14 @@ fun TransmitterSelectionBottomSheet(
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    ChannelChoice(AppStrings.get(R.string.control_demo_mode, "演示模式"), Icons.Rounded.SensorsOff, demoSelected,
+                    ChannelChoice(AppStrings.get(R.string.control_demo_mode), Icons.Rounded.SensorsOff, demoSelected,
                         onClick = { select(TransmitterType.MOCK) })
                 }
                 if (!inlineSerialSettings) {
                     OutlinedButton(onClick = { showSerialSettings = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shapes = ButtonDefaults.shapes()) {
                         Icon(Icons.Rounded.Settings, null, Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                        Text(AppStrings.get(R.string.control_serial_config, "串口模块配置"))
+                        Text(AppStrings.get(R.string.control_serial_config))
                     }
                 }
             }

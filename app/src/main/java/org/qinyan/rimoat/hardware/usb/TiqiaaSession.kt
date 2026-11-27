@@ -23,12 +23,12 @@ internal class TiqiaaSession(private val channel: UsbBulkChannel, private val re
                 drained = channel.read(buffer, 10) <= 0
             }
         }
-        if (!drained) throw IOException(AppStrings.get(R.string.msg_tview_stale_data, "Tview 持续返回旧数据，请重新连接设备"))
+        if (!drained) throw IOException(AppStrings.get(R.string.msg_tview_stale_data))
         val startedAt = System.nanoTime()
         for (packet in packets) {
             currentCoroutineContext().ensureActive()
             val written = channel.write(packet, 1000)
-            if (written != packet.size) throw IOException(AppStrings.get(R.string.msg_tview_write_incomplete, "Tview 数据帧写入不完整：%1\$s/%2\$s，未重发", (written).toString(), (packet.size).toString()))
+            if (written != packet.size) throw IOException(AppStrings.get(R.string.msg_tview_write_incomplete, (written).toString(), (packet.size).toString()))
         }
         val durationMs = TiqiaaProtocolFormatter.calculatePostTransmitDelayMs(signal.patternMicros)
         val timeout = replyTimeoutMs?.toLong() ?: (durationMs + 500).coerceAtLeast(600)
@@ -44,7 +44,7 @@ internal class TiqiaaSession(private val channel: UsbBulkChannel, private val re
             // Observed on the physical 10c4:8468 Tview: D -> O, meta 09 (send state).
             // A write-only success or an unrelated earlier mode reply is insufficient.
             if (parsed.type != 4 || parsed.meta != 0x09) {
-                throw IOException(AppStrings.get(R.string.msg_tview_send_not_confirmed, "Tview 未确认发送完成（应答 %1\$s，状态 %2\$s）", (frame[3].toInt().toChar()).toString(), (parsed.meta).toString()))
+                throw IOException(AppStrings.get(R.string.msg_tview_send_not_confirmed, (frame[3].toInt().toChar()).toString(), (parsed.meta).toString()))
             }
             val remaining = durationMs - (System.nanoTime() - startedAt) / 1_000_000
             if (remaining > 0) delay(remaining)
@@ -52,6 +52,6 @@ internal class TiqiaaSession(private val channel: UsbBulkChannel, private val re
             catch (_: Exception) {}
             return
         }
-        throw IOException(AppStrings.get(R.string.msg_tview_send_timeout, "Tview 发送应答超时，请检查设备连接"))
+        throw IOException(AppStrings.get(R.string.msg_tview_send_timeout))
     }
 }

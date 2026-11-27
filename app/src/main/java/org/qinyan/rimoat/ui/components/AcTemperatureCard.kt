@@ -101,7 +101,7 @@ fun AcTemperatureCard(
                         contentColor = if (isDemonstrating) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     ) {
                         Text(
-                            text = if (isDemonstrating) AppStrings.get(R.string.control_simulation_setting, "模拟设定") else AppStrings.get(R.string.control_target_temp, "设定温度"),
+                            text = if (isDemonstrating) AppStrings.get(R.string.control_simulation_setting) else AppStrings.get(R.string.control_target_temp),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -111,7 +111,7 @@ fun AcTemperatureCard(
                 val power: @Composable () -> Unit = {
                 UnavailableAcControl(canTogglePower, powerLabel, unavailableDescriptions[powerAction],
                     onUnavailable?.let { { it(powerAction) } }, checked = powerOn.takeUnless { isLearningMode }) {
-                ActionTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn_power, "学习电源按键") else if (powerOn) AppStrings.get(R.string.control_power_off, "关机") else AppStrings.get(R.string.control_power_on, "开机")) {
+                ActionTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn_power) else if (powerOn) AppStrings.get(R.string.control_power_off) else AppStrings.get(R.string.control_power_on)) {
                 FilledIconToggleButton(
                     checked = powerOn,
                     interactionSource = powerInteraction,
@@ -121,7 +121,7 @@ fun AcTemperatureCard(
                         if (canTogglePower) onClick { powerHaptic(); onTogglePower(); true } else disabled()
                         if (!isLearningMode) {
                             toggleableState = ToggleableState(powerOn)
-                            stateDescription = if (powerOn) AppStrings.get(R.string.control_set_on, "设定开启") else AppStrings.get(R.string.control_set_off, "设定关闭")
+                            stateDescription = if (powerOn) AppStrings.get(R.string.control_set_on) else AppStrings.get(R.string.control_set_off)
                         }
                         role = if (isLearningMode) Role.Button else Role.Switch
                     },
@@ -152,14 +152,14 @@ fun AcTemperatureCard(
                 val decrease: @Composable () -> Unit = {
                     UnavailableAcControl(canDecrease, AppStrings.get(R.string.control_temp_down),
                         unavailableDescriptions[AcAction.TEMP_DOWN], onUnavailable?.let { { it(AcAction.TEMP_DOWN) } }) {
-                    RemoteIconButton(AppStrings.get(R.string.control_temp_down, "降温"), Icons.Rounded.Remove, onDecrease, enabled = canDecrease,
+                    RemoteIconButton(AppStrings.get(R.string.control_temp_down), Icons.Rounded.Remove, onDecrease, enabled = canDecrease,
                         isLearningMode = isLearningMode, onLearn = onDecrease)
                     }
                 }
                 val increase: @Composable () -> Unit = {
                     UnavailableAcControl(canIncrease, AppStrings.get(R.string.control_temp_up),
                         unavailableDescriptions[AcAction.TEMP_UP], onUnavailable?.let { { it(AcAction.TEMP_UP) } }) {
-                    RemoteIconButton(AppStrings.get(R.string.control_temp_up, "升温"), Icons.Rounded.Add, onIncrease, enabled = canIncrease,
+                    RemoteIconButton(AppStrings.get(R.string.control_temp_up), Icons.Rounded.Add, onIncrease, enabled = canIncrease,
                         isLearningMode = isLearningMode, onLearn = onIncrease)
                     }
                 }
@@ -170,7 +170,7 @@ fun AcTemperatureCard(
                         transitionSpec = { fadeIn(motion.fastEffectsSpec()) togetherWith fadeOut(motion.fastEffectsSpec()) },
                         label = "Temperature",
                         modifier = Modifier.clearAndSetSemantics {
-                            contentDescription = statusSummary ?: AppStrings.get(R.string.control_temperature_description, "%1\$s %2\$d 摄氏度", settingLabel, temperature)
+                            contentDescription = statusSummary ?: AppStrings.get(R.string.control_temperature_description, settingLabel, temperature)
                             liveRegion = LiveRegionMode.Polite
                         }
                     ) { value ->

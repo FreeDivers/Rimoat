@@ -10,6 +10,8 @@ import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.screens.acPanelActions
 
 class PanelPolicyTest {
+    @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
+
     private fun button(id: String, label: String = id) = RemoteButton(id, label, rawPattern = listOf(9000, 4500, 560))
 
     @Test fun learnedStateKeysRemainIndependentAndCanBeHiddenWithoutHidingDynamicControls() {

@@ -47,13 +47,13 @@ class TiqiaaUsbTransmitter(
     override suspend fun transmit(signal: IrSignal): Result<Unit> = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
-                val usb = usbManager ?: error(AppStrings.get(R.string.msg_usb_manager_unavailable, "UsbManager 不可用"))
-                val device = findDevice() ?: error(AppStrings.get(R.string.msg_tiqiaa_missing, "未找到遥控精灵 USB 设备"))
-                check(usb.hasPermission(device)) { AppStrings.get(R.string.msg_usb_permission_missing, "未获得 USB 设备使用权限") }
+                val usb = usbManager ?: error(AppStrings.get(R.string.msg_usb_manager_unavailable))
+                val device = findDevice() ?: error(AppStrings.get(R.string.msg_tiqiaa_missing))
+                check(usb.hasPermission(device)) { AppStrings.get(R.string.msg_usb_permission_missing) }
                 val raw = when (signal) {
                     is IrSignal.Raw -> signal
                     is IrSignal.Nec -> {
-                        require(signal.address in 0..65535 && signal.command in 0..255) { AppStrings.get(R.string.msg_nec_parameters_range, "NEC 参数超出范围") }
+                        require(signal.address in 0..65535 && signal.command in 0..255) { AppStrings.get(R.string.msg_nec_parameters_range) }
                         IrProtocolEncoder.encodeNec(signal)
                     }
                 }
@@ -64,7 +64,7 @@ class TiqiaaUsbTransmitter(
                     val pair = usbEndpointPairs(intf).firstOrNull() ?: continue
                     val out = pair.outEp
                     val input = pair.inEp
-                    val connection = usb.openDevice(device) ?: error(AppStrings.get(R.string.msg_tview_open_failed, "无法打开 Tview USB 连接"))
+                    val connection = usb.openDevice(device) ?: error(AppStrings.get(R.string.msg_tview_open_failed))
                     var claimed = false
                     try {
                         claimed = connection.claimInterface(intf, true)
@@ -81,7 +81,7 @@ class TiqiaaUsbTransmitter(
                         finally { connection.close() }
                     }
                 }
-                error(AppStrings.get(R.string.msg_tview_claim_failed, "无法认领 Tview 的 USB 输入/输出接口"))
+                error(AppStrings.get(R.string.msg_tview_claim_failed))
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { Result.failure(e) }
             finally { refreshState() }

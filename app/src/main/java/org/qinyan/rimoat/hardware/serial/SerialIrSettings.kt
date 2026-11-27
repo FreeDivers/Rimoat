@@ -9,7 +9,7 @@ enum class SerialIrModule(private val sourceLabel: String) {
     UNCONFIGURED("未配置"), YS_IRTM("YS-IRTM（NEC）"), IR_TOY("USB IR Toy v2（RAW）");
 
     val label: String
-        get() = if (this == UNCONFIGURED) AppStrings.get(R.string.msg_serial_unconfigured, "未配置") else sourceLabel
+        get() = if (this == UNCONFIGURED) AppStrings.get(R.string.msg_serial_unconfigured) else sourceLabel
 }
 
 @Serializable
@@ -23,12 +23,12 @@ data class SerialIrSettings(
     val moduleAddress: Int = 0xA1
 ) {
     fun validate() {
-        require((vendorId == null) == (productId == null)) { AppStrings.get(R.string.msg_usb_ids_incomplete, "USB 设备标识不完整") }
-        require(vendorId == null || vendorId in 0..65535 && productId!! in 0..65535) { AppStrings.get(R.string.msg_usb_ids_invalid, "USB 设备标识无效") }
-        require(portIndex in 0..31) { AppStrings.get(R.string.msg_serial_port_range, "串口序号必须为 0–31") }
-        require(moduleAddress in 0..255 && moduleAddress != 0xFA) { AppStrings.get(R.string.msg_module_address_range, "模块地址必须为 00–FF，不能使用广播地址 FA") }
+        require((vendorId == null) == (productId == null)) { AppStrings.get(R.string.msg_usb_ids_incomplete) }
+        require(vendorId == null || vendorId in 0..65535 && productId!! in 0..65535) { AppStrings.get(R.string.msg_usb_ids_invalid) }
+        require(portIndex in 0..31) { AppStrings.get(R.string.msg_serial_port_range) }
+        require(moduleAddress in 0..255 && moduleAddress != 0xFA) { AppStrings.get(R.string.msg_module_address_range) }
         require(if (module == SerialIrModule.IR_TOY) baudRate == 115200 else baudRate in listOf(4800, 9600, 19200, 57600)) {
-            AppStrings.get(R.string.msg_serial_baud_rates, "YS-IRTM 波特率支持 4800、9600、19200、57600；IR Toy 使用 115200")
+            AppStrings.get(R.string.msg_serial_baud_rates)
         }
     }
 }

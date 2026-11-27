@@ -89,7 +89,7 @@ class TiqiaaUsbLearner private constructor(
 
     override suspend fun startLearning(timeoutSeconds: Int): Result<IrSignal.Raw> = withContext(Dispatchers.IO) {
         if (closed.get() || !_isAvailable.value) {
-            val err = AppStrings.get(R.string.msg_tiqiaa_closed, "Tiqiaa USB device is not available or closed")
+            val err = AppStrings.get(R.string.msg_tiqiaa_closed)
             _state.value = LearningState.Error(err)
             return@withContext Result.failure(IllegalStateException(err))
         }
@@ -119,9 +119,9 @@ class TiqiaaUsbLearner private constructor(
                 val rc = connection.bulkTransfer(outEndpoint, chunk, chunk.size, 400)
                 if (rc != chunk.size) {
                     val err = if (closed.get() || !_isAvailable.value) {
-                        AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
+                        AppStrings.get(R.string.msg_usb_disconnected)
                     } else {
-                        AppStrings.get(R.string.msg_tiqiaa_learn_start_failed, "Failed to send learn mode command to Tiqiaa USB")
+                        AppStrings.get(R.string.msg_tiqiaa_learn_start_failed)
                     }
                     _state.value = LearningState.Error(err)
                     return@withContext Result.failure(IOException(err))
@@ -166,7 +166,7 @@ class TiqiaaUsbLearner private constructor(
             }
 
             if (closed.get() || !_isAvailable.value) {
-                val err = AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
+                val err = AppStrings.get(R.string.msg_usb_disconnected)
                 _state.value = LearningState.Error(err)
                 return@withContext Result.failure(IOException(err))
             }

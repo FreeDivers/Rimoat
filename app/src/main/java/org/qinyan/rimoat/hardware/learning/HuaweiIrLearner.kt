@@ -153,7 +153,7 @@ class HuaweiIrLearner internal constructor(
             readIRFrequency = clazz.getMethod("readIRFrequency")
             readIRCode = clazz.getMethod("readIRCode")
         } catch (t: Throwable) {
-            val err = AppStrings.get(R.string.msg_huawei_learning_unavailable, "Huawei IR 学习接口不可用：%1\$s", (t.message ?: t.javaClass.simpleName).toString())
+            val err = AppStrings.get(R.string.msg_huawei_learning_unavailable, (t.message ?: t.javaClass.simpleName).toString())
             _state.value = LearningState.Error(err, t)
             return@withContext Result.failure(IllegalStateException(err, t))
         }
@@ -166,7 +166,7 @@ class HuaweiIrLearner internal constructor(
         }
 
         if (!started) {
-            val err = AppStrings.get(R.string.msg_huawei_learn_start_failed, "Huawei IR hardware failed to enter learning mode")
+            val err = AppStrings.get(R.string.msg_huawei_learn_start_failed)
             _state.value = LearningState.Error(err)
             return@withContext Result.failure(IllegalStateException(err))
         }
@@ -202,7 +202,7 @@ class HuaweiIrLearner internal constructor(
                     freq to code
                 } catch (t: Throwable) {
                     val cause = (t as? java.lang.reflect.InvocationTargetException)?.targetException ?: t
-                    val err = AppStrings.get(R.string.msg_huawei_learning_read_failed, "读取华为红外学习结果失败：%1\$s", (cause.message ?: cause.javaClass.simpleName).toString())
+                    val err = AppStrings.get(R.string.msg_huawei_learning_read_failed, (cause.message ?: cause.javaClass.simpleName).toString())
                     logE(TAG, err, cause)
                     _state.value = LearningState.Error(err, cause)
                     return@withContext Result.failure(IllegalStateException(err, cause))

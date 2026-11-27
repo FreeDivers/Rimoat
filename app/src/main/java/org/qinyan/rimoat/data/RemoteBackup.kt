@@ -85,7 +85,7 @@ object RemoteBackupCodec {
             }
         }
     private fun copyOf(profile: RemoteProfile): RemoteProfile {
-        val suffix = AppStrings.get(R.string.msg_copy_suffix, "（副本）")
+        val suffix = AppStrings.get(R.string.msg_copy_suffix)
         return profile.copy(id = UUID.randomUUID().toString(), name = profile.name.take(100 - suffix.length) + suffix, lastUsedAt = 0)
     }
 
@@ -120,7 +120,7 @@ object RemoteBackupCodec {
     fun plan(profiles: List<RemoteProfile>, existingIds: Set<String>, mode: ImportMode): List<RemoteProfile> = when (mode) {
         ImportMode.MERGE -> profiles.filter { it.id !in existingIds }
         ImportMode.COPIES -> profiles.map {
-            val suffix = AppStrings.get(R.string.msg_copy_suffix, "（副本）")
+            val suffix = AppStrings.get(R.string.msg_copy_suffix)
             it.copy(id = UUID.randomUUID().toString(), name = it.name.take(minOf(95, 100 - suffix.length)) + suffix, lastUsedAt = 0)
         }
     }

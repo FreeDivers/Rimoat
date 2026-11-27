@@ -41,6 +41,6 @@ internal fun IrCategory.displayName(context: Context? = null): String {
         "ipt" -> R.string.screen_category_iptv
         else -> null
     }
-    return if (resId != null) context?.getString(resId) ?: AppStrings.get(resId, nameCn)
+    return if (resId != null) context?.getString(resId) ?: AppStrings.get(resId)
     else org.qinyan.rimoat.i18n.localizedLabel(nameCn, context)
 }

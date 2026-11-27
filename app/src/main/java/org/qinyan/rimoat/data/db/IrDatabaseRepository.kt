@@ -77,10 +77,10 @@ class IrDatabaseRepository(
                 FileOutputStream(temporary).use { output -> input.copyTo(output); output.fd.sync() }
             }
             SQLiteDatabase.openDatabase(temporary.path, null, SQLiteDatabase.OPEN_READONLY).use { copied ->
-                check(copied.version == 1) { AppStrings.get(R.string.msg_catalog_format_unsupported, "不支持的码库格式") }
+                check(copied.version == 1) { AppStrings.get(R.string.msg_catalog_format_unsupported) }
                 copied.rawQuery("PRAGMA quick_check", null).use { check(it.moveToFirst() && it.getString(0) == "ok") }
             }
-            check(temporary.renameTo(targetFile)) { AppStrings.get(R.string.msg_catalog_update_failed, "码库更新失败，原码库已保留") }
+            check(temporary.renameTo(targetFile)) { AppStrings.get(R.string.msg_catalog_update_failed) }
         } finally { temporary.delete() }
     }
 
@@ -219,7 +219,7 @@ class IrDatabaseRepository(
             }
         }
         rows.map { row ->
-            val signal = checkNotNull(signals[row[2].jsonPrimitive.content]) { AppStrings.get(R.string.msg_catalog_signal_missing, "码库信号缺失") }
+            val signal = checkNotNull(signals[row[2].jsonPrimitive.content]) { AppStrings.get(R.string.msg_catalog_signal_missing) }
             val alternate = row[4].jsonPrimitive.contentOrNull?.let { checkNotNull(signals[it]) }
             IrKeyDetail(keyName = row[1].jsonPrimitive.contentOrNull ?: "按键", keyType = row[0].jsonPrimitive.int,
                 carrierFreq = signal.first, pulsesCsv = signal.second, sourceSlot = row[3].jsonPrimitive.contentOrNull,
@@ -254,8 +254,8 @@ class IrDatabaseRepository(
 
     override suspend fun testSignalsFor(model: IrRemoteModel, button: RemoteButton): List<org.qinyan.rimoat.hardware.IrSignal> {
         val action = button.acAction ?: return listOf(button.toIrSignal())
-        val encoder = acSignals ?: error(AppStrings.get(R.string.msg_ac_encoder_missing, "空调编码器不可用"))
-        val protocol = encoder.protocolFor(model.remoteId) ?: error(AppStrings.get(R.string.msg_ac_protocol_missing, "未找到空调协议"))
+        val encoder = acSignals ?: error(AppStrings.get(R.string.msg_ac_encoder_missing))
+        val protocol = encoder.protocolFor(model.remoteId) ?: error(AppStrings.get(R.string.msg_ac_protocol_missing))
         return encoder.encode(protocol, org.qinyan.rimoat.data.AcSettings().apply(action,
             if (action == org.qinyan.rimoat.data.AcAction.TIMER) 60 else 0), action)
     }

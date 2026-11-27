@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.hardware.usb
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.hardware.IrSignal
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
@@ -8,6 +9,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ElkSmartSessionTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private class Channel(vararg responses: ByteArray) : UsbBulkChannel {
         val reads = ArrayDeque(responses.toList())
         val writes = mutableListOf<ByteArray>()

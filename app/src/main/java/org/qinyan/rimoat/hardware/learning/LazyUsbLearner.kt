@@ -38,15 +38,15 @@ internal class LazyUsbLearner(
     @Volatile private var learningJob: Job? = null
 
     private fun disconnectedFailure(): Result<IrSignal.Raw> {
-        val err = AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
+        val err = AppStrings.get(R.string.msg_usb_disconnected)
         _state.value = LearningState.Error(err)
         return Result.failure(IOException(err))
     }
 
     override suspend fun startLearning(timeoutSeconds: Int): Result<IrSignal.Raw> = withContext(Dispatchers.IO) {
         if (!UsbSessionAccess.mutex.tryLock()) {
-            _state.value = LearningState.Error(AppStrings.get(R.string.msg_usb_busy_retry, "USB 正在发射或学习，请稍后重试"))
-            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_usb_busy, "USB 设备忙")))
+            _state.value = LearningState.Error(AppStrings.get(R.string.msg_usb_busy_retry))
+            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_usb_busy)))
         }
         val lease = UsbSessionAccess.beginLearning()
         session = lease
@@ -64,7 +64,7 @@ internal class LazyUsbLearner(
                         if (disconnected.get() || !_available.value) {
                             return@async disconnectedFailure()
                         }
-                        val opened = open() ?: error(AppStrings.get(R.string.msg_usb_receiver_open_failed, "无法打开 USB 接收器，请检查授权或重新插入"))
+                        val opened = open() ?: error(AppStrings.get(R.string.msg_usb_receiver_open_failed))
                         delegate = opened
                         current = opened
                         if (disconnected.get() || !_available.value) {
@@ -114,7 +114,7 @@ internal class LazyUsbLearner(
             if (disconnected.get()) {
                 disconnectedFailure()
             } else {
-                _state.value = LearningState.Error(e.localizedMessage ?: AppStrings.get(R.string.msg_usb_learning_failed, "USB 学习失败"))
+                _state.value = LearningState.Error(e.localizedMessage ?: AppStrings.get(R.string.msg_usb_learning_failed))
                 Result.failure(e)
             }
         } finally {
@@ -138,7 +138,7 @@ internal class LazyUsbLearner(
             session?.let(UsbSessionAccess::cancelLearning)
             current?.cancel()
             learningJob?.cancel()
-            _state.value = LearningState.Error(AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开"))
+            _state.value = LearningState.Error(AppStrings.get(R.string.msg_usb_disconnected))
         }
     }
 

@@ -31,18 +31,18 @@ object AudioPcmBuilder {
         patternMicros: IntArray,
         sampleRate: Int = SAMPLE_RATE_HZ
     ): ShortArray {
-        require(sampleRate in 8000..192000) { AppStrings.get(R.string.msg_sample_rate_invalid, "采样率无效") }
+        require(sampleRate in 8000..192000) { AppStrings.get(R.string.msg_sample_rate_invalid) }
         require(patternMicros.isNotEmpty() && patternMicros.size <= 20000 &&
             patternMicros.all { it != 0 && it != Int.MIN_VALUE } &&
-            patternMicros.sumOf { kotlin.math.abs(it.toLong()) } < 2_000_000) { AppStrings.get(R.string.msg_audio_pulses_invalid, "音频红外脉冲无效或过长") }
+            patternMicros.sumOf { kotlin.math.abs(it.toLong()) } < 2_000_000) { AppStrings.get(R.string.msg_audio_pulses_invalid) }
         // The audio path emits half the optical carrier. At 48 kHz a 24 kHz
         // tone is exactly Nyquist and produces an all-zero sine wave, while
         // higher frequencies alias. Keep a margin below Nyquist.
         require(carrierHz in 20_000..44_000) {
-            AppStrings.get(R.string.msg_audio_carrier_range, "音频红外载波必须在 20–44 kHz 范围内: %1\$s", (carrierHz).toString())
+            AppStrings.get(R.string.msg_audio_carrier_range, (carrierHz).toString())
         }
         val toneHz = carrierHz / 2.0
-        require(toneHz < sampleRate / 2.0) { AppStrings.get(R.string.msg_audio_carrier_nyquist, "音频载波超过采样率可表达范围") }
+        require(toneHz < sampleRate / 2.0) { AppStrings.get(R.string.msg_audio_carrier_nyquist) }
         val phaseIncrement = (toneHz * TWO_PI) / sampleRate.toDouble()
 
         // 1. Calculate total audio frames needed

@@ -17,7 +17,7 @@ internal class SerialIrSettingsStore(private val file: File) {
         try {
             AtomicLocalFile.write(file, json.encodeToString(settings))
         } catch (e: IOException) {
-            throw IOException(AppStrings.get(R.string.msg_serial_settings_save_failed, "串口配置保存失败，请检查存储空间和权限后重试"), e)
+            throw IOException(AppStrings.get(R.string.msg_serial_settings_save_failed), e)
         }
     }
 }

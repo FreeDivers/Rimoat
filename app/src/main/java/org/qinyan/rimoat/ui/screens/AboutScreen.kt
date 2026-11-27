@@ -80,8 +80,8 @@ private fun AboutContent(versionName: String, onBack: () -> Unit, onLicensesClic
                 wide = wide,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back, "返回"))
+                    ActionIconButton(AppStrings.get(R.string.screen_back), onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back))
                     }
                 }
             )

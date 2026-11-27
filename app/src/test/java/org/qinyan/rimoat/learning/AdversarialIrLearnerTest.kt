@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.learning
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.Context
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
@@ -49,6 +50,8 @@ import java.nio.file.Files
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AdversarialIrLearnerTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
 
     private val json = Json {
         prettyPrint = true

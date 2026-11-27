@@ -17,6 +17,7 @@ import java.nio.file.Files
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddRemoteLifecycleTest {
+    @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
     private class Catalog : IrCatalog {
         val category = IrCategory(1, "电视", "TV", "tv")
         var categoriesAction: suspend () -> List<IrCategory> = { listOf(category) }

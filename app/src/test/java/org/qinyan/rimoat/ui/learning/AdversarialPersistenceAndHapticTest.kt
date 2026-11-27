@@ -39,6 +39,7 @@ import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AdversarialPersistenceAndHapticTest {
+    @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
 
     private val stores = androidx.lifecycle.ViewModelStore()
     private val testDispatcher = StandardTestDispatcher()

@@ -63,7 +63,7 @@ internal fun TimerDurationSlider(options: List<Int>, selected: Int, enabled: Boo
                 HapticHelper.performSelection(context = context)
             }
         }, modifier = modifier.semantics {
-            contentDescription = AppStrings.get(R.string.control_timer_duration, "定时时长"); stateDescription = localizedTimerDurationLabel(options[selected])
+            contentDescription = AppStrings.get(R.string.control_timer_duration); stateDescription = localizedTimerDurationLabel(options[selected])
         }, enabled = enabled)
     }
 }
@@ -101,7 +101,7 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
     SoundEffectOnInteraction(enabled = false) {
         Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(if (powerOn) AppStrings.get(R.string.control_timer_off, "定时关机") else AppStrings.get(R.string.control_timer_on, "定时开机"), style = MaterialTheme.typography.titleLarge)
+            Text(if (powerOn) AppStrings.get(R.string.control_timer_off) else AppStrings.get(R.string.control_timer_on), style = MaterialTheme.typography.titleLarge)
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = ExpressiveSurface.card,
@@ -109,18 +109,18 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (minutes == 0) AppStrings.get(R.string.control_zero_minutes, "0 分钟") else localizedTimerDurationLabel(minutes), style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
-                            color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { contentDescription = AppStrings.get(R.string.control_set_duration, "设定时长") })
-                        Text(if (minutes == 0) "" else if (powerOn) AppStrings.get(R.string.control_expected_off, "预计关机 %1\$s", localizedTimerTargetLabel(context, now, minutes, timeFormatter)) else AppStrings.get(R.string.control_expected_on, "预计开机 %1\$s", localizedTimerTargetLabel(context, now, minutes, timeFormatter)),
+                        Text(if (minutes == 0) AppStrings.get(R.string.control_zero_minutes) else localizedTimerDurationLabel(minutes), style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { contentDescription = AppStrings.get(R.string.control_set_duration) })
+                        Text(if (minutes == 0) "" else if (powerOn) AppStrings.get(R.string.control_expected_off, localizedTimerTargetLabel(context, now, minutes, timeFormatter)) else AppStrings.get(R.string.control_expected_on, localizedTimerTargetLabel(context, now, minutes, timeFormatter)),
                             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        ActionIconButton(AppStrings.get(R.string.control_shorten_timer, "缩短定时"), { select(selected - 1) }, enabled = selected > 0 && !sending) {
-                            Icon(Icons.Rounded.Remove, AppStrings.get(R.string.control_shorten_timer, "缩短定时"))
+                        ActionIconButton(AppStrings.get(R.string.control_shorten_timer), { select(selected - 1) }, enabled = selected > 0 && !sending) {
+                            Icon(Icons.Rounded.Remove, AppStrings.get(R.string.control_shorten_timer))
                         }
                         TimerDurationSlider(options, selected, !sending, { selected = it }, Modifier.weight(1f))
-                        ActionIconButton(AppStrings.get(R.string.control_extend_timer, "延长定时"), { select(selected + 1) }, enabled = selected < options.lastIndex && !sending) {
-                            Icon(Icons.Rounded.Add, AppStrings.get(R.string.control_extend_timer, "延长定时"))
+                        ActionIconButton(AppStrings.get(R.string.control_extend_timer), { select(selected + 1) }, enabled = selected < options.lastIndex && !sending) {
+                            Icon(Icons.Rounded.Add, AppStrings.get(R.string.control_extend_timer))
                         }
                     }
                 }
@@ -152,8 +152,8 @@ fun AcTimerBottomSheet(options: List<Int>, currentMinutes: Int, powerOn: Boolean
             }
         }
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
-            val disableLabel = AppStrings.get(R.string.control_disable_timer, "关闭定时")
-            val confirmLabel = if (minutes == 0) disableLabel else AppStrings.get(R.string.control_set_timer, "设置定时")
+            val disableLabel = AppStrings.get(R.string.control_disable_timer)
+            val confirmLabel = if (minutes == 0) disableLabel else AppStrings.get(R.string.control_set_timer)
             val showDisable = 0 in options && minutes > 0
             val density = LocalDensity.current
             val textMeasurer = rememberTextMeasurer()

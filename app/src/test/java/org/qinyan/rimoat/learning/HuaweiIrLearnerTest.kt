@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.learning
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.hardware.learning.HuaweiIrLearner
 import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.hardware.learning.LearningState
@@ -17,6 +18,8 @@ import org.junit.Test
 import java.util.Collections
 
 class HuaweiIrLearnerTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
 
     class SimulatedHuaweiOemManager {
         var failRead = false

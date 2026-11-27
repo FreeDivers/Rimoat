@@ -49,9 +49,9 @@ class ElkSmartUsbTransmitter(
     override suspend fun transmit(signal: IrSignal): Result<Unit> = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
-                val usb = usbManager ?: error(AppStrings.get(R.string.msg_usb_manager_unavailable, "UsbManager 不可用"))
-                val device = findDevice() ?: error(AppStrings.get(R.string.msg_elksmart_missing, "未找到小蛮腰 USB 设备"))
-                check(usb.hasPermission(device)) { AppStrings.get(R.string.msg_usb_permission_missing, "未获得 USB 设备使用权限") }
+                val usb = usbManager ?: error(AppStrings.get(R.string.msg_usb_manager_unavailable))
+                val device = findDevice() ?: error(AppStrings.get(R.string.msg_elksmart_missing))
+                check(usb.hasPermission(device)) { AppStrings.get(R.string.msg_usb_permission_missing) }
                 val raw = when (signal) {
                     is IrSignal.Raw -> signal.copy(patternMicros = signal.patternMicros.map(::abs).toIntArray())
                     is IrSignal.Nec -> {
@@ -63,18 +63,18 @@ class ElkSmartUsbTransmitter(
                 }
                 // Validate before opening the device, without assuming its firmware subtype.
                 ElkSmartProtocolFormatter.buildPayload(raw.frequencyHz, raw.patternMicros)
-                var lastError: Exception = IOException(AppStrings.get(R.string.msg_usb_endpoints_missing, "未找到匹配的 USB 输入/输出端点"))
+                var lastError: Exception = IOException(AppStrings.get(R.string.msg_usb_endpoints_missing))
                 for (i in 0 until device.interfaceCount) {
                     val intf = device.getInterface(i)
                     for (transferType in listOf(UsbConstants.USB_ENDPOINT_XFER_BULK, UsbConstants.USB_ENDPOINT_XFER_INT)) {
                         for (pair in usbEndpointPairs(intf, transferType)) {
                             val out = pair.outEp
                             val input = pair.inEp
-                            val connection = usb.openDevice(device) ?: throw IOException(AppStrings.get(R.string.msg_elksmart_open_failed, "无法打开小蛮腰 USB 连接"))
+                            val connection = usb.openDevice(device) ?: throw IOException(AppStrings.get(R.string.msg_elksmart_open_failed))
                             var claimed = false
                             try {
                                 claimed = connection.claimInterface(intf, true)
-                                if (!claimed) { lastError = IOException(AppStrings.get(R.string.msg_elksmart_claim_failed, "无法认领小蛮腰 USB 接口")); continue }
+                                if (!claimed) { lastError = IOException(AppStrings.get(R.string.msg_elksmart_claim_failed)); continue }
                                 val session = ElkSmartSession(object : UsbBulkChannel {
                                     override fun read(buffer: ByteArray, timeoutMs: Int) =
                                         connection.bulkTransfer(input, buffer, buffer.size, timeoutMs)

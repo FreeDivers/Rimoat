@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.hardware.serial
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.hardware.IrSignal
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
@@ -8,6 +9,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SerialIrSessionTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private class Port(val toy: Boolean = false) : SerialPortIo {
         val writes = mutableListOf<ByteArray>()
         val replies = ArrayDeque<Byte>()

@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.lifecycle.ViewModelStore
@@ -17,6 +18,8 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SimulationIsolationTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     @Test fun simulatedAcChangesStayTemporaryAndFeedbackBelongsToItsRemote() = runBlocking {
         Dispatchers.setMain(Dispatchers.Unconfined)
         val dir = Files.createTempDirectory("rimoat-demo-").toFile()

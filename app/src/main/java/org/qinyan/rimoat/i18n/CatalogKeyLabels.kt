@@ -16,7 +16,7 @@ fun localizedCatalogKeyLabel(button: RemoteButton, context: Context? = null): St
     if (preset != null) {
         val mode = localizedLabel(preset.groupValues[1], context)
         return context?.getString(R.string.catalog_power_temperature, mode, preset.groupValues[2])
-            ?: AppStrings.get(R.string.catalog_power_temperature, "开机 %1\$s %2\$s°C", mode, preset.groupValues[2])
+            ?: AppStrings.get(R.string.catalog_power_temperature, mode, preset.groupValues[2])
     }
     val byType = catalogAliases[type]?.get(raw)
     if (byType != null) return localizedLabel(byType, context)

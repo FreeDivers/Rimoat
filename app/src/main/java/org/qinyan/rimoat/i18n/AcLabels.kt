@@ -66,18 +66,18 @@ val AcAction.labelRes: Int
         AcAction.CLEAN -> R.string.control_clean
     }
 
-/** Shared JVM fallback; Android presentation always resolves the enum resource. */
+/** Resolve the stable enum identity with the displaying resource configuration. */
 fun localizedLabel(value: AcMode, context: Context? = null): String =
-    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes, value.labelCn)
+    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes)
 
 fun localizedLabel(value: AcFanSpeed, context: Context? = null): String =
-    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes, value.labelCn)
+    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes)
 
 fun localizedLabel(value: AcWindDirection, context: Context? = null): String =
-    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes, value.labelCn)
+    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes)
 
 fun localizedLabel(value: AcTemperatureDisplay, context: Context? = null): String =
-    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes, value.labelCn)
+    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes)
 
 fun localizedLabel(value: AcAction, context: Context? = null): String =
-    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes, value.label)
+    context?.getString(value.labelRes) ?: AppStrings.get(value.labelRes)

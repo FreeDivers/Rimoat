@@ -376,10 +376,10 @@ private fun RemoteControlContent(
         },
         topBar = {
             ExpressiveCompactTopBar(
-                title = remote?.name ?: AppStrings.get(R.string.screen_remote, "遥控器"),
+                title = remote?.name ?: AppStrings.get(R.string.screen_remote),
                 navigationIcon = {
-                    ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back, "返回"))
+                    ActionIconButton(AppStrings.get(R.string.screen_back), onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back))
                     }
                 },
                 actions = {
@@ -447,7 +447,7 @@ private fun RemoteControlContent(
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(onClick = { viewModel.toggleLearningMode() }, shapes = ButtonDefaults.shapes()) {
-                            Text(AppStrings.get(R.string.screen_exit, "退出"), style = MaterialTheme.typography.labelSmall)
+                            Text(AppStrings.get(R.string.screen_exit), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -486,7 +486,7 @@ private fun RemoteControlContent(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isRepositoryLoaded) {
-                        Text(AppStrings.get(R.string.screen_remote_missing, "遥控器未找到"), style = MaterialTheme.typography.bodyLarge)
+                        Text(AppStrings.get(R.string.screen_remote_missing), style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             } else {
@@ -810,7 +810,7 @@ internal fun LazyListScope.tvRemoteItems(
                     ) {
                         if (volUpBtn != null) {
                             RemoteButtonView(
-                                label = AppStrings.get(R.string.screen_volume_up, "音量+"),
+                                label = AppStrings.get(R.string.screen_volume_up),
                                 iconName = "volume_up",
                                 onClick = { onSendButton(volUpBtn) },
                                 enabled = isLearningMode || volUpBtn.hasSignal,
@@ -829,7 +829,7 @@ internal fun LazyListScope.tvRemoteItems(
                         }
                         if (volDownBtn != null) {
                             RemoteButtonView(
-                                label = AppStrings.get(R.string.screen_volume_down, "音量-"),
+                                label = AppStrings.get(R.string.screen_volume_down),
                                 iconName = "volume_down",
                                 onClick = { onSendButton(volDownBtn) },
                                 enabled = isLearningMode || volDownBtn.hasSignal,
@@ -856,7 +856,7 @@ internal fun LazyListScope.tvRemoteItems(
                     ) {
                         if (chUpBtn != null) {
                             RemoteButtonView(
-                                label = AppStrings.get(R.string.screen_channel_up, "频道+"),
+                                label = AppStrings.get(R.string.screen_channel_up),
                                 iconName = "arrow_drop_up",
                                 onClick = { onSendButton(chUpBtn) },
                                 enabled = isLearningMode || chUpBtn.hasSignal,
@@ -875,7 +875,7 @@ internal fun LazyListScope.tvRemoteItems(
                         }
                         if (chDownBtn != null) {
                             RemoteButtonView(
-                                label = AppStrings.get(R.string.screen_channel_down, "频道-"),
+                                label = AppStrings.get(R.string.screen_channel_down),
                                 iconName = "arrow_drop_down",
                                 onClick = { onSendButton(chDownBtn) },
                                 enabled = isLearningMode || chDownBtn.hasSignal,
@@ -904,7 +904,7 @@ internal fun LazyListScope.tvRemoteItems(
         var localNumberPad by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
         val showNumpad = showNumberPad ?: localNumberPad
         // 5. Collapsible Numpad Toggle
-        ActionTooltip(if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers, "收起数字键") else AppStrings.get(R.string.screen_expand_numbers, "展开数字键")) {
+        ActionTooltip(if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers) else AppStrings.get(R.string.screen_expand_numbers)) {
         FilledTonalIconToggleButton(
             checked = showNumpad,
             onCheckedChange = { onNumberPadChange?.invoke(it) ?: run { localNumberPad = it } },
@@ -918,7 +918,7 @@ internal fun LazyListScope.tvRemoteItems(
             shapes = IconButtonDefaults.toggleableShapes()
         ) {
             Icon(if (showNumpad) Icons.Rounded.KeyboardHide else Icons.Rounded.Dialpad,
-                contentDescription = if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers, "收起数字键") else AppStrings.get(R.string.screen_expand_numbers, "展开数字键"), modifier = Modifier.size(24.dp))
+                contentDescription = if (showNumpad) AppStrings.get(R.string.screen_collapse_numbers) else AppStrings.get(R.string.screen_expand_numbers), modifier = Modifier.size(24.dp))
         }
 
         }
@@ -1115,7 +1115,6 @@ fun AcRemoteLayout(
         fanIcon = fanAppearance.icon,
         timerLabel = timerBadge,
         statusSummary = AppStrings.get(R.string.control_ac_status,
-            "%1\$s：%2\$s，%3\$d 摄氏度，模式 %4\$s，风速 %5\$s",
             AppStrings.get(if (isDemonstrating) R.string.control_simulation_setting else R.string.control_target_temp),
             stringResource(if (acState.powerOn) R.string.control_enabled else R.string.control_disabled), acState.temperature,
             stringResource(acState.mode.labelRes), stringResource(acState.fanSpeed.labelRes))
@@ -1143,7 +1142,7 @@ fun AcRemoteLayout(
                         isLearningMode || recorded && available -> null
                         recorded -> stringResource(R.string.control_reason_missing_signal)
                         !available -> AppStrings.get((unavailableReasons[action] ?: AcUnavailableReason.CAPABILITY_UNAVAILABLE).messageResource())
-                        else -> appearance.state?.let { AppStrings.get(R.string.screen_setting_state, "%1\$s：%2\$s", if (isDemonstrating) AppStrings.get(R.string.screen_simulated_setting, "模拟设定") else AppStrings.get(R.string.screen_setting, "设定"), it) }
+                        else -> appearance.state?.let { AppStrings.get(R.string.screen_setting_state, if (isDemonstrating) AppStrings.get(R.string.screen_simulated_setting) else AppStrings.get(R.string.screen_setting), it) }
                     },
                     active = appearance.active.takeUnless { recorded },
                     isToggle = !recorded && appearance.active != null && action != AcAction.TIMER,
@@ -1341,8 +1340,8 @@ internal fun LazyListScope.genericRemoteItems(
 
     if (profile.buttons.isEmpty()) {
         remoteItem("empty_buttons") {
-            Text(AppStrings.get(R.string.screen_no_buttons, "还没有按键"), style = MaterialTheme.typography.titleMedium)
-            Text(AppStrings.get(R.string.screen_learn_custom_hint, "可在自定义遥控器中添加并学习按键。"), style = MaterialTheme.typography.bodyMedium,
+            Text(AppStrings.get(R.string.screen_no_buttons), style = MaterialTheme.typography.titleMedium)
+            Text(AppStrings.get(R.string.screen_learn_custom_hint), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return

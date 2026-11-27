@@ -36,7 +36,7 @@ class UsbSerialTransmitter(context: Context, private val scope: CoroutineScope) 
     val settings = _settings.asStateFlow()
     private val _devices = MutableStateFlow<List<SerialDeviceOption>>(emptyList())
     val devices = _devices.asStateFlow()
-    private val _status = MutableStateFlow(AppStrings.get(R.string.msg_serial_settings_loading, "正在读取串口配置"))
+    private val _status = MutableStateFlow(AppStrings.get(R.string.msg_serial_settings_loading))
     val status = _status.asStateFlow()
     private val _loaded = MutableStateFlow(false)
     val loaded = _loaded.asStateFlow()
@@ -77,20 +77,20 @@ class UsbSerialTransmitter(context: Context, private val scope: CoroutineScope) 
             val selected = selectSerialDevice(config, connected, selectedPath)
             _isReady.value = initialized && !loadFailed && selected?.granted == true
             _status.value = when {
-                !initialized -> AppStrings.get(R.string.msg_serial_settings_loading, "正在读取串口配置")
-                loadFailed -> AppStrings.get(R.string.msg_serial_settings_load_failed, "串口配置读取失败，请重新保存")
-                config.module == SerialIrModule.UNCONFIGURED -> AppStrings.get(R.string.msg_serial_select_module, "请先选择红外模块并绑定 USB 串口")
-                config.vendorId == null -> AppStrings.get(R.string.msg_serial_connect_bind, "%1\$s 已配置，请连接并绑定 USB 串口", (config.module.label).toString())
+                !initialized -> AppStrings.get(R.string.msg_serial_settings_loading)
+                loadFailed -> AppStrings.get(R.string.msg_serial_settings_load_failed)
+                config.module == SerialIrModule.UNCONFIGURED -> AppStrings.get(R.string.msg_serial_select_module)
+                config.vendorId == null -> AppStrings.get(R.string.msg_serial_connect_bind, (config.module.label).toString())
                 selected == null && serialPermissionCandidates(config, connected).isNotEmpty() ->
                     AppStrings.get(R.string.msg_serial_permission_needed)
-                selected == null -> AppStrings.get(R.string.msg_serial_match_missing, "未找到唯一匹配的串口，请连接设备或重新绑定")
-                !selected.granted -> AppStrings.get(R.string.msg_serial_permission_needed, "串口需要 USB 授权")
-                else -> AppStrings.get(R.string.msg_serial_status, "%1\$s · %2\$s bps · 端口 %3\$s", (config.module.label).toString(), (config.baudRate).toString(), (config.portIndex).toString())
+                selected == null -> AppStrings.get(R.string.msg_serial_match_missing)
+                !selected.granted -> AppStrings.get(R.string.msg_serial_permission_needed)
+                else -> AppStrings.get(R.string.msg_serial_status, (config.module.label).toString(), (config.baudRate).toString(), (config.portIndex).toString())
             }
         } catch (e: Exception) {
             _devices.value = emptyList()
             _isReady.value = false
-            _status.value = AppStrings.get(R.string.msg_serial_status_unavailable, "串口状态不可用：%1\$s", (e.message ?: e.javaClass.simpleName))
+            _status.value = AppStrings.get(R.string.msg_serial_status_unavailable, (e.message ?: e.javaClass.simpleName))
         }
     }
 
@@ -99,7 +99,7 @@ class UsbSerialTransmitter(context: Context, private val scope: CoroutineScope) 
             try {
                 config.validate()
                 val device = connectionId?.let { selectedSerialConnection(connectedDevices(), it) }
-                require(device == null || config.portIndex < device.portCount) { AppStrings.get(R.string.msg_serial_port_unavailable, "所选设备没有此串口") }
+                require(device == null || config.portIndex < device.portCount) { AppStrings.get(R.string.msg_serial_port_unavailable) }
                 val bound = when {
                     config.module == SerialIrModule.UNCONFIGURED -> config.copy(vendorId = null, productId = null, serialNumber = null)
                     device != null -> config.copy(vendorId = device.vendorId, productId = device.productId, serialNumber = device.serialNumber)
@@ -122,13 +122,13 @@ class UsbSerialTransmitter(context: Context, private val scope: CoroutineScope) 
                 refreshLocked()
                 check(_isReady.value) { _status.value }
                 val config = _settings.value
-                val selected = selectSerialDevice(config, _devices.value, selectedPath) ?: error(AppStrings.get(R.string.msg_serial_disconnected, "串口已断开"))
-                val usb = usbManager ?: error(AppStrings.get(R.string.msg_usb_manager_unavailable, "UsbManager 不可用"))
-                val device = usb.deviceList[selected.deviceName] ?: error(AppStrings.get(R.string.msg_usb_serial_unplugged, "USB 串口已拔出"))
-                check(usb.hasPermission(device)) { AppStrings.get(R.string.msg_usb_serial_permission_missing, "未获得 USB 串口使用权限") }
-                val driver = UsbUartProtocol.probe(device) ?: error(AppStrings.get(R.string.msg_usb_serial_chip_unsupported, "不支持此 USB 串口芯片"))
-                val port = driver.ports.getOrNull(config.portIndex) ?: error(AppStrings.get(R.string.msg_usb_serial_missing, "USB 串口不存在"))
-                val connection = usb.openDevice(device) ?: error(AppStrings.get(R.string.msg_usb_serial_open_failed, "无法打开 USB 串口"))
+                val selected = selectSerialDevice(config, _devices.value, selectedPath) ?: error(AppStrings.get(R.string.msg_serial_disconnected))
+                val usb = usbManager ?: error(AppStrings.get(R.string.msg_usb_manager_unavailable))
+                val device = usb.deviceList[selected.deviceName] ?: error(AppStrings.get(R.string.msg_usb_serial_unplugged))
+                check(usb.hasPermission(device)) { AppStrings.get(R.string.msg_usb_serial_permission_missing) }
+                val driver = UsbUartProtocol.probe(device) ?: error(AppStrings.get(R.string.msg_usb_serial_chip_unsupported))
+                val port = driver.ports.getOrNull(config.portIndex) ?: error(AppStrings.get(R.string.msg_usb_serial_missing))
+                val connection = usb.openDevice(device) ?: error(AppStrings.get(R.string.msg_usb_serial_open_failed))
                 try {
                     port.open(connection)
                     port.setParameters(config.baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)

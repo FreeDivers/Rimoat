@@ -14,7 +14,7 @@ class NoHardwareLearner(
     private val customErrorMessage: String? = null
 ) : IrLearner {
     val errorMessage: String
-        get() = customErrorMessage ?: AppStrings.get(R.string.msg_learning_hardware_missing, "未检测到红外接收硬件。请插入遥控精灵或小蛮腰 USB 接收器。")
+        get() = customErrorMessage ?: AppStrings.get(R.string.msg_learning_hardware_missing)
 
     fun refreshLanguage() { _state.value = LearningState.Error(errorMessage) }
 

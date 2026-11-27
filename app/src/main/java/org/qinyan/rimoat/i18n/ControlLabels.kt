@@ -6,18 +6,18 @@ import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.ButtonKey
 
 fun localizedTimerDurationLabel(minutes: Int): String = when {
-    minutes == 0 -> AppStrings.get(R.string.control_disable_timer, "关闭定时")
-    minutes < 60 -> AppStrings.quantity(R.plurals.control_minutes, minutes, "%1\$d 分钟", minutes)
+    minutes == 0 -> AppStrings.get(R.string.control_disable_timer)
+    minutes < 60 -> AppStrings.quantity(R.plurals.control_minutes, minutes, minutes)
     minutes % 60 == 0 -> {
         val hours = minutes / 60
-        AppStrings.quantity(R.plurals.control_hours, hours, "%1\$d 小时", hours)
+        AppStrings.quantity(R.plurals.control_hours, hours, hours)
     }
     else -> {
         val hours = minutes / 60
         val remainingMinutes = minutes % 60
-        val hoursText = AppStrings.quantity(R.plurals.control_hours, hours, "%1\$d 小时", hours)
-        val minutesText = AppStrings.quantity(R.plurals.control_minutes, remainingMinutes, "%1\$d 分钟", remainingMinutes)
-        AppStrings.get(R.string.control_hours_minutes, "%1\$s %2\$s", hoursText, minutesText)
+        val hoursText = AppStrings.quantity(R.plurals.control_hours, hours, hours)
+        val minutesText = AppStrings.quantity(R.plurals.control_minutes, remainingMinutes, remainingMinutes)
+        AppStrings.get(R.string.control_hours_minutes, hoursText, minutesText)
     }
 }
 
@@ -259,7 +259,7 @@ private fun builtinLabelResource(raw: String): Int? = when (raw) {
 
 fun localizedLabel(raw: String, context: Context? = null): String {
     val resource = builtinLabelResource(raw) ?: return raw
-    return context?.getString(resource) ?: AppStrings.get(resource, raw)
+    return context?.getString(resource) ?: AppStrings.get(resource)
 }
 
 /** A user-created or learned button keeps its chosen label, even if it resembles a built-in one. */
@@ -269,13 +269,13 @@ fun localizedButtonLabel(button: RemoteButton, context: Context? = null): String
         if (key == null) localizedLabel(button.builtinLabel, context)
         else {
             val resource = defaultLearningLabelRes(key, button.acAction)
-            context?.getString(resource) ?: AppStrings.get(resource, button.label)
+            context?.getString(resource) ?: AppStrings.get(resource)
         }
     }
     button.isLearned && button.sourceKeyType == null && !button.id.startsWith("ac_function_") -> button.label
     button.acAction != null && button.label == button.acAction.name -> {
         val resource = button.acAction.labelRes
-        context?.getString(resource) ?: AppStrings.get(resource, button.label)
+        context?.getString(resource) ?: AppStrings.get(resource)
     }
     button.acAction != null || button.id.startsWith("ac_function_") -> localizedLabel(button.label, context)
     button.sourceKeyType != null -> localizedCatalogKeyLabel(button, context) ?: localizedLabel(button.label, context)
@@ -287,5 +287,5 @@ fun localizedAcRawButtonLabel(button: RemoteButton, context: Context? = null): S
     val label = localizedButtonLabel(button, context)
     if (!button.isLearned) return label
     return context?.getString(R.string.control_learned_button_name, label)
-        ?: AppStrings.get(R.string.control_learned_button_name, "已学习：%1\$s", label)
+        ?: AppStrings.get(R.string.control_learned_button_name, label)
 }

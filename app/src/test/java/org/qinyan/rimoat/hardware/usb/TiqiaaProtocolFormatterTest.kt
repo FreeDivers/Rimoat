@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.hardware.usb
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
@@ -7,6 +8,8 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Test
 
 class TiqiaaProtocolFormatterTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
 
     @Test fun usesNativeCarrierTableInsteadOfAlwaysSelecting38kHz() {
         // Carrier-table entries must map back to their protocol indices.

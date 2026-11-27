@@ -1,11 +1,14 @@
 package org.qinyan.rimoat.hardware.serial
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.hardware.IrProtocolEncoder
 import org.qinyan.rimoat.hardware.IrSignal
 import org.junit.Assert.*
 import org.junit.Test
 
 class UsbUartProtocolTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private fun bytes(vararg values: Int) = values.map { it.toByte() }.toByteArray()
     @Test fun ysIrtmHonorsExplicitNecAddressFormat() {
         val extended = IrSignal.Nec(0x00FE, 0x45, extended = true)

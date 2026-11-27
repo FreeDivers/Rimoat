@@ -310,19 +310,19 @@ class IrTransmitterManager(
             // channel; a send must never use the previous route in that window.
             val transmitter = resolveActiveTransmitter()
             if (expectedType != null && transmitter.type != expectedType) {
-                val error = IllegalStateException(AppStrings.get(R.string.msg_transmitter_changed, "发射通道已变化，请重新操作"))
+                val error = IllegalStateException(AppStrings.get(R.string.msg_transmitter_changed))
                 signals.firstOrNull()?.let { _lastTransmitLog.value = TransmitLog(
                     transmitterType = transmitter.type, signal = it, isSuccess = false,
                     errorMessage = error.message, ownerId = ownerId,
                     failureReason = TransmitFailureReason.TRANSMITTER_CHANGED) }
                 return@withLock Result.failure(error)
             }
-            if (signals.isEmpty()) return@withLock Result.failure(IllegalArgumentException(AppStrings.get(R.string.msg_no_signals, "没有可发送的信号")))
+            if (signals.isEmpty()) return@withLock Result.failure(IllegalArgumentException(AppStrings.get(R.string.msg_no_signals)))
             val usesUsb = transmitter.type in setOf(TransmitterType.USB, TransmitterType.USB_TIQIAA,
                 TransmitterType.USB_ELKSMART, TransmitterType.USB_SERIAL)
             if (usesUsb) UsbSessionAccess.awaitCancelledLearning()
             if (usesUsb && !UsbSessionAccess.mutex.tryLock()) {
-                val error = IllegalStateException(AppStrings.get(R.string.msg_usb_learning_active, "USB 正在学习，请完成或取消后再发射"))
+                val error = IllegalStateException(AppStrings.get(R.string.msg_usb_learning_active))
                 signals.firstOrNull()?.let { _lastTransmitLog.value = TransmitLog(
                     transmitterType = transmitter.type, signal = it, isSuccess = false,
                     errorMessage = error.message, ownerId = ownerId,

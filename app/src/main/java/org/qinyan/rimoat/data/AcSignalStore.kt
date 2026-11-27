@@ -176,7 +176,7 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
         try {
             opened.rawQuery("PRAGMA quick_check", null).use { cursor ->
                 check(cursor.moveToFirst() && cursor.getString(0) == "ok") {
-                    AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试")
+                    AppStrings.get(R.string.msg_ac_install_failed)
                 }
             }
             opened.rawQuery(
@@ -184,12 +184,12 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
                 null
             ).use { cursor ->
                 check(cursor.moveToFirst() && cursor.getInt(0) == 3) {
-                    AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试")
+                    AppStrings.get(R.string.msg_ac_install_failed)
                 }
             }
             opened.rawQuery("SELECT value FROM metadata WHERE key='version'", null).use { cursor ->
                 check(cursor.moveToFirst() && !cursor.getString(0).isNullOrBlank()) {
-                    AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试")
+                    AppStrings.get(R.string.msg_ac_install_failed)
                 }
             }
             return opened
@@ -202,7 +202,7 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
     private fun replaceAtomically(temporary: File, target: File) {
         if (Build.VERSION.SDK_INT in 1..25) {
             check(temporary.renameTo(target)) {
-                AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试")
+                AppStrings.get(R.string.msg_ac_install_failed)
             }
         } else {
             // File.renameTo does not overwrite existing files on Windows JVM tests.
@@ -215,7 +215,7 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
                 )
             } catch (e: Exception) {
                 throw IllegalStateException(
-                    AppStrings.get(R.string.msg_ac_install_failed, "空调码库安装失败，请重试"),
+                    AppStrings.get(R.string.msg_ac_install_failed),
                     e
                 )
             }
@@ -262,7 +262,7 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
 
     override suspend fun supportedModes(protocol: Int): List<AcMode> =
         checkNotNull(parsedIndex.modes[protocol]) {
-            AppStrings.get(R.string.msg_ac_protocol_missing, "未找到空调协议")
+            AppStrings.get(R.string.msg_ac_protocol_missing)
         }
 
     /** ARM encodes directly; fallback frames stay packaged and are extracted only when needed. */
@@ -303,8 +303,8 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
     }
 
     override suspend fun encode(protocol: Int, settings: AcSettings, action: AcAction): List<IrSignal.Raw> {
-        check(action in availableActionsSync(protocol)) { AppStrings.get(R.string.msg_ac_function_missing, "该机型的码库未提供此功能，可学习原遥控器按键") }
-        require(action != AcAction.TIMER || AcTimerOptions.supports(protocol, settings)) { AppStrings.get(R.string.msg_timer_unsupported, "该方案不支持此定时时长") }
+        check(action in availableActionsSync(protocol)) { AppStrings.get(R.string.msg_ac_function_missing) }
+        require(action != AcAction.TIMER || AcTimerOptions.supports(protocol, settings)) { AppStrings.get(R.string.msg_timer_unsupported) }
         val cacheKey = FrameCacheKey(protocol, settings, action)
         synchronized(encodedFramesCache) { encodedFramesCache[cacheKey] }?.let { cached ->
             if (cached.isNotEmpty()) return cloneFrames(cached)
@@ -312,17 +312,17 @@ class AcSignalStore(private val context: Context) : AcSignalEncoder {
         return withContext(Dispatchers.IO) {
             if (NativeAcEncoder.available) {
                 val frames = nativeFrames(protocol, settings, action)
-                check(frames.isNotEmpty()) { AppStrings.get(R.string.msg_ac_state_unsupported, "该机型不支持此功能或状态") }
+                check(frames.isNotEmpty()) { AppStrings.get(R.string.msg_ac_state_unsupported) }
                 synchronized(encodedFramesCache) { encodedFramesCache[cacheKey] = frames }
                 return@withContext cloneFrames(frames)
             }
-            check(settings.isLegacyState() && action.ordinal <= AcAction.SWING.ordinal) { AppStrings.get(R.string.msg_ac_full_encoder_required, "此设备需要完整空调编码器") }
+            check(settings.isLegacyState() && action.ordinal <= AcAction.SWING.ordinal) { AppStrings.get(R.string.msg_ac_full_encoder_required) }
             val database = db()
             fun frame(key: Int): IrSignal.Raw = database.rawQuery(
                 "SELECT frequency, pattern FROM states JOIN frames ON frames.id=frame_id WHERE protocol_id=? AND state_key=?",
                 arrayOf("$protocol", "$key")
             ).use { cursor ->
-                check(cursor.moveToFirst()) { AppStrings.get(R.string.msg_ac_choose_other_state, "该机型不支持此状态，请选择其它温度或模式") }
+                check(cursor.moveToFirst()) { AppStrings.get(R.string.msg_ac_choose_other_state) }
                 val bytes = InflaterInputStream(ByteArrayInputStream(cursor.getBlob(1))).use { it.readBytes() }
                 require(bytes.isNotEmpty() && bytes.size % 4 == 0 && bytes.size <= 3200)
                 val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)

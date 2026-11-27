@@ -35,6 +35,7 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CustomRemoteWizardViewModelTest {
+    @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
 
     private val testDispatcher = StandardTestDispatcher()
     private val stores = ViewModelStore()

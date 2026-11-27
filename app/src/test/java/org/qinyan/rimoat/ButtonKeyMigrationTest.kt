@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
@@ -12,6 +13,7 @@ import org.qinyan.rimoat.widget.WidgetKind
 import org.qinyan.rimoat.widget.WidgetShortcut
 
 class ButtonKeyMigrationTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private fun migrate(vararg buttons: RemoteButton) = LegacyRemoteMigration.normalizeKeys(
         RemoteProfile("remote", "Remote", updatedAt = 1L, buttons = buttons.toList()))

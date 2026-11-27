@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.learning
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.Context
 import org.qinyan.rimoat.hardware.HardwareEnvironment
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
@@ -29,6 +30,8 @@ import java.lang.reflect.Proxy
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class IrLearnerManagerTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
 
     @Test
     fun defaultScopeKeepsLearningStateUpdatesAfterChildFailure() = runBlocking<Unit> {

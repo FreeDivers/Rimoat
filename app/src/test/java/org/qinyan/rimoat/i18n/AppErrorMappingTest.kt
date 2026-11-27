@@ -14,6 +14,7 @@ import java.io.IOException
 import java.util.concurrent.TimeoutException
 
 class AppErrorMappingTest {
+    @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
 
     @Test
     fun ioExceptionWithEnospcMapsToStorageFullAndSettingsAction() {

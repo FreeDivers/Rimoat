@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.lifecycle.ViewModelStore
@@ -69,6 +70,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PerfAndReliabilityRegressionTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
 
     private val testDispatcher = StandardTestDispatcher()
     private val stores = ViewModelStore()

@@ -37,11 +37,11 @@ internal class SerialIrSession(private val port: SerialPortIo) {
             if (offset == size) break
             val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1).toInt()
             val count = port.read(readBuffer, minOf(remainingMs, 100))
-            if (count < 0 || count > readBuffer.size) throw IOException(AppStrings.get(R.string.msg_serial_read_failed, "串口读取失败，设备可能已拔出"))
+            if (count < 0 || count > readBuffer.size) throw IOException(AppStrings.get(R.string.msg_serial_read_failed))
             if (count == 0) { delay(1); continue }
             for (i in 0 until count) pendingInput.addLast(readBuffer[i])
         }
-        if (offset != size) throw IOException(AppStrings.get(R.string.msg_serial_response_timeout, "红外模块应答超时，请检查模块、波特率和连接"))
+        if (offset != size) throw IOException(AppStrings.get(R.string.msg_serial_response_timeout))
         return result
     }
 
@@ -51,7 +51,7 @@ internal class SerialIrSession(private val port: SerialPortIo) {
             currentCoroutineContext().ensureActive()
             if (port.read(readBuffer, 10) <= 0) return
         }
-        throw IOException(AppStrings.get(R.string.msg_serial_unknown_data, "串口持续收到未知数据，请检查模块配置"))
+        throw IOException(AppStrings.get(R.string.msg_serial_unknown_data))
     }
 
     private suspend fun readYsIrtmAck(timeoutMs: Int = 1500, maxUnexpectedBytes: Int = 12) {
@@ -63,14 +63,14 @@ internal class SerialIrSession(private val port: SerialPortIo) {
                 if (pendingInput.removeFirst() == 0xF1.toByte()) return
                 unexpected++
                 if (unexpected > maxUnexpectedBytes) {
-                    throw IOException(AppStrings.get(R.string.msg_ysirtm_no_ack, "YS-IRTM 未确认发送，模块应答无效"))
+                    throw IOException(AppStrings.get(R.string.msg_ysirtm_no_ack))
                 }
             }
             if (System.nanoTime() >= deadline) break
             val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1).toInt()
             val count = port.read(readBuffer, minOf(remainingMs, 100))
             if (count < 0 || count > readBuffer.size) {
-                throw IOException(AppStrings.get(R.string.msg_serial_read_failed, "串口读取失败，设备可能已拔出"))
+                throw IOException(AppStrings.get(R.string.msg_serial_read_failed))
             }
             if (count == 0) {
                 delay(1)
@@ -79,8 +79,8 @@ internal class SerialIrSession(private val port: SerialPortIo) {
             for (i in 0 until count) pendingInput.addLast(readBuffer[i])
         }
         throw IOException(
-            if (unexpected > 0) AppStrings.get(R.string.msg_ysirtm_no_ack, "YS-IRTM 未确认发送，模块应答无效")
-            else AppStrings.get(R.string.msg_serial_response_timeout, "红外模块应答超时，请检查模块、波特率和连接")
+            if (unexpected > 0) AppStrings.get(R.string.msg_ysirtm_no_ack)
+            else AppStrings.get(R.string.msg_serial_response_timeout)
         )
     }
 
@@ -98,11 +98,11 @@ internal class SerialIrSession(private val port: SerialPortIo) {
             SerialIrModule.IR_TOY -> transmitIrToy(when (signal) {
                 is IrSignal.Raw -> signal
                 is IrSignal.Nec -> {
-                    require(signal.address in 0..65535 && signal.command in 0..255) { AppStrings.get(R.string.msg_nec_parameters_invalid, "NEC 参数无效") }
+                    require(signal.address in 0..65535 && signal.command in 0..255) { AppStrings.get(R.string.msg_nec_parameters_invalid) }
                     IrProtocolEncoder.encodeNec(signal)
                 }
             })
-            SerialIrModule.UNCONFIGURED -> error(AppStrings.get(R.string.msg_configure_serial_first, "请先配置串口红外模块"))
+            SerialIrModule.UNCONFIGURED -> error(AppStrings.get(R.string.msg_configure_serial_first))
         }
     }
 
@@ -116,7 +116,7 @@ internal class SerialIrSession(private val port: SerialPortIo) {
         resetToy()
         write(byteArrayOf('S'.code.toByte()))
         val protocol = readExact(3).toString(Charsets.US_ASCII)
-        if (protocol != "S01") throw IOException(AppStrings.get(R.string.msg_irtoy_protocol_unsupported, "IR Toy 采样协议不受支持：%1\$s", (protocol).toString()))
+        if (protocol != "S01") throw IOException(AppStrings.get(R.string.msg_irtoy_protocol_unsupported, (protocol).toString()))
     }
 
     private suspend fun transmitIrToy(signal: IrSignal.Raw) {
@@ -125,7 +125,7 @@ internal class SerialIrSession(private val port: SerialPortIo) {
         write(byteArrayOf('v'.code.toByte()))
         val version = readExact(4).toString(Charsets.US_ASCII)
         if (!version.matches(Regex("V2[0-9]{2}")) || version.substring(2).toInt() < 22) {
-            throw IOException(AppStrings.get(R.string.msg_irtoy_firmware_required, "需要 USB IR Toy v2、固件 22 或更高版本，收到：%1\$s", (version).toString()))
+            throw IOException(AppStrings.get(R.string.msg_irtoy_firmware_required, (version).toString()))
         }
         var streaming = false
         try {
@@ -136,7 +136,7 @@ internal class SerialIrSession(private val port: SerialPortIo) {
             var capacity = readExact(1)[0].toInt() and 255
             var offset = 0
             while (offset < payload.size) {
-                if (capacity !in 2..62) throw IOException(AppStrings.get(R.string.msg_irtoy_buffer_invalid, "IR Toy 缓冲区应答无效"))
+                if (capacity !in 2..62) throw IOException(AppStrings.get(R.string.msg_irtoy_buffer_invalid))
                 val length = minOf(32, capacity and 0xFE, payload.size - offset)
                 write(payload.copyOfRange(offset, offset + length))
                 offset += length
@@ -146,7 +146,7 @@ internal class SerialIrSession(private val port: SerialPortIo) {
             streaming = false
             val count = ((report[1].toInt() and 255) shl 8) or (report[2].toInt() and 255)
             if (report[0] != 't'.code.toByte() || count != payload.size || report[3] !in byteArrayOf(0x43, 0x63)) {
-                throw IOException(AppStrings.get(R.string.msg_irtoy_send_incomplete, "IR Toy 未确认完整发送（%1\$s/%2\$s 字节）", (count).toString(), (payload.size).toString()))
+                throw IOException(AppStrings.get(R.string.msg_irtoy_send_incomplete, (count).toString(), (payload.size).toString()))
             }
             samplingMode()
         } catch (failure: Exception) {

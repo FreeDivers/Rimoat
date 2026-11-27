@@ -24,7 +24,7 @@ internal class ElkSmartSession(private val channel: UsbBulkChannel) {
         }
         currentCoroutineContext().ensureActive()
         val probe = ElkSmartProtocolFormatter.HANDSHAKE_PROBE
-        if (channel.write(probe, 200) != probe.size) throw IOException(AppStrings.get(R.string.msg_elksmart_probe_incomplete, "小蛮腰识别请求未完整写入"))
+        if (channel.write(probe, 200) != probe.size) throw IOException(AppStrings.get(R.string.msg_elksmart_probe_incomplete))
         val response = java.io.ByteArrayOutputStream()
         repeat(3) {
             currentCoroutineContext().ensureActive()
@@ -33,17 +33,17 @@ internal class ElkSmartSession(private val channel: UsbBulkChannel) {
                 require(count <= buffer.size)
                 response.write(buffer, 0, count)
                 if (response.size() >= 6) return ElkSmartProtocolFormatter.identify(response.toByteArray())
-                    ?: throw IOException(AppStrings.get(R.string.msg_elksmart_model_unknown, "小蛮腰返回了未知型号，未发送红外数据"))
+                    ?: throw IOException(AppStrings.get(R.string.msg_elksmart_model_unknown))
             }
         }
-        throw IOException(AppStrings.get(R.string.msg_elksmart_probe_timeout, "小蛮腰识别超时，请重新插入设备"))
+        throw IOException(AppStrings.get(R.string.msg_elksmart_probe_timeout))
     }
 
     suspend fun transmit(signal: IrSignal.Raw, subtype: ElkSmartProtocolFormatter.Subtype) {
         for (packet in ElkSmartProtocolFormatter.encode(signal.frequencyHz, signal.patternMicros, subtype)) {
             currentCoroutineContext().ensureActive()
             // A partial packet cannot be retried as a new frame: its checksum boundary would change.
-            if (channel.write(packet, 1000) != packet.size) throw IOException(AppStrings.get(R.string.msg_elksmart_write_incomplete, "小蛮腰数据包写入不完整，发送已停止"))
+            if (channel.write(packet, 1000) != packet.size) throw IOException(AppStrings.get(R.string.msg_elksmart_write_incomplete))
             delay(2)
         }
         delay(ElkSmartProtocolFormatter.calculatePostTransmitDelayMs(signal.patternMicros))

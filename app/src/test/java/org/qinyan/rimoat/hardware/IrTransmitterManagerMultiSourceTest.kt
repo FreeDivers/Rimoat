@@ -35,6 +35,9 @@ import org.robolectric.shadow.api.Shadow
 @Config(sdk = [35], application = Application::class, shadows = [FakeConsumerIrManager::class])
 @OptIn(ExperimentalCoroutinesApi::class)
 class IrTransmitterManagerMultiSourceTest {
+    @org.junit.Before
+    fun initializeStrings() = org.qinyan.rimoat.i18n.AppStrings.initialize(RuntimeEnvironment.getApplication())
+
 
     @Test
     fun defaultScopeKeepsRoutingStateUpdatesAfterChildFailure() = runBlocking<Unit> {

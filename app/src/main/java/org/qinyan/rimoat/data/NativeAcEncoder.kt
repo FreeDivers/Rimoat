@@ -16,7 +16,7 @@ internal object NativeAcEncoder {
     private external fun encodeFrame(protocol: Int, key: Int, counter: Int, timer: Int, state: ByteArray): IntArray?
 
     fun encode(protocol: Int, settings: AcSettings, action: AcAction, counter: Int = settings.counter): IrSignal.Raw? {
-        check(available) { AppStrings.get(R.string.msg_ac_encoder_unavailable, "此设备无法加载完整空调编码器") }
+        check(available) { AppStrings.get(R.string.msg_ac_encoder_unavailable) }
         val original = encodeFrame(protocol, action.keyType, counter, settings.timerMinutes, settings.nativeState()) ?: return null
         val frame = if (protocol == 670 && action == AcAction.TIMER)
             SkyworthTimer670.restoreHours(original, settings.timerMinutes) else original

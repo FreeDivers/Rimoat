@@ -1,10 +1,13 @@
 package org.qinyan.rimoat.hardware.audio
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AudioPcmBuilderTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
 
     @Test
     fun testAudioPcmStereoAntiPhase() {

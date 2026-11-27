@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
@@ -18,6 +19,8 @@ import androidx.lifecycle.ViewModelStore
 import java.nio.file.Files
 
 class ButtonParityTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private fun stock(id: String = "old", key: Int = 834, label: String = "左右扫风") =
         RemoteButton(id, label, rawPattern = listOf(9000,4500,500,500), sourceKeyType = key)
 

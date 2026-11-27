@@ -145,7 +145,7 @@ fun RemoteButtonView(
         .clearAndSetSemantics {
             role = Role.Button
             if (!enabled && onUnavailable == null) disabled()
-            contentDescription = if (isLearningMode) AppStrings.get(R.string.control_learn, "学习%1\$s", accessibilityLabel) else accessibilityLabel
+            contentDescription = if (isLearningMode) AppStrings.get(R.string.control_learn, accessibilityLabel) else accessibilityLabel
             if (enabled) onClick {
                 clickHaptic()
                 if (isLearningMode && onLongClick != null) onLongClick() else onClick()
@@ -164,11 +164,11 @@ fun RemoteButtonView(
                 if (currentState == null) stateDescription = AppStrings.get(if (active) R.string.control_set_on else R.string.control_set_off)
             }
             if (enabled && !isLearningMode && onSelectState != null) {
-                onLongClick(AppStrings.get(R.string.control_select, "选择%1\$s", accessibilityLabel)) { onSelectState(); true }
+                onLongClick(AppStrings.get(R.string.control_select, accessibilityLabel)) { onSelectState(); true }
             }
             if (enabled && !isLearningMode && onRepeat != null) {
                 customActions = listOf(CustomAccessibilityAction(
-                    AppStrings.get(R.string.control_repeat_action, "短时连发%1\$s", accessibilityLabel)
+                    AppStrings.get(R.string.control_repeat_action, accessibilityLabel)
                 ) { accessibilityRepeat() })
             }
         }
@@ -212,7 +212,7 @@ fun RemoteButtonView(
             val compact = LocalCompactRemoteButtons.current
             val labelTopPadding = if (compact) 4.dp else 8.dp
             if (showSelectionEntry && onSelectState != null && enabled && !isLearningMode) {
-                val selectionLabel = AppStrings.get(R.string.control_select_current, "%1\$s，选择%2\$s", label, accessibilityLabel)
+                val selectionLabel = AppStrings.get(R.string.control_select_current, label, accessibilityLabel)
                 Box(
                     modifier = Modifier
                         .padding(top = labelTopPadding)
@@ -288,13 +288,13 @@ fun RemoteIconButton(
         clickHaptic()
         if (isLearningMode) onLearn?.invoke() else onClick()
     }
-    val spokenLabel = if (isLearningMode) AppStrings.get(R.string.control_learn, "学习%1\$s", label) else label
+    val spokenLabel = if (isLearningMode) AppStrings.get(R.string.control_learn, label) else label
     val accessibleModifier = modifier.then(clickHaptic.modifier).size(56.dp).clearAndSetSemantics {
         contentDescription = spokenLabel
         role = Role.Button
         if (enabled) onClick { click(); true } else disabled()
     }
-    ActionTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn, "学习%1\$s", label) else label) {
+    ActionTooltip(if (isLearningMode) AppStrings.get(R.string.control_learn, label) else label) {
     if (isLearningMode) OutlinedIconButton(onClick = click, enabled = enabled, modifier = accessibleModifier, shape = pressShape, interactionSource = interactionSource) {
         Icon(icon, contentDescription = null)
     } else FilledTonalIconButton(onClick = click, enabled = enabled, modifier = accessibleModifier, shape = pressShape, interactionSource = interactionSource) {

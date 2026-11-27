@@ -55,10 +55,10 @@ fun SerialIrSettingsDialog(manager: IrTransmitterManager, onDismiss: () -> Unit)
         MotionAlertDialog(
             onDismissRequest = onDismiss,
             containerColor = ExpressiveSurface.canvas,
-            title = { Text(AppStrings.get(R.string.control_serial_config, "串口模块配置")) },
+            title = { Text(AppStrings.get(R.string.control_serial_config)) },
             text = { LinearWavyProgressIndicator(Modifier.fillMaxWidth()) },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onDismiss, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_cancel, "取消")) } }
+            dismissButton = { TextButton(onClick = onDismiss, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_cancel)) } }
         )
         return
     }
@@ -97,7 +97,7 @@ internal fun SerialIrSettingsForm(
         modifier = if (wide) modifier.fillMaxWidth(.96f).widthIn(max = 960.dp) else modifier,
         containerColor = ExpressiveSurface.canvas,
         properties = DialogProperties(usePlatformDefaultWidth = !wide),
-        title = { Text(AppStrings.get(R.string.control_serial_config, "串口模块配置")) },
+        title = { Text(AppStrings.get(R.string.control_serial_config)) },
         text = {
             ProvideExpressiveCanvas {
                 val moduleEntries = SerialIrModule.entries
@@ -127,12 +127,12 @@ internal fun SerialIrSettingsForm(
                         val hasDevices = devices.isNotEmpty()
                         val selectorInteractive = hasDevices && !saving
                         val deviceLabel = selectedDevice?.label ?: if (selectionMissing) selectedLabel
-                            else if (saved.vendorId == null) AppStrings.get(R.string.control_select_serial, "选择 USB 串口")
-                            else AppStrings.get(R.string.control_keep_serial, "保留已绑定的 USB 串口")
+                            else if (saved.vendorId == null) AppStrings.get(R.string.control_select_serial)
+                            else AppStrings.get(R.string.control_keep_serial)
                         val deviceSupport = when {
-                            selectionMissing -> AppStrings.get(R.string.control_select_again, "连接已断开，请重新选择")
-                            !hasDevices -> AppStrings.get(R.string.control_no_serial_usb, "未连接 USB 串口")
-                            selectedDevice != null -> AppStrings.get(R.string.control_port_count, "%1\$d 个串口", selectedDevice.portCount)
+                            selectionMissing -> AppStrings.get(R.string.control_select_again)
+                            !hasDevices -> AppStrings.get(R.string.control_no_serial_usb)
+                            selectedDevice != null -> AppStrings.get(R.string.control_port_count, selectedDevice.portCount)
                             else -> null
                         }
                         Box(Modifier.fillMaxWidth()) {
@@ -203,7 +203,7 @@ internal fun SerialIrSettingsForm(
                                         text = { Text(device.label) },
                                         supportingText = {
                                             Column {
-                                                Text(AppStrings.get(R.string.control_port_count, "%1\$d 个串口", device.portCount))
+                                                Text(AppStrings.get(R.string.control_port_count, device.portCount))
                                                 if (devices.count { it.label == device.label } > 1) {
                                                     Text(device.deviceName)
                                                 }
@@ -224,14 +224,14 @@ internal fun SerialIrSettingsForm(
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                                 shapes = ButtonDefaults.shapes()
                             ) {
-                                Text(AppStrings.get(R.string.control_authorize_usb, "授权所选 USB 设备"))
+                                Text(AppStrings.get(R.string.control_authorize_usb))
                             }
                         }
                         ExpressiveTextField(
                             value = port,
                             onValueChange = { port = it; error = null },
-                            label = { Text(AppStrings.get(R.string.control_port_index, "串口序号")) },
-                            supportingText = { Text(AppStrings.get(R.string.control_zero_based, "从 0 开始")) },
+                            label = { Text(AppStrings.get(R.string.control_port_index)) },
+                            supportingText = { Text(AppStrings.get(R.string.control_zero_based)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !saving,
@@ -242,7 +242,7 @@ internal fun SerialIrSettingsForm(
                         ExpressiveTextField(
                             value = baud,
                             onValueChange = { baud = it; error = null },
-                            label = { Text(AppStrings.get(R.string.control_baud_rate, "波特率")) },
+                            label = { Text(AppStrings.get(R.string.control_baud_rate)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !saving,
@@ -251,8 +251,8 @@ internal fun SerialIrSettingsForm(
                         ExpressiveTextField(
                             value = address,
                             onValueChange = { address = it; error = null },
-                            label = { Text(AppStrings.get(R.string.control_module_address, "模块地址")) },
-                            supportingText = { Text(AppStrings.get(R.string.control_hexadecimal, "十六进制")) },
+                            label = { Text(AppStrings.get(R.string.control_module_address)) },
+                            supportingText = { Text(AppStrings.get(R.string.control_hexadecimal)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !saving
@@ -260,7 +260,7 @@ internal fun SerialIrSettingsForm(
                     }
                     SerialFormSection(visible = module == SerialIrModule.IR_TOY, topPadding = 12.dp) {
                         Text(
-                            AppStrings.get(R.string.control_firmware, "固件 ≥ 22\n115200 / 8N1"),
+                            AppStrings.get(R.string.control_firmware),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(horizontal = 4.dp)
@@ -331,11 +331,11 @@ internal fun SerialIrSettingsForm(
                 }
             }, shapes = ButtonDefaults.shapes()) {
                 StateFade(saving) { active ->
-                    Text(if (active) AppStrings.get(R.string.control_saving, "保存中…") else AppStrings.get(R.string.control_save, "保存"))
+                    Text(if (active) AppStrings.get(R.string.control_saving) else AppStrings.get(R.string.control_save))
                 }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_cancel, "取消")) } }
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.control_cancel)) } }
     )
 }
 

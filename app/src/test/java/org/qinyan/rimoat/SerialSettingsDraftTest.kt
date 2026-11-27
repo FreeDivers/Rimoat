@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.hardware.serial.SerialIrModule
 import org.qinyan.rimoat.hardware.serial.SerialIrSettings
 import org.qinyan.rimoat.ui.components.serialSettingsFromDraft
@@ -8,6 +9,8 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class SerialSettingsDraftTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     @Test fun unconfiguredDiscardsHiddenInvalidInputsAndBinding() {
         val saved = SerialIrSettings(module = SerialIrModule.IR_TOY, baudRate = 115200,
             vendorId = 123, productId = 456)

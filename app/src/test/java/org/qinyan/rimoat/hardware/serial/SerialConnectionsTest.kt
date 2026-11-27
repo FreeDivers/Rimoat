@@ -1,9 +1,12 @@
 package org.qinyan.rimoat.hardware.serial
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.junit.Assert.*
 import org.junit.Test
 
 class SerialConnectionsTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private val device = SerialDeviceOption("/dev/bus/usb/001/002", "USB 串口", 0x1A86, 0x7523, 2, false, null)
 
     @Test fun refreshAndAuthorizationKeepTheSelectedConnection() {

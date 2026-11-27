@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.lifecycle.SavedStateHandle
@@ -19,6 +20,7 @@ import java.nio.file.Files
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PairingProgressTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
     private class Catalog : IrCatalog {
         val category = IrCategory(1, "电视", "TV", "tv")
         val brands = listOf(IrBrand(1, "A", "A", "a", 3), IrBrand(2, "B", "B", "b", 3))

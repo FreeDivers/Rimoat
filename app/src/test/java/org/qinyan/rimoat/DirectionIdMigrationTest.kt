@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.ContextWrapper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,8 @@ import org.qinyan.rimoat.widget.WidgetStore
 import java.io.File
 
 class DirectionIdMigrationTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     @get:Rule val temp = TemporaryFolder()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = true }
 

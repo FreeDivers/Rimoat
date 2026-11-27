@@ -7,6 +7,7 @@ import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.i18n.localizedCatalogKeyLabel
 
 class CatalogKeyLabelsTest {
+    @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
     private fun button(type: Int, label: String) = RemoteButton("catalog-$type", label, sourceKeyType = type)
 
     @Test fun legacyDigitsAndDirectionAliasesKeepMeaning() {

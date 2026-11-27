@@ -33,6 +33,9 @@ import java.nio.file.Files
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class StateRecoveryRegressionTest {
+    @org.junit.Before
+    fun initializeStrings() = org.qinyan.rimoat.i18n.AppStrings.initialize(RuntimeEnvironment.getApplication())
+
     @Test fun widgetErrorsApplyOnlyWhenNoUsableProfileExists() {
         val error = UiText.Resource(R.string.widget_config_read_failed)
         val empty = WidgetSnapshot(loaded = true).withRepositoryError(error)

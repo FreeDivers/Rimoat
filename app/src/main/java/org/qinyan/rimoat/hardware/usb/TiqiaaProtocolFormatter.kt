@@ -20,7 +20,7 @@ object TiqiaaProtocolFormatter {
     )
 
     fun carrierIndex(frequencyHz: Int): Int {
-        require(frequencyHz in 33000..45000) { AppStrings.get(R.string.msg_tview_carrier_range, "Tview 支持的载波范围为 33–45 kHz") }
+        require(frequencyHz in 33000..45000) { AppStrings.get(R.string.msg_tview_carrier_range) }
         return carrierFrequencies.indices.minBy { kotlin.math.abs(carrierFrequencies[it] - frequencyHz) }
     }
 
@@ -59,7 +59,7 @@ object TiqiaaProtocolFormatter {
         val carrier = carrierIndex(frequencyHz)
         val pulses = patternMicros.map { kotlin.math.abs(it.toLong()) }
         require(pulses.isNotEmpty() && pulses.all { it > 0 } && pulses.sum() < 2_000_000) {
-            AppStrings.get(R.string.msg_ir_pulses_empty_zero_long, "红外脉冲不能为空、包含零或超过 2 秒")
+            AppStrings.get(R.string.msg_ir_pulses_empty_zero_long)
         }
         val out = ArrayList<Byte>()
         out.add('S'.code.toByte())
@@ -77,7 +77,7 @@ object TiqiaaProtocolFormatter {
                 val take = minOf(127, units)
                 val byteVal = if (isMark) (0x80 or take) else take
                 out.add(byteVal.toByte())
-                require(out.size + 2 <= MAX_APPLICATION_FRAME) { AppStrings.get(R.string.msg_tview_frame_long, "Tview 红外帧超过 1024 字节") }
+                require(out.size + 2 <= MAX_APPLICATION_FRAME) { AppStrings.get(R.string.msg_tview_frame_long) }
                 units -= take
             }
             isMark = !isMark
@@ -94,7 +94,7 @@ object TiqiaaProtocolFormatter {
      */
     fun wrapInEnvelope(payload: ByteArray, envelopeSeq: Byte): List<ByteArray> {
         if (payload.isEmpty()) return emptyList()
-        require(payload.size <= MAX_APPLICATION_FRAME) { AppStrings.get(R.string.msg_tview_frame_long, "Tview 红外帧超过 1024 字节") }
+        require(payload.size <= MAX_APPLICATION_FRAME) { AppStrings.get(R.string.msg_tview_frame_long) }
         val totalChunks = ((payload.size + MAX_CHUNK_PAYLOAD - 1) / MAX_CHUNK_PAYLOAD).coerceAtLeast(1)
         val chunks = ArrayList<ByteArray>(totalChunks)
 

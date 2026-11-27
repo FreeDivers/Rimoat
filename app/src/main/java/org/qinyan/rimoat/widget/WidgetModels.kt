@@ -25,10 +25,10 @@ data class WidgetConfiguration(
     val arrangement: WidgetArrangement = WidgetArrangement.GRID
 ) {
     fun validate() {
-        require(shortcuts.size <= MAX_SHORTCUTS && shortcuts.distinct().size == shortcuts.size) { AppStrings.get(R.string.widget_max_shortcuts, "最多选择 12 个不同快捷键") }
-        require(kind != WidgetKind.SINGLE || shortcuts.size <= 1) { AppStrings.get(R.string.widget_single_shortcut_only, "单键组件只能选择一个按键") }
-        require(kind == WidgetKind.PANEL || shortcuts.all { it.remoteId == remoteId }) { AppStrings.get(R.string.widget_wrong_remote, "快捷键不属于所选遥控器") }
-        require(shortcuts.all { it.remoteId.isNotBlank() && it.buttonId.isNotBlank() }) { AppStrings.get(R.string.widget_invalid_shortcut, "快捷键无效") }
+        require(shortcuts.size <= MAX_SHORTCUTS && shortcuts.distinct().size == shortcuts.size) { AppStrings.get(R.string.widget_max_shortcuts) }
+        require(kind != WidgetKind.SINGLE || shortcuts.size <= 1) { AppStrings.get(R.string.widget_single_shortcut_only) }
+        require(kind == WidgetKind.PANEL || shortcuts.all { it.remoteId == remoteId }) { AppStrings.get(R.string.widget_wrong_remote) }
+        require(shortcuts.all { it.remoteId.isNotBlank() && it.buttonId.isNotBlank() }) { AppStrings.get(R.string.widget_invalid_shortcut) }
     }
     companion object { const val MAX_SHORTCUTS = 12 }
 }
@@ -138,11 +138,11 @@ fun widgetDeviceStatus(profile: RemoteProfile, record: RemoteCommandRecord?, sim
     val command = button?.let { WidgetCommand(it.id, it.label, it.iconName) }
     val count = profile.buttons.count { it.hasSignal }
     val buttonCount = context?.resources?.getQuantityString(R.plurals.widget_available_buttons, count, count)
-        ?: AppStrings.quantity(R.plurals.widget_available_buttons, count, "%1\$d 个可用按键", count)
+        ?: AppStrings.quantity(R.plurals.widget_available_buttons, count, count)
     return WidgetDeviceStatus(command?.displayLabel(profile, context) ?: profile.category.widgetLabel(context),
         profile.brand.ifBlank { profile.category.widgetLabel(context) },
         listOfNotNull(profile.room.takeIf { it.isNotBlank() }, buttonCount), command)
 }
 
 private fun widgetString(context: Context?, @StringRes id: Int, fallback: String, vararg args: Any): String =
-    context?.getString(id, *args) ?: AppStrings.get(id, fallback, *args)
+    context?.getString(id, *args) ?: AppStrings.get(id, *args)

@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.i18n.UiText
@@ -18,6 +19,8 @@ import org.junit.Assert.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteControlViewModelTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private val dispatcher = StandardTestDispatcher()
     private val stores = ViewModelStore()
     private var nextVm = 0

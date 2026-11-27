@@ -24,8 +24,12 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35], application = Application::class)
+@Config(sdk = [35], qualifiers = "zh-rCN", application = Application::class)
 class LocalizedButtonMetadataTest {
+    @org.junit.Before fun initializeResources() {
+        org.qinyan.rimoat.i18n.AppStrings.initialize(RuntimeEnvironment.getApplication())
+    }
+
     @Test fun widgetPowerMatchesLocalizedLabelsWithoutChangingUserData() {
         val app = RuntimeEnvironment.getApplication()
         val signal = listOf(9000, 4500, 560)

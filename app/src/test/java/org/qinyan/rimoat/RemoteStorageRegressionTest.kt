@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.Context
 import android.content.ContextWrapper
 import org.qinyan.rimoat.data.*
@@ -11,6 +12,8 @@ import java.io.File
 import java.nio.file.Files
 
 class RemoteStorageRegressionTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private fun context(dir: File) = object : ContextWrapper(null) {
         override fun getFilesDir(): File = dir
     }

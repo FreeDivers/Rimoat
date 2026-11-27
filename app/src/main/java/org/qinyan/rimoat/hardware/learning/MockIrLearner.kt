@@ -115,7 +115,7 @@ class MockIrLearner : IrLearner {
                                         Result.success(signal)
                                     }
                                     SimulationMode.ERROR -> {
-                                        val err = AppStrings.get(R.string.msg_mock_failure, "Mock hardware simulation failure")
+                                        val err = AppStrings.get(R.string.msg_mock_failure)
                                         _state.value = LearningState.Error(err)
                                         Result.failure(UiTextException(UiText.Resource(R.string.msg_mock_failure)))
                                     }

@@ -65,7 +65,7 @@ class UsbPermissionController(private val context: Context, private val onChange
         if (pendingName !in names) pendingName = null
         _devices.value = connected.map { device ->
             val granted = manager?.hasPermission(device) == true
-            UsbAccessState(device.deviceName, device.productName ?: AppStrings.get(R.string.msg_usb_ir_device, "USB 红外设备"), granted,
+            UsbAccessState(device.deviceName, device.productName ?: AppStrings.get(R.string.msg_usb_ir_device), granted,
                 pending = device.deviceName == pendingName,
                 denied = !granted && device.deviceName in deniedNames,
                 transmitterType = when {

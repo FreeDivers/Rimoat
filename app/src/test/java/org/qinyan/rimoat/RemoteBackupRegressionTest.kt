@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.ContextWrapper
 import android.content.SharedPreferences
 import org.qinyan.rimoat.data.*
@@ -11,6 +12,8 @@ import java.nio.file.Files
 import java.lang.reflect.Proxy
 
 class RemoteBackupRegressionTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private val profile = LegacyRemoteMigration.normalizeKeys(RemoteProfile("personal", "卧室美的空调", brand = "美的", category = DeviceCategory.AC,
         room = "卧室", sourceRemoteId = "R_air_40_1", acProtocolId = 27,
         verifiedFunctions = listOf("开机", "升温"), lastUsedAt = 123, updatedAt = 1L,

@@ -109,10 +109,10 @@ class AudioIrTransmitter(
         refreshState()
         val am = audioManager
         if (!_isReady.value || am == null) {
-            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_output_missing, "未检测到有线音频输出，请连接红外发射头")))
+            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_output_missing)))
         }
         if (isMediaOutputMuted(am)) {
-            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_volume_muted, "媒体音量为 0 或已静音，请先调高媒体音量后再发送")))
+            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_volume_muted)))
         }
         val rawSignal = when (signal) {
             is IrSignal.Raw -> signal
@@ -129,7 +129,7 @@ class AudioIrTransmitter(
         }
 
         if (pcm.isEmpty()) {
-            return@withContext Result.failure(IllegalArgumentException(AppStrings.get(R.string.msg_audio_pcm_empty, "音频 PCM 样本为空")))
+            return@withContext Result.failure(IllegalArgumentException(AppStrings.get(R.string.msg_audio_pcm_empty)))
         }
 
         val bufferSizeBytes = pcm.size * 2
@@ -146,7 +146,7 @@ class AudioIrTransmitter(
             .build()
 
         val focusHandle = acquireTransientExclusiveFocus(am, attributes)
-            ?: return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_focus_denied, "无法获取音频焦点，请先暂停其他音频播放后重试")))
+            ?: return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_focus_denied)))
 
         var track: AudioTrack? = null
 
@@ -168,7 +168,7 @@ class AudioIrTransmitter(
 
             val written = track.write(pcm, 0, pcm.size)
             if (written != pcm.size) {
-                return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_write_incomplete, "音频样本未完整写入: %1\$s/%2\$s", (written).toString(), (pcm.size).toString())))
+                return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_audio_write_incomplete, (written).toString(), (pcm.size).toString())))
             }
 
             Log.d(TAG, "Playing ultrasonic IR audio: ${pcm.size} samples, duration ~${AudioPcmBuilder.calculatePlaybackDurationMs(pcm.size)}ms")

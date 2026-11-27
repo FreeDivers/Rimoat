@@ -34,4 +34,4 @@ internal class SerialConnections {
 
 internal fun selectedSerialConnection(devices: List<SerialDeviceOption>, connectionId: String): SerialDeviceOption =
     devices.singleOrNull { it.connectionId.isNotBlank() && it.connectionId == connectionId }
-        ?: throw IllegalArgumentException(AppStrings.get(R.string.msg_selected_usb_disconnected, "所选 USB 设备已断开，请重新选择"))
+        ?: throw IllegalArgumentException(AppStrings.get(R.string.msg_selected_usb_disconnected))

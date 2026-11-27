@@ -315,8 +315,8 @@ fun RemoteListScreen(
                         onClick = { showTransmitterSheet = true }
                     )
                     Spacer(Modifier.width(4.dp))
-                    ActionIconButton(AppStrings.get(R.string.screen_settings, "设置"), onClick = onSettingsClick) {
-                        Icon(Icons.Rounded.Settings, contentDescription = AppStrings.get(R.string.screen_settings, "设置"))
+                    ActionIconButton(AppStrings.get(R.string.screen_settings), onClick = onSettingsClick) {
+                        Icon(Icons.Rounded.Settings, contentDescription = AppStrings.get(R.string.screen_settings))
                     }
                 }
             )
@@ -332,13 +332,13 @@ fun RemoteListScreen(
                         .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
                         .clearAndSetSemantics {
                         if (!trulyEmpty) {
-                            contentDescription = AppStrings.get(R.string.screen_add_remote, "添加遥控器")
+                            contentDescription = AppStrings.get(R.string.screen_add_remote)
                             role = androidx.compose.ui.semantics.Role.Button
                             onClick { onAddRemoteClick(); true }
                         }
                     },
                     icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                    text = { Text(AppStrings.get(R.string.screen_add_remote, "添加遥控器")) })
+                    text = { Text(AppStrings.get(R.string.screen_add_remote)) })
             }
         }
     ) { padding ->
@@ -370,7 +370,7 @@ fun RemoteListScreen(
                 org.qinyan.rimoat.ui.components.RemoteSearchBar(
                     query = searchQuery,
                     onQueryChange = viewModel::setSearchQuery,
-                    placeholder = AppStrings.get(R.string.screen_search_remote, "搜索遥控器"),
+                    placeholder = AppStrings.get(R.string.screen_search_remote),
                     modifier = barModifier,
                     focusController = searchFocus
                 )
@@ -508,16 +508,16 @@ fun RemoteListScreen(
         remotes.firstOrNull { it.id == editingId }?.let { profile ->
             var name by rememberSaveable(profile.id) { mutableStateOf(profile.name) }
             var room by rememberSaveable(profile.id) { mutableStateOf(profile.room) }
-            MotionAlertDialog(onDismissRequest = { editingId = null }, title = { Text(AppStrings.get(R.string.screen_edit_remote, "编辑遥控器")) },
+            MotionAlertDialog(onDismissRequest = { editingId = null }, title = { Text(AppStrings.get(R.string.screen_edit_remote)) },
                 modifier = Modifier.safeDrawingPadding(),
                 properties = DialogProperties(decorFitsSystemWindows = false),
                 text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ExpressiveTextField(value = name, onValueChange = { if (it.length <= 100) name = it }, label = { Text(AppStrings.get(R.string.screen_remote_name, "遥控器名称")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    ExpressiveTextField(value = room, onValueChange = { if (it.length <= 60) room = it }, label = { Text(AppStrings.get(R.string.screen_room_optional, "房间（可选）")) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    ExpressiveTextField(value = name, onValueChange = { if (it.length <= 100) name = it }, label = { Text(AppStrings.get(R.string.screen_remote_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    ExpressiveTextField(value = room, onValueChange = { if (it.length <= 60) room = it }, label = { Text(AppStrings.get(R.string.screen_room_optional)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     displayedError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 } },
-                confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { viewModel.updateDetails(profile.id, name, room) { editingId = null } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_save, "保存")) } },
-                dismissButton = { TextButton(onClick = { editingId = null }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } })
+                confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { viewModel.updateDetails(profile.id, name, room) { editingId = null } }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_save)) } },
+                dismissButton = { TextButton(onClick = { editingId = null }, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel)) } })
         }
         exportedUri?.let { saved ->
             BackupSavedDialog(saved, onDismiss = { exportedUri = null }, onError = viewModel::reportTransferError)
@@ -533,13 +533,13 @@ fun RemoteListScreen(
 }
 
 private fun categoryOptions(): List<Pair<DeviceCategory?, String>> = listOf(
-    null to AppStrings.get(R.string.screen_category_all, "全部"),
-    DeviceCategory.TV to AppStrings.get(R.string.screen_category_tv, "电视"),
-    DeviceCategory.AC to AppStrings.get(R.string.screen_category_ac, "空调"),
-    DeviceCategory.FAN to AppStrings.get(R.string.screen_category_fan, "风扇"),
-    DeviceCategory.PROJECTOR to AppStrings.get(R.string.screen_category_projector, "投影仪"),
-    DeviceCategory.AUDIO to AppStrings.get(R.string.screen_category_audio, "音响"),
-    DeviceCategory.CUSTOM to AppStrings.get(R.string.screen_category_custom, "自定义")
+    null to AppStrings.get(R.string.screen_category_all),
+    DeviceCategory.TV to AppStrings.get(R.string.screen_category_tv),
+    DeviceCategory.AC to AppStrings.get(R.string.screen_category_ac),
+    DeviceCategory.FAN to AppStrings.get(R.string.screen_category_fan),
+    DeviceCategory.PROJECTOR to AppStrings.get(R.string.screen_category_projector),
+    DeviceCategory.AUDIO to AppStrings.get(R.string.screen_category_audio),
+    DeviceCategory.CUSTOM to AppStrings.get(R.string.screen_category_custom)
 )
 
 /** Wrapping choices keep every category reachable in a narrow landscape pane. */
@@ -740,8 +740,8 @@ private fun RoomAndSortBar(
             FilledTonalButton(
                 onClick = { showRooms = true },
                 modifier = Modifier.heightIn(min = 48.dp).semantics {
-                    contentDescription = AppStrings.get(R.string.screen_room, "房间")
-                    stateDescription = AppStrings.get(R.string.screen_room_expansion, "%1\$s，%2\$s", selectedRoom ?: AppStrings.get(R.string.screen_all_rooms, "全部房间"), if (showRooms) AppStrings.get(R.string.screen_expanded, "已展开") else AppStrings.get(R.string.screen_collapsed, "已收起"))
+                    contentDescription = AppStrings.get(R.string.screen_room)
+                    stateDescription = AppStrings.get(R.string.screen_room_expansion, selectedRoom ?: AppStrings.get(R.string.screen_all_rooms), if (showRooms) AppStrings.get(R.string.screen_expanded) else AppStrings.get(R.string.screen_collapsed))
                 },
                 contentPadding = PaddingValues(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
@@ -758,7 +758,7 @@ private fun RoomAndSortBar(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = selectedRoom ?: AppStrings.get(R.string.screen_all_rooms, "全部房间"),
+                    text = selectedRoom ?: AppStrings.get(R.string.screen_all_rooms),
                     modifier = Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
@@ -768,7 +768,7 @@ private fun RoomAndSortBar(
                 Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
             }
             val roomOptions = buildList {
-                add(null to AppStrings.get(R.string.screen_all_rooms, "全部房间"))
+                add(null to AppStrings.get(R.string.screen_all_rooms))
                 rooms.forEach { add(it to it) }
             }
             ExpressiveDropdownMenu(
@@ -796,18 +796,18 @@ private fun RoomAndSortBar(
                 color = if (recentFirst) MaterialTheme.colorScheme.secondaryContainer else ExpressiveSurface.card,
                 contentColor = if (recentFirst) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
             ) {
-                ActionIconButton(AppStrings.get(R.string.screen_sort, "排序"),
+                ActionIconButton(AppStrings.get(R.string.screen_sort),
                     onClick = { showSort = true },
                     modifier = Modifier.semantics {
-                        stateDescription = if (recentFirst) AppStrings.get(R.string.screen_recent, "最近使用") else AppStrings.get(R.string.screen_default_sort, "默认排序")
+                        stateDescription = if (recentFirst) AppStrings.get(R.string.screen_recent) else AppStrings.get(R.string.screen_default_sort)
                     }
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = AppStrings.get(R.string.screen_sort, "排序"))
+                    Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = AppStrings.get(R.string.screen_sort))
                 }
             }
             val sortOptions = listOf(
-                false to AppStrings.get(R.string.screen_default_sort, "默认排序"),
-                true to AppStrings.get(R.string.screen_recent, "最近使用")
+                false to AppStrings.get(R.string.screen_default_sort),
+                true to AppStrings.get(R.string.screen_recent)
             )
             ExpressiveDropdownMenu(
                 expanded = screenActive && showSort,
@@ -911,15 +911,15 @@ fun RemoteCard(
             Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) {
                 if (remote.isFavorite) Icon(
                     imageVector = Icons.Rounded.Star,
-                    contentDescription = AppStrings.get(R.string.screen_favorited, "已收藏"),
+                    contentDescription = AppStrings.get(R.string.screen_favorited),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(16.dp)
                 )
             }
 
             Box {
-                ActionIconButton(AppStrings.get(R.string.screen_manage_name, "管理%1\$s", remote.name), onClick = { showActions = true }) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = AppStrings.get(R.string.screen_manage_name, "管理%1\$s", remote.name))
+                ActionIconButton(AppStrings.get(R.string.screen_manage_name, remote.name), onClick = { showActions = true }) {
+                    Icon(Icons.Rounded.MoreVert, contentDescription = AppStrings.get(R.string.screen_manage_name, remote.name))
                 }
                 ExpressiveDropdownMenuPopup(
                     expanded = LocalMotionActive.current && showActions,
@@ -938,7 +938,7 @@ fun RemoteCard(
                     ExpressiveDropdownMenuGroup(index = 0, count = 2) {
                         ExpressiveMenuItem(
                             onClick = { closeWithAction(onToggleFavorite) },
-                            text = { Text(if (remote.isFavorite) AppStrings.get(R.string.screen_unfavorite, "取消收藏") else AppStrings.get(R.string.screen_favorite, "收藏")) },
+                            text = { Text(if (remote.isFavorite) AppStrings.get(R.string.screen_unfavorite) else AppStrings.get(R.string.screen_favorite)) },
                             index = 0,
                             count = 3,
                             leadingIcon = {
@@ -950,14 +950,14 @@ fun RemoteCard(
                         )
                         ExpressiveMenuItem(
                             onClick = { closeWithAction(onEdit) },
-                            text = { Text(AppStrings.get(R.string.screen_edit_details, "编辑名称和房间")) },
+                            text = { Text(AppStrings.get(R.string.screen_edit_details)) },
                             index = 1,
                             count = 3,
                             leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) }
                         )
                         ExpressiveMenuItem(
                             onClick = { closeWithAction(onExport) },
-                            text = { Text(AppStrings.get(R.string.screen_export_remote, "导出此遥控器")) },
+                            text = { Text(AppStrings.get(R.string.screen_export_remote)) },
                             index = 2,
                             count = 3,
                             leadingIcon = { Icon(Icons.Rounded.Upload, contentDescription = null) }
@@ -966,7 +966,7 @@ fun RemoteCard(
                     ExpressiveDropdownMenuGroup(index = 1, count = 2) {
                         ExpressiveMenuItem(
                             onClick = { closeWithAction(onDelete) },
-                            text = { Text(AppStrings.get(R.string.screen_trash_remote, "移入回收站")) },
+                            text = { Text(AppStrings.get(R.string.screen_trash_remote)) },
                             index = 0,
                             count = 1,
                             leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null) }
@@ -1010,7 +1010,7 @@ private fun EmptyStateView(
         }
         Spacer(modifier = Modifier.height(Spacing.large))
         Text(
-            text = if (isSearch) AppStrings.get(if (hasSearchQuery) R.string.screen_search_empty else R.string.screen_filter_empty) else AppStrings.get(R.string.screen_no_saved_remotes, "暂无保存的遥控器"),
+            text = if (isSearch) AppStrings.get(if (hasSearchQuery) R.string.screen_search_empty else R.string.screen_filter_empty) else AppStrings.get(R.string.screen_no_saved_remotes),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface
@@ -1022,7 +1022,7 @@ private fun EmptyStateView(
             }
         } else if (showAddAction) {
             androidx.compose.material3.Button(onClick = onAddRemote, enabled = actionsEnabled, shapes = ButtonDefaults.shapes()) {
-                Text(AppStrings.get(R.string.screen_add_remote, "添加遥控器"))
+                Text(AppStrings.get(R.string.screen_add_remote))
             }
         }
     }

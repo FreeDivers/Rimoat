@@ -109,10 +109,10 @@ class BuiltInIrTransmitter(
 
     override suspend fun transmit(signal: IrSignal): Result<Unit> = withContext(Dispatchers.IO) {
         val manager = irManager
-            ?: return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_builtin_manager_missing, "ConsumerIrManager not available")))
+            ?: return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_builtin_manager_missing)))
 
         if (!manager.hasIrEmitter()) {
-            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_builtin_emitter_missing, "Device does not possess an IR emitter")))
+            return@withContext Result.failure(IllegalStateException(AppStrings.get(R.string.msg_builtin_emitter_missing)))
         }
 
         try {

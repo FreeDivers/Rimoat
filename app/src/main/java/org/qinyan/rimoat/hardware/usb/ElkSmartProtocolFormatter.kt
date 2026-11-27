@@ -122,12 +122,12 @@ object ElkSmartProtocolFormatter {
      * Builds the complete ElkSmart payload with 9-byte header and compressed data.
      */
     fun buildPayload(frequencyHz: Int, patternMicros: IntArray, subtype: Subtype = Subtype.D552): ByteArray {
-        require(frequencyHz in 1..1_000_000) { AppStrings.get(R.string.msg_ir_carrier_invalid, "无效的红外载波频率") }
-        require(patternMicros.isNotEmpty() && patternMicros.all { it > 0 }) { AppStrings.get(R.string.msg_ir_pulses_positive, "红外脉冲不能为空或包含非正数") }
-        require(patternMicros.sumOf { it.toLong() } < 2_000_000) { AppStrings.get(R.string.msg_ir_frame_long, "红外帧超过 2 秒") }
+        require(frequencyHz in 1..1_000_000) { AppStrings.get(R.string.msg_ir_carrier_invalid) }
+        require(patternMicros.isNotEmpty() && patternMicros.all { it > 0 }) { AppStrings.get(R.string.msg_ir_pulses_positive) }
+        require(patternMicros.sumOf { it.toLong() } < 2_000_000) { AppStrings.get(R.string.msg_ir_frame_long) }
         val dictionary = compressPulsePairs(patternMicros)
         val compressed = if (subtype == Subtype.D226) ElkSmartD226Codec.encode(dictionary) else dictionary
-        require(compressed.size <= 65535) { AppStrings.get(R.string.msg_ir_packet_long, "红外数据包过长") }
+        require(compressed.size <= 65535) { AppStrings.get(R.string.msg_ir_packet_long) }
         val f = frequencyHz + 0x7FFFF
         val len = compressed.size
 

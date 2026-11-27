@@ -18,6 +18,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 class WidgetCommandsTest {
+    @get:Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
     @get:Rule val temporary = TemporaryFolder()
     private val power = RemoteButton("power", "电源", "power", rawPattern = listOf(9000, 4500, 560),
         alternateRawPattern = listOf(8000, 4000, 560), key = ButtonKey.POWER)

@@ -29,6 +29,9 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class HardwareStateRegressionTest {
+    @org.junit.Before
+    fun initializeStrings() = org.qinyan.rimoat.i18n.AppStrings.initialize(RuntimeEnvironment.getApplication())
+
     @Test fun readinessFollowsBackendAndSwitchesSubscriptions() = runBlocking {
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
             override fun getApplicationContext(): Context = this

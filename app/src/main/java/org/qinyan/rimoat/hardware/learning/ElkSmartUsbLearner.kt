@@ -100,7 +100,7 @@ class ElkSmartUsbLearner private constructor(
 
     override suspend fun startLearning(timeoutSeconds: Int): Result<IrSignal.Raw> = withContext(Dispatchers.IO) {
         if (closed.get() || !_isAvailable.value) {
-            val err = AppStrings.get(R.string.msg_elksmart_closed, "ElkSmart USB device is not available or closed")
+            val err = AppStrings.get(R.string.msg_elksmart_closed)
             _state.value = LearningState.Error(err)
             return@withContext Result.failure(IllegalStateException(err))
         }
@@ -121,9 +121,9 @@ class ElkSmartUsbLearner private constructor(
             }
             if (!authorized) {
                 val err = if (closed.get() || !_isAvailable.value) {
-                    AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
+                    AppStrings.get(R.string.msg_usb_disconnected)
                 } else {
-                    AppStrings.get(R.string.msg_elksmart_handshake_failed, "ElkSmart USB authorization handshake failed")
+                    AppStrings.get(R.string.msg_elksmart_handshake_failed)
                 }
                 _state.value = LearningState.Error(err)
                 return@withContext Result.failure(IOException(err))
@@ -132,9 +132,9 @@ class ElkSmartUsbLearner private constructor(
             // Send START_LEARN command (0xFE 0xFE 0xFE 0xFE)
             if (!sendControl(ElkSmartProtocol.START_LEARN)) {
                 val err = if (closed.get() || !_isAvailable.value) {
-                    AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
+                    AppStrings.get(R.string.msg_usb_disconnected)
                 } else {
-                    AppStrings.get(R.string.msg_elksmart_learn_start_failed, "Failed to send START_LEARN command to ElkSmart")
+                    AppStrings.get(R.string.msg_elksmart_learn_start_failed)
                 }
                 _state.value = LearningState.Error(err)
                 return@withContext Result.failure(IOException(err))
@@ -168,7 +168,7 @@ class ElkSmartUsbLearner private constructor(
             }
 
             if (closed.get() || !_isAvailable.value) {
-                val err = AppStrings.get(R.string.msg_usb_disconnected, "USB 设备已断开")
+                val err = AppStrings.get(R.string.msg_usb_disconnected)
                 _state.value = LearningState.Error(err)
                 return@withContext Result.failure(IOException(err))
             }

@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.learning
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.hardware.learning.LearningState
 import org.qinyan.rimoat.hardware.learning.MockIrLearner
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +18,8 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MockIrLearnerTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
 
     @Test
     fun testInitialStateAndType() {

@@ -122,8 +122,8 @@ private fun OpenSourceLicensesContent(
                 wide = !isListRoot,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onClick = { if (active) onBack() }, enabled = active) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back, "返回"))
+                    ActionIconButton(AppStrings.get(R.string.screen_back), onClick = { if (active) onBack() }, enabled = active) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppStrings.get(R.string.screen_back))
                     }
                 }
             )

@@ -71,12 +71,12 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
         containerColor = ExpressiveSurface.canvas,
         topBar = {
             ExpressivePageTopBar(
-                title = AppStrings.get(R.string.screen_trash, "回收站"),
+                title = AppStrings.get(R.string.screen_trash),
                 wide = wide,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(AppStrings.get(R.string.screen_back, "返回"), onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back, "返回"))
+                    ActionIconButton(AppStrings.get(R.string.screen_back), onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppStrings.get(R.string.screen_back))
                     }
                 }
             )
@@ -197,27 +197,27 @@ fun TrashScreen(viewModel: RemoteListViewModel, onBack: () -> Unit) {
     }
     if (active) trash?.firstOrNull { it.entryId == deleteEntryId }?.let { entry ->
         MotionAlertDialog(onDismissRequest = { if (!busy) deleteEntryId = null },
-            title = { Text(AppStrings.get(R.string.screen_delete_forever_question, "彻底删除？")) },
-            text = { Text(AppStrings.get(R.string.screen_delete_irreversible, "「%1\$s」删除后无法恢复", entry.profile.name), Modifier.verticalScroll(rememberScrollState())) },
+            title = { Text(AppStrings.get(R.string.screen_delete_forever_question)) },
+            text = { Text(AppStrings.get(R.string.screen_delete_irreversible, entry.profile.name), Modifier.verticalScroll(rememberScrollState())) },
             confirmButton = {
                 TextButton(onClick = { viewModel.permanentlyDelete(entry.entryId) { deleteEntryId = null } },
                     enabled = !busy,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     shapes = ButtonDefaults.shapes()
-                ) { Text(if (busy) AppStrings.get(R.string.screen_deleting, "正在删除") else AppStrings.get(R.string.screen_delete_forever, "彻底删除")) }
+                ) { Text(if (busy) AppStrings.get(R.string.screen_deleting) else AppStrings.get(R.string.screen_delete_forever)) }
             },
-            dismissButton = { TextButton(onClick = { deleteEntryId = null }, enabled = !busy, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel, "取消")) } })
+            dismissButton = { TextButton(onClick = { deleteEntryId = null }, enabled = !busy, shapes = ButtonDefaults.shapes()) { Text(AppStrings.get(R.string.screen_cancel)) } })
     }
 }
 
 @Composable
 private fun TrashEntryActions(name: String, enabled: Boolean, onRestore: () -> Unit, onDelete: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ActionIconButton(AppStrings.get(R.string.screen_restore_name, "恢复%1\$s", name), onRestore, enabled = enabled) {
-            Icon(Icons.Rounded.Restore, AppStrings.get(R.string.screen_restore_name, "恢复%1\$s", name))
+        ActionIconButton(AppStrings.get(R.string.screen_restore_name, name), onRestore, enabled = enabled) {
+            Icon(Icons.Rounded.Restore, AppStrings.get(R.string.screen_restore_name, name))
         }
-        ActionIconButton(AppStrings.get(R.string.screen_delete_name, "彻底删除%1\$s", name), onDelete, enabled = enabled) {
-            Icon(Icons.Rounded.DeleteForever, AppStrings.get(R.string.screen_delete_name, "彻底删除%1\$s", name),
+        ActionIconButton(AppStrings.get(R.string.screen_delete_name, name), onDelete, enabled = enabled) {
+            Icon(Icons.Rounded.DeleteForever, AppStrings.get(R.string.screen_delete_name, name),
                 tint = if (enabled) MaterialTheme.colorScheme.error else LocalContentColor.current)
         }
     }

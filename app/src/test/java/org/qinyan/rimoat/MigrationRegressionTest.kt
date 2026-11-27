@@ -1,5 +1,6 @@
 package org.qinyan.rimoat
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import android.content.ContextWrapper
 import android.content.SharedPreferences
 import kotlinx.coroutines.*
@@ -13,6 +14,8 @@ import java.lang.reflect.Proxy
 import java.nio.file.Files
 
 class MigrationRegressionTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private val remote = LegacyRemoteMigration.normalizeKeys(RemoteProfile("migration_original", "Migration original", room = "Occupied", updatedAt = 1L,
         buttons = listOf(RemoteButton("power", "Power", rawPattern = listOf(9000, 4500, 560)))))
 

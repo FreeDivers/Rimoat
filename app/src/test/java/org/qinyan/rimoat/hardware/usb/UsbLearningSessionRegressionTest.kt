@@ -29,6 +29,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, shadows = [PollingConnectionShadow::class, UsbDiscoveryShadow::class])
 class UsbLearningSessionRegressionTest {
+    @org.junit.Before
+    fun initializeStrings() = org.qinyan.rimoat.i18n.AppStrings.initialize(RuntimeEnvironment.getApplication())
+
     private fun endpoint(address: Int, type: Int = UsbConstants.USB_ENDPOINT_XFER_BULK): UsbEndpoint =
         ReflectionHelpers.callConstructor(UsbEndpoint::class.java,
             ClassParameter.from(Int::class.javaPrimitiveType, address),

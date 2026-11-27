@@ -23,7 +23,7 @@ data class AcStateChoice(val action: AcAction, val index: Int, val label: String
             AcAction.FAN -> next.copy(fanSpeed = AcFanSpeed.entries[index])
             AcAction.WIND_DIRECTION -> next.copy(windDirection = AcWindDirection.entries[index])
             AcAction.TEMPERATURE_DISPLAY -> next.copy(temperatureDisplay = AcTemperatureDisplay.entries[index])
-            else -> error(AppStrings.get(R.string.msg_button_state_unavailable, "此按键没有可直选状态"))
+            else -> error(AppStrings.get(R.string.msg_button_state_unavailable))
         }
     }
 

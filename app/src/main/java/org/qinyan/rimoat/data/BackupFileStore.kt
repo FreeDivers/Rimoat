@@ -20,11 +20,11 @@ class BackupFileStore(private val context: Context) {
             while (true) {
                 val n = input.read(buffer)
                 if (n < 0) break
-                require(output.size() + n <= RemoteBackupCodec.MAX_BYTES) { AppStrings.get(R.string.msg_backup_too_large, "备份超过 8 MB") }
+                require(output.size() + n <= RemoteBackupCodec.MAX_BYTES) { AppStrings.get(R.string.msg_backup_too_large) }
                 output.write(buffer, 0, n)
             }
             output.toByteArray()
-        } ?: error(AppStrings.get(R.string.msg_file_read_failed, "无法读取所选文件"))
+        } ?: error(AppStrings.get(R.string.msg_file_read_failed))
         val text = bytes.toString(Charsets.UTF_8)
         if (infrared) {
             val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {

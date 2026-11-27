@@ -1,5 +1,6 @@
 package org.qinyan.rimoat.hardware.serial
 
+import org.qinyan.rimoat.testing.AppStringsResourceRule
 import org.qinyan.rimoat.data.SerialIrSettingsStore
 import java.io.File
 import java.nio.file.Files
@@ -7,6 +8,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SerialIrSettingsTest {
+    @get:org.junit.Rule val strings = AppStringsResourceRule()
+
     private val settings = SerialIrSettings(SerialIrModule.YS_IRTM, vendorId = 0x1A86, productId = 0x7523)
     private fun device(path: String, serial: String? = null) = SerialDeviceOption(path, "CH340", 0x1A86, 0x7523, 1, true, serial)
     @Test fun permissionCandidatesStaySeparateFromVerifiedSerialMatches() {

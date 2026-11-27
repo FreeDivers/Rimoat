@@ -21,6 +21,7 @@ import org.qinyan.rimoat.hardware.IrSignal
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LearningApplianceTypeTest {
+    @get:org.junit.Rule val strings = org.qinyan.rimoat.testing.AppStringsResourceRule()
     private val dispatcher = StandardTestDispatcher()
     private val store = ViewModelStore()
     private val signal = IrSignal.Raw(patternMicros = intArrayOf(9000, 4500, 560))
