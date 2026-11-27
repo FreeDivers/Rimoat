@@ -18,6 +18,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -41,6 +44,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "zh-rCN-w891dp-h411dp-land-mdpi", application = Application::class)
@@ -192,11 +196,20 @@ class LandscapeLayoutRoborazziTest {
     fun homeListKeepsFiltersInLeftPaneAndOpensRemote() {
         val app = RuntimeEnvironment.getApplication()
         AppStrings.initialize(app)
+        // Saved timestamps keep this layout fixture independent of wall-clock save timing.
+        val profiles = listOf(
+            tv().copy(updatedAt = 1_000L),
+            fan().copy(updatedAt = 3_000L),
+            ac().copy(updatedAt = 2_000L),
+            tv().copy(id = "land_tv2", name = "书房电视", updatedAt = 4_000L)
+        )
+        val directory = File(app.filesDir, "remotes").apply { mkdirs() }
+        val json = Json { encodeDefaults = true }
+        profiles.forEach { File(directory, "${it.id}.json").writeText(json.encodeToString(it)) }
         val repository = RemoteRepository(app, scope)
-        runBlocking {
-            repository.awaitLoaded()
-            listOf(tv(), fan(), ac(), tv().copy(id = "land_tv2", name = "书房电视")).forEach { repository.saveRemote(it) }
-        }
+        runBlocking { repository.awaitLoaded() }
+        assertEquals(listOf("land_tv2", "land_fan", "land_ac", "land_tv"), repository.remotes.value.map { it.id })
+        assertEquals(profiles.associate { it.id to it.updatedAt }, repository.remotes.value.associate { it.id to it.updatedAt })
         var opened: String? = null
         val viewModel = RemoteListViewModel(repository, IrTransmitterManager(app, scope), ThemePreferences(app), BackupFileStore(app))
         composeRule.setContent {
