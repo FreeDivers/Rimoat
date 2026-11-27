@@ -1,5 +1,7 @@
 package org.qinyan.rimoat.ui.screens
 
+import org.qinyan.rimoat.testing.collectScreenshotDifference
+import org.junit.rules.ErrorCollector
 import android.app.Application
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -39,6 +41,7 @@ import org.robolectric.annotation.LooperMode
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class)
 class AddLearningLandscapeRoborazziTest {
+    @get:Rule val screenshotDifferences = ErrorCollector()
     @get:Rule val compose = createComposeRule()
     private val app get() = RuntimeEnvironment.getApplication()
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
@@ -57,8 +60,12 @@ class AddLearningLandscapeRoborazziTest {
             }
         }
     }
-    private fun capture(name: String) = compose.onRoot().captureRoboImage(
-        "src/test/screenshots/landscape_flow_$name.webp", roborazziOptions = options)
+    private fun capture(name: String) {
+        val root = compose.onRoot()
+        screenshotDifferences.collectScreenshotDifference {
+            root.captureRoboImage("src/test/screenshots/landscape_flow_$name.webp", roborazziOptions = options)
+        }
+    }
     private fun panes() {
         val left = compose.onNodeWithTag("two_pane_primary").fetchSemanticsNode().boundsInRoot
         val right = compose.onNodeWithTag("two_pane_secondary").fetchSemanticsNode().boundsInRoot

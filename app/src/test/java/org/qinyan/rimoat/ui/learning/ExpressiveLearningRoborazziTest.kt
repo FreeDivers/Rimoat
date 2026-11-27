@@ -24,12 +24,14 @@ import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.rules.ErrorCollector
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.hardware.learning.LearningState
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.testing.collectScreenshotDifference
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -43,6 +45,7 @@ import org.robolectric.annotation.LooperMode
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class)
 class ExpressiveLearningRoborazziTest {
+    @get:Rule val screenshotDifferences = ErrorCollector()
     @get:Rule val compose = createComposeRule()
     private val app get() = RuntimeEnvironment.getApplication()
     private val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560, 560))
@@ -54,7 +57,9 @@ class ExpressiveLearningRoborazziTest {
         compose.mainClock.advanceTimeBy(600)
         compose.waitForIdle()
         val root = if (dialog) compose.onNode(isDialog()) else compose.onRoot()
-        root.captureRoboImage("src/test/screenshots/expressive_learning_$name.webp", roborazziOptions = options)
+        screenshotDifferences.collectScreenshotDifference {
+            root.captureRoboImage("src/test/screenshots/expressive_learning_$name.webp", roborazziOptions = options)
+        }
     }
 
     @Test fun queueSelectionKeepsCapturedSignalAndSendAndConfirmStaySilent() {

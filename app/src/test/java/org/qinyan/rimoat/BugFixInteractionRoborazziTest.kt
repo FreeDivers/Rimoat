@@ -26,11 +26,13 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.rules.ErrorCollector
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.data.db.*
 import org.qinyan.rimoat.hardware.*
 import org.qinyan.rimoat.hardware.learning.IrLearnerManager
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.testing.collectScreenshotDifference
 import org.qinyan.rimoat.ui.components.RemoteSearchBar
 import org.qinyan.rimoat.ui.learning.*
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
@@ -77,12 +79,15 @@ class BugFixInteractionRoborazziTest {
         }
     }
 
+    @get:Rule val screenshotDifferences = ErrorCollector()
     @get:Rule val compose = createComposeRule()
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
     private val app get() = RuntimeEnvironment.getApplication()
     private fun capture(name: String, dialog: Boolean = false) {
-        (if (dialog) compose.onNode(isDialog()) else compose.onRoot())
-            .captureRoboImage("src/test/screenshots/$name.webp", roborazziOptions = options)
+        val root = if (dialog) compose.onNode(isDialog()) else compose.onRoot()
+        screenshotDifferences.collectScreenshotDifference {
+            root.captureRoboImage("src/test/screenshots/$name.webp", roborazziOptions = options)
+        }
     }
 
     @Test fun extendedNecButtonRetainsAddressFormatWhenPressed() {

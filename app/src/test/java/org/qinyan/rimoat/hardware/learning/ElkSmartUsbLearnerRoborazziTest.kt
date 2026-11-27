@@ -33,8 +33,10 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ErrorCollector
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.testing.collectScreenshotDifference
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.hardware.UsbSessionAccess
@@ -62,6 +64,7 @@ import java.io.IOException
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class)
 class ElkSmartUsbLearnerRoborazziTest {
+    @get:Rule val screenshotDifferences = ErrorCollector()
     @get:Rule val compose = createComposeRule()
     private val app get() = RuntimeEnvironment.getApplication()
     private val usb get() = app.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -457,9 +460,11 @@ class ElkSmartUsbLearnerRoborazziTest {
                 }
             }
             compose.onNodeWithText(app.getString(R.string.screen_start_record)).assertIsEnabled()
-            compose.onNode(isDialog()).captureRoboImage(
-                "src/test/screenshots/${screenshotName}_ready.webp", roborazziOptions = options
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                compose.onNode(isDialog()).captureRoboImage(
+                    "src/test/screenshots/${screenshotName}_ready.webp", roborazziOptions = options
+                )
+            }
             compose.onNodeWithText(app.getString(R.string.screen_start_record)).performClick()
             compose.waitUntil(10_000) { learner.state.value is LearningState.Captured }
             compose.waitForIdle()
@@ -472,9 +477,11 @@ class ElkSmartUsbLearnerRoborazziTest {
             assertEquals(listOf(0xFC, 0xFA, 0xFE, 0xFD), attempt.writes.map { it.second[0].toInt() and 255 })
             assertReleased(attempt)
             assertFalse(UsbSessionAccess.mutex.isLocked)
-            compose.onNode(isDialog()).captureRoboImage(
-                "src/test/screenshots/${screenshotName}_captured.webp", roborazziOptions = options
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                compose.onNode(isDialog()).captureRoboImage(
+                    "src/test/screenshots/${screenshotName}_captured.webp", roborazziOptions = options
+                )
+            }
         } finally {
             learner.close()
         }

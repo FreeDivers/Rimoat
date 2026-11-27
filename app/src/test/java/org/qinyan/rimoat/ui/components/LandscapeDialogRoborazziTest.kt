@@ -13,6 +13,7 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.rules.ErrorCollector
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.hardware.IrSignal
@@ -23,6 +24,7 @@ import org.qinyan.rimoat.hardware.serial.SerialIrModule
 import org.qinyan.rimoat.hardware.serial.SerialIrSettings
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.UiText
+import org.qinyan.rimoat.testing.collectScreenshotDifference
 import org.qinyan.rimoat.ui.learning.SingleButtonLearningDialogContent
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.robolectric.RobolectricTestRunner
@@ -38,11 +40,16 @@ import java.util.concurrent.atomic.AtomicInteger
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class, ExperimentalMaterial3Api::class)
 class LandscapeDialogRoborazziTest {
+    @get:Rule val screenshotDifferences = ErrorCollector()
     @get:Rule val compose = createComposeRule()
     private val app get() = RuntimeEnvironment.getApplication()
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
-    private fun capture(name: String) = compose.onNode(isDialog()).captureRoboImage(
-        "src/test/screenshots/landscape_dialog_$name.webp", roborazziOptions = options)
+    private fun capture(name: String) {
+        val root = compose.onNode(isDialog())
+        screenshotDifferences.collectScreenshotDifference {
+            root.captureRoboImage("src/test/screenshots/landscape_dialog_$name.webp", roborazziOptions = options)
+        }
+    }
     private fun panes() {
         val left = compose.onNodeWithTag("two_pane_primary").fetchSemanticsNode().boundsInRoot
         val right = compose.onNodeWithTag("two_pane_secondary").fetchSemanticsNode().boundsInRoot

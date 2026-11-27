@@ -1,5 +1,7 @@
 package org.qinyan.rimoat.widget
 
+import org.qinyan.rimoat.testing.collectScreenshotDifference
+import org.junit.rules.ErrorCollector
 import android.app.Activity
 import android.os.Looper
 import android.view.View
@@ -38,6 +40,7 @@ import org.robolectric.annotation.*
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class)
 class WidgetConfigurationLandscapeRoborazziTest {
+    @get:Rule val screenshotDifferences = ErrorCollector()
     @get:Rule val composeRule = createComposeRule()
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
 
@@ -68,7 +71,9 @@ class WidgetConfigurationLandscapeRoborazziTest {
                 val children = descendants(parent)
                 assertTrue(children.filterIsInstance<TextView>().any { it.text.toString() == profile.name })
                 assertTrue(children.any { it.contentDescription?.toString() == "${profile.name} $label" && it.isEnabled })
-                parent.captureRoboImage("src/test/screenshots/$filename.webp", roborazziOptions = options)
+                screenshotDifferences.collectScreenshotDifference {
+                    parent.captureRoboImage("src/test/screenshots/$filename.webp", roborazziOptions = options)
+                }
                 assertEquals(250, parent.width)
                 assertEquals(160, parent.height)
             } finally { host.pause().stop().destroy() }
@@ -131,10 +136,12 @@ class WidgetConfigurationLandscapeRoborazziTest {
             val save = composeRule.onNodeWithText(app.getString(R.string.widget_done)).fetchSemanticsNode().boundsInRoot
             assertTrue("Portrait actions stay beside each other", cancel.right < save.left)
             assertTrue("Portrait actions share the bottom row", kotlin.math.abs(cancel.center.y - save.center.y) < 1f)
-            composeRule.onRoot().captureRoboImage(
-                "src/test/screenshots/widget_configuration_portrait_actions.webp",
-                roborazziOptions = options
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onRoot().captureRoboImage(
+                    "src/test/screenshots/widget_configuration_portrait_actions.webp",
+                    roborazziOptions = options
+                )
+            }
         } finally {
             app.transmitterManager.release()
             app.learnerManager.unregisterReceiver()
@@ -174,7 +181,9 @@ class WidgetConfigurationLandscapeRoborazziTest {
             val left = composeRule.onNodeWithTag("two_pane_primary").fetchSemanticsNode().boundsInRoot
             val right = composeRule.onNodeWithTag("two_pane_secondary").fetchSemanticsNode().boundsInRoot
             assertTrue(left.right < right.left)
-            composeRule.onRoot().captureRoboImage("src/test/screenshots/widget_configuration_landscape_before.webp", roborazziOptions = options)
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onRoot().captureRoboImage("src/test/screenshots/widget_configuration_landscape_before.webp", roborazziOptions = options)
+            }
             composeRule.onNodeWithContentDescription(app.getString(R.string.widget_move_down, powerLabel)).performScrollTo().performClick()
             assertEquals(listOf(power, input), app.widgets.store.configurations.value[widgetId]?.shortcuts)
             configurationPane.performScrollToNode(hasText(app.getString(R.string.widget_add_shortcut)))
@@ -183,7 +192,9 @@ class WidgetConfigurationLandscapeRoborazziTest {
             val chooserLeft = composeRule.onNode(hasTestTag("two_pane_primary") and dialog).fetchSemanticsNode().boundsInRoot
             val chooserRight = composeRule.onNode(hasTestTag("two_pane_secondary") and dialog).fetchSemanticsNode().boundsInRoot
             assertTrue(chooserLeft.right < chooserRight.left)
-            composeRule.onNode(isDialog()).captureRoboImage("src/test/screenshots/widget_configuration_landscape_chooser.webp", roborazziOptions = options)
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onNode(isDialog()).captureRoboImage("src/test/screenshots/widget_configuration_landscape_chooser.webp", roborazziOptions = options)
+            }
             composeRule.onNode(hasText("Input") and dialog).performClick()
             composeRule.onNode(isDialog()).assertDoesNotExist()
             configurationPane.performScrollToNode(hasText(app.getString(R.string.widget_list)))
@@ -196,7 +207,9 @@ class WidgetConfigurationLandscapeRoborazziTest {
             assertEquals(listOf(input, power), app.widgets.store.configurations.value[widgetId]?.shortcuts)
             assertEquals(WidgetArrangement.LIST, app.widgets.store.configurations.value[widgetId]?.arrangement)
             assertEquals(0, cancelled)
-            composeRule.onRoot().captureRoboImage("src/test/screenshots/widget_configuration_landscape_saved.webp", roborazziOptions = options)
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onRoot().captureRoboImage("src/test/screenshots/widget_configuration_landscape_saved.webp", roborazziOptions = options)
+            }
         } finally {
             app.transmitterManager.release()
             app.learnerManager.unregisterReceiver()
@@ -242,10 +255,12 @@ class WidgetConfigurationLandscapeRoborazziTest {
             // "Add shortcut" must not be allowed to mix foreign shortcuts into the draft.
             composeRule.onNode(hasText(fan.name) and dialog).assertDoesNotExist()
             composeRule.onNode(hasText("Mute") and dialog).assertIsDisplayed()
-            composeRule.onNode(isDialog()).captureRoboImage(
-                "src/test/screenshots/widget_configuration_landscape_status_chooser.webp",
-                roborazziOptions = options
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onNode(isDialog()).captureRoboImage(
+                    "src/test/screenshots/widget_configuration_landscape_status_chooser.webp",
+                    roborazziOptions = options
+                )
+            }
             composeRule.onNode(hasText("Mute") and dialog).performClick()
             composeRule.onNode(isDialog()).assertDoesNotExist()
             configurationPane.performScrollToNode(hasText(app.getString(R.string.widget_done)))

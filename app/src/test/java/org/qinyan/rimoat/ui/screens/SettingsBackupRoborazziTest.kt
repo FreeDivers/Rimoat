@@ -37,8 +37,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ErrorCollector
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.testing.collectScreenshotDifference
 import org.qinyan.rimoat.data.BackupFileStore
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.FlipperIrImporter
@@ -75,6 +77,7 @@ import java.io.OutputStream
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class)
 class SettingsBackupRoborazziTest {
+    @get:Rule val screenshotDifferences = ErrorCollector()
     @get:Rule
     val composeRule = createComposeRule()
 
@@ -152,9 +155,11 @@ class SettingsBackupRoborazziTest {
                 assertEquals(if (file == irFile) "风扇遥控" else incoming.name,
                     viewModel.pendingImport.value!!.backup.remotes.single().name)
                 composeRule.onNodeWithText(app.getString(R.string.migration_import_title)).assertIsDisplayed()
-                composeRule.onNode(isDialog()).captureRoboImage(
-                    "src/test/screenshots/large_library_${kind}_before.webp", roborazziOptions = screenshotOptions
-                )
+                screenshotDifferences.collectScreenshotDifference {
+                    composeRule.onNode(isDialog()).captureRoboImage(
+                        "src/test/screenshots/large_library_${kind}_before.webp", roborazziOptions = screenshotOptions
+                    )
+                }
                 composeRule.onNodeWithText(app.getString(R.string.migration_import_confirm)).performClick()
                 val success = app.resources.getQuantityString(R.plurals.msg_import_finished, 1, 1)
                 composeRule.waitUntil(timeoutMillis = 30_000) {
@@ -168,9 +173,11 @@ class SettingsBackupRoborazziTest {
                 assertTrue(repository.remotes.value.containsAll(before))
                 assertEquals(before, runBlocking { repository.readRecoverySnapshot() }.remotes)
                 composeRule.onNodeWithText(success).assertIsDisplayed()
-                composeRule.onRoot().captureRoboImage(
-                    "src/test/screenshots/large_library_${kind}_after.webp", roborazziOptions = screenshotOptions
-                )
+                screenshotDifferences.collectScreenshotDifference {
+                    composeRule.onRoot().captureRoboImage(
+                        "src/test/screenshots/large_library_${kind}_after.webp", roborazziOptions = screenshotOptions
+                    )
+                }
             }
         } finally {
             jsonFile.delete()
@@ -212,10 +219,12 @@ class SettingsBackupRoborazziTest {
             val backupAllLabel = app.getString(R.string.settings_backup_all)
             composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(backupAllLabel))
             composeRule.onNodeWithText(backupAllLabel).assertIsDisplayed()
-            composeRule.onRoot().captureRoboImage(
-                filePath = "src/test/screenshots/settings_backup_before.webp",
-                roborazziOptions = screenshotOptions
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onRoot().captureRoboImage(
+                    filePath = "src/test/screenshots/settings_backup_before.webp",
+                    roborazziOptions = screenshotOptions
+                )
+            }
 
             composeRule.onNodeWithText(backupAllLabel).performClick()
             composeRule.waitForIdle()
@@ -223,10 +232,12 @@ class SettingsBackupRoborazziTest {
             assertTrue(picker.launchedContract is ActivityResultContracts.CreateDocument)
             assertEquals("Rimoat-backup.json", picker.launchedInput)
             composeRule.onNodeWithText(app.getString(R.string.migration_export_options)).assertDoesNotExist()
-            composeRule.onRoot().captureRoboImage(
-                filePath = "src/test/screenshots/settings_backup_after.webp",
-                roborazziOptions = screenshotOptions
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onRoot().captureRoboImage(
+                    filePath = "src/test/screenshots/settings_backup_after.webp",
+                    roborazziOptions = screenshotOptions
+                )
+            }
 
             composeRule.runOnIdle { picker.select(Uri.fromFile(outputFile)) }
             composeRule.waitUntil(timeoutMillis = 10_000) {
@@ -290,10 +301,12 @@ class SettingsBackupRoborazziTest {
             val warning = app.getString(warningId)
             composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(backupAllLabel))
             composeRule.onNodeWithText(warning).assertDoesNotExist()
-            composeRule.onRoot().captureRoboImage(
-                filePath = "src/test/screenshots/settings_backup_overwrite_before.webp",
-                roborazziOptions = screenshotOptions
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onRoot().captureRoboImage(
+                    filePath = "src/test/screenshots/settings_backup_overwrite_before.webp",
+                    roborazziOptions = screenshotOptions
+                )
+            }
 
             composeRule.onNodeWithText(backupAllLabel).performClick()
             composeRule.runOnIdle { picker.select(outputUri) }
@@ -307,10 +320,12 @@ class SettingsBackupRoborazziTest {
             assertTrue(outputFile.readText().startsWith("{"))
             composeRule.onNodeWithText(app.getString(R.string.screen_backup_saved)).assertDoesNotExist()
             composeRule.onNodeWithText(warning).assertIsDisplayed()
-            composeRule.onRoot().captureRoboImage(
-                filePath = "src/test/screenshots/settings_backup_overwrite_failed.webp",
-                roborazziOptions = screenshotOptions
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onRoot().captureRoboImage(
+                    filePath = "src/test/screenshots/settings_backup_overwrite_failed.webp",
+                    roborazziOptions = screenshotOptions
+                )
+            }
         } finally {
             outputFile.delete()
             runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
@@ -363,10 +378,12 @@ class SettingsBackupRoborazziTest {
             composeRule.onNodeWithText(app.getString(R.string.migration_import_title)).assertIsDisplayed()
             composeRule.onNodeWithText(app.getString(R.string.migration_dynamic_colors)).assertDoesNotExist()
             composeRule.onNodeWithText(app.getString(R.string.migration_pure_black)).assertIsDisplayed()
-            composeRule.onNode(isDialog()).captureRoboImage(
-                filePath = "src/test/screenshots/import_dialog_no_dynamic_color.webp",
-                roborazziOptions = screenshotOptions
-            )
+            screenshotDifferences.collectScreenshotDifference {
+                composeRule.onNode(isDialog()).captureRoboImage(
+                    filePath = "src/test/screenshots/import_dialog_no_dynamic_color.webp",
+                    roborazziOptions = screenshotOptions
+                )
+            }
 
             composeRule.onNodeWithText(app.getString(R.string.migration_pure_black)).performClick()
             composeRule.onNodeWithText(app.getString(R.string.migration_import_confirm)).performClick()
