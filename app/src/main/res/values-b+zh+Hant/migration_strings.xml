@@ -11,7 +11,7 @@
     <string name="migration_import_title">確認匯入內容</string>
     <string name="migration_summary">新增：%1$d　衝突：%2$d　略過：%3$d　覆寫：%4$d</string>
     <string name="migration_rooms">檔案中的房間：%1$d</string>
-    <string name="migration_snapshot_note">匯入前會儲存本機快照，需要時可從「備份本機資料」匯出。系統小工具 ID、USB 授權和裝置連線不會遷移。</string>
+    <string name="migration_snapshot_note">匯入前會儲存本機快照。系統小工具 ID、USB 授權和裝置連線不會遷移。</string>
     <string name="migration_keep">保留現有</string>
     <string name="migration_overwrite">覆寫現有</string>
     <string name="migration_copy">匯入副本</string>

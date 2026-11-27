@@ -11,7 +11,7 @@
     <string name="migration_import_title">Review import</string>
     <string name="migration_summary">New: %1$d   Conflicts: %2$d   Skipped: %3$d   Replaced: %4$d</string>
     <string name="migration_rooms">Rooms in file: %1$d</string>
-    <string name="migration_snapshot_note">A local snapshot is saved before import. Export it from Back up local data if needed. System widget IDs, USB permissions and device connections are not transferred.</string>
+    <string name="migration_snapshot_note">A local snapshot is saved before import. System widget IDs, USB permissions and device connections are not transferred.</string>
     <string name="migration_keep">Keep existing</string>
     <string name="migration_overwrite">Replace existing</string>
     <string name="migration_copy">Import a copy</string>

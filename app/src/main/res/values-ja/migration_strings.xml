@@ -11,7 +11,7 @@
     <string name="migration_import_title">読み込み内容を確認</string>
     <string name="migration_summary">新規：%1$d　競合：%2$d　スキップ：%3$d　置換：%4$d</string>
     <string name="migration_rooms">ファイル内の部屋：%1$d</string>
-    <string name="migration_snapshot_note">読み込み前にローカルスナップショットを保存します。「ローカルデータをバックアップ」から書き出せます。システムウィジェット ID、USB の許可、機器の接続情報は移行しません。</string>
+    <string name="migration_snapshot_note">読み込み前にローカルスナップショットを保存します。システムウィジェット ID、USB の許可、機器の接続情報は移行しません。</string>
     <string name="migration_keep">既存を保持</string>
     <string name="migration_overwrite">既存を置換</string>
     <string name="migration_copy">コピーを読み込む</string>

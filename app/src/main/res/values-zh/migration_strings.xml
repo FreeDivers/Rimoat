@@ -11,7 +11,7 @@
     <string name="migration_import_title">确认导入内容</string>
     <string name="migration_summary">新增：%1$d　冲突：%2$d　跳过：%3$d　覆盖：%4$d</string>
     <string name="migration_rooms">文件中的房间：%1$d</string>
-    <string name="migration_snapshot_note">导入前会保存本地快照，需要时可从“备份本地数据”导出。系统小组件 ID、USB 授权和设备连接不会迁移。</string>
+    <string name="migration_snapshot_note">导入前会保存本地快照。系统小组件 ID、USB 授权和设备连接不会迁移。</string>
     <string name="migration_keep">保留现有</string>
     <string name="migration_overwrite">覆盖现有</string>
     <string name="migration_copy">导入副本</string>
