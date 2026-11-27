@@ -4,10 +4,6 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.localizedTimerDurationLabel
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.VolumeOff
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.data.AcFanSpeed
@@ -41,52 +37,7 @@ fun AcSettings.controlAppearance(action: AcAction): AcControlAppearance {
         AcAction.QUIET -> quietOn
         else -> null
     }
-    val icon = when (action) {
-        AcAction.MODE -> when (mode) {
-            AcMode.COOL -> Icons.Rounded.AcUnit
-            AcMode.HEAT -> Icons.Rounded.WbSunny
-            AcMode.DRY -> Icons.Rounded.WaterDrop
-            AcMode.FAN -> Icons.Rounded.Air
-            AcMode.AUTO -> Icons.Rounded.AutoMode
-        }
-        AcAction.FAN -> when (fanSpeed) {
-            AcFanSpeed.AUTO -> Icons.Rounded.AutoMode
-            AcFanSpeed.LOW -> Icons.Rounded.SignalCellularAlt1Bar
-            AcFanSpeed.MEDIUM -> Icons.Rounded.SignalCellularAlt2Bar
-            AcFanSpeed.HIGH -> Icons.Rounded.SignalCellularAlt
-        }
-        AcAction.SWING -> if (isSwingOn) Icons.Rounded.SwapVert else Icons.Rounded.VerticalAlignCenter
-        AcAction.HORIZONTAL_SWING -> if (horizontalSwingOn) Icons.Rounded.SwapHoriz else Icons.Rounded.HorizontalRule
-        AcAction.WIND_DIRECTION -> when (windDirection) {
-            AcWindDirection.AUTO -> Icons.Rounded.UnfoldMore
-            AcWindDirection.UP -> Icons.Rounded.KeyboardDoubleArrowUp
-            AcWindDirection.MIDDLE -> Icons.Rounded.DragHandle
-            AcWindDirection.DOWN -> Icons.Rounded.KeyboardDoubleArrowDown
-        }
-        AcAction.LIGHT -> Icons.Rounded.Lightbulb
-        AcAction.TURBO -> Icons.Rounded.Bolt
-        AcAction.SLEEP -> if (sleepOn) Icons.Rounded.Bedtime else Icons.Rounded.BedtimeOff
-        AcAction.VENTILATION -> Icons.Rounded.Air
-        AcAction.AUXILIARY_HEAT -> Icons.Rounded.WbSunny
-        AcAction.TIMER -> if (timerMinutes > 0) Icons.Rounded.Timer else Icons.Rounded.TimerOff
-        AcAction.DRY -> Icons.Rounded.WaterDrop
-        AcAction.ION -> Icons.Rounded.Grain
-        AcAction.ECO -> Icons.Rounded.Eco
-        AcAction.COMFORT -> Icons.Rounded.Spa
-        AcAction.TEMPERATURE_DISPLAY -> when (temperatureDisplay) {
-            AcTemperatureDisplay.OUTDOOR -> Icons.Rounded.Landscape
-            AcTemperatureDisplay.INDOOR -> Icons.Rounded.Home
-            AcTemperatureDisplay.TARGET -> Icons.Rounded.Thermostat
-            AcTemperatureDisplay.OFF -> Icons.Rounded.VisibilityOff
-        }
-        AcAction.QUICK_COOL -> Icons.Rounded.AcUnit
-        AcAction.QUICK_HEAT -> Icons.Rounded.WbSunny
-        AcAction.QUIET -> if (quietOn) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp
-        AcAction.CLEAN -> Icons.Rounded.CleaningServices
-        AcAction.POWER_ON, AcAction.POWER_OFF -> Icons.Rounded.PowerSettingsNew
-        AcAction.TEMP_UP -> Icons.Rounded.Add
-        AcAction.TEMP_DOWN -> Icons.Rounded.Remove
-    }
+    val icon = controlIcon(action)
     val label = when (action) {
         AcAction.MODE -> localizedLabel(mode)
         AcAction.FAN -> AppStrings.get(R.string.control_fan_label, "%1\$s风", localizedLabel(fanSpeed))

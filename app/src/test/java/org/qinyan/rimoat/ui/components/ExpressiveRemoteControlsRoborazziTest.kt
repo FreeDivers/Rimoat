@@ -1,6 +1,7 @@
 package org.qinyan.rimoat.ui.components
 
 import android.app.Application
+import android.os.Looper
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -8,6 +9,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.lifecycle.ViewModelStore
 import org.qinyan.rimoat.data.*
+import org.qinyan.rimoat.hardware.IrSignal
+import org.qinyan.rimoat.i18n.labelRes
+import org.qinyan.rimoat.ui.screens.AcLayoutPart
+import org.qinyan.rimoat.ui.screens.AcRemoteLayout
 import org.qinyan.rimoat.ui.screens.RemoteControlScreen
 import org.qinyan.rimoat.ui.screens.tvRemoteItems
 import org.qinyan.rimoat.ui.screens.fanRemoteItems
@@ -15,6 +20,8 @@ import org.qinyan.rimoat.ui.screens.genericRemoteItems
 import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
+import org.robolectric.Shadows
+import kotlin.math.abs
 import android.view.View
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -353,6 +360,67 @@ class ExpressiveRemoteControlsRoborazziTest {
         }
     }
 
+    @Test
+    @Config(qualifiers = "zh-rCN-w411dp-h891dp-mdpi")
+    fun dynamicAcFillsFewExtensionsDirectlyBehindMainControlsAndPagesWhenMany() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        var actions = setOf(
+            AcAction.POWER_ON, AcAction.POWER_OFF, AcAction.TEMP_UP, AcAction.TEMP_DOWN,
+            AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING,
+            AcAction.WIND_DIRECTION, AcAction.QUICK_COOL, AcAction.QUICK_HEAT
+        )
+        val encoder = object : AcSignalEncoder {
+            override suspend fun protocolFor(sourceRemoteId: String) = 1
+            override suspend fun supportedModes(protocol: Int) = listOf(AcMode.COOL, AcMode.HEAT)
+            override suspend fun availableActions(protocol: Int) = actions
+            override suspend fun encode(protocol: Int, settings: AcSettings, action: AcAction) =
+                listOf(IrSignal.Raw(patternMicros = intArrayOf(9000, 4500, 560)))
+        }
+        val compactAc = RemoteProfile(id = "ac", name = "客厅空调", category = DeviceCategory.AC, acProtocolId = 1)
+        val store = ViewModelStore()
+        val vm = RemoteControlViewModel("ac", initialProfile = compactAc, acSignalEncoder = encoder).also { store.put("ac", it) }
+
+        try {
+            compose.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    RemoteControlScreen(viewModel = vm, onBack = {})
+                }
+            }
+            compose.waitUntil(5_000) {
+                Shadows.shadowOf(Looper.getMainLooper()).idle()
+                vm.availableAcActions.value.contains(AcAction.QUICK_COOL)
+            }
+            compose.waitForIdle()
+
+            compose.onNodeWithText("常规功能").assertDoesNotExist()
+            compose.onNodeWithText("更多功能").assertDoesNotExist()
+            val windDirBounds = compose.onNodeWithContentDescription(AcAction.WIND_DIRECTION.label).fetchSemanticsNode().boundsInRoot
+            val quickCoolBounds = compose.onNodeWithContentDescription(AcAction.QUICK_COOL.label).fetchSemanticsNode().boundsInRoot
+            assertTrue("一键制冷 should fill the trailing slot on the same row as 风向", abs(windDirBounds.top - quickCoolBounds.top) < 2f)
+            compose.onNodeWithContentDescription(AcAction.QUICK_HEAT.label).performScrollTo().assertIsDisplayed()
+            compose.onRoot().captureScreenshot("src/test/screenshots/remote_ac_inline_extensions.webp", roborazziOptions = options)
+
+            actions = actions + setOf(
+                AcAction.LIGHT, AcAction.TURBO, AcAction.SLEEP, AcAction.VENTILATION,
+                AcAction.AUXILIARY_HEAT, AcAction.DRY, AcAction.ECO, AcAction.QUIET
+            )
+            vm.setProfileForTesting(compactAc.copy(name = "全功能空调", acProtocolId = 2))
+            compose.waitUntil(5_000) {
+                Shadows.shadowOf(Looper.getMainLooper()).idle()
+                vm.availableAcActions.value.contains(AcAction.QUIET)
+            }
+            compose.waitForIdle()
+            compose.onNodeWithText("常规功能").assertIsDisplayed()
+            compose.onNodeWithText("更多功能").assertIsDisplayed()
+            compose.onNodeWithText("更多功能").performClick()
+            compose.waitForIdle()
+            compose.onRoot().captureScreenshot("src/test/screenshots/remote_ac_paged_extensions.webp", roborazziOptions = options)
+        } finally {
+            store.clear()
+        }
+    }
+
     @Test fun powerKeysKeepTheirAccentInLightTheme() = exercisePowerPanels("light")
 
     @Test fun powerKeysKeepTheirAccentInDarkTheme() = exercisePowerPanels("dark", dark = true)
@@ -448,6 +516,52 @@ class ExpressiveRemoteControlsRoborazziTest {
         lamp.assertIsNotEnabled().performTouchInput { click() }
         compose.runOnIdle { assertEquals(listOf(buttons.first().id), sentIds) }
         capture("remote_custom_text_large_after")
+    }
+
+    @Test fun acSemanticIconsKeepDistinctFunctionsAndToggleStates() = exerciseAcIcons("light")
+
+    @Test fun acSemanticIconsKeepDistinctFunctionsInDarkTheme() = exerciseAcIcons("dark", dark = true)
+
+    private fun exerciseAcIcons(name: String, dark: Boolean = false) {
+        var settings by mutableStateOf(AcSettings(mode = AcMode.HEAT))
+        val actions = setOf(AcAction.MODE, AcAction.SWING, AcAction.HORIZONTAL_SWING,
+            AcAction.VENTILATION, AcAction.AUXILIARY_HEAT, AcAction.DRY,
+            AcAction.QUICK_COOL, AcAction.QUICK_HEAT)
+        val profile = RemoteProfile("ac_icons", "Air conditioner", category = DeviceCategory.AC, acProtocolId = 670)
+        val pressed = mutableListOf<AcAction>()
+        compose.setContent {
+            IrRemoteTheme(darkTheme = dark, dynamicColor = false) {
+                ProvideExpressiveCanvas {
+                    Surface(Modifier.fillMaxSize(), color = ExpressiveSurface.canvas) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                            AcRemoteLayout(profile, settings, false,
+                                onTogglePower = {}, onTempUp = {}, onTempDown = {},
+                                onCycleMode = {}, onCycleWind = {}, availableActions = actions,
+                                onAction = { action, minutes ->
+                                    pressed += action
+                                    settings = settings.apply(action, minutes)
+                                }, onSendButton = {}, inlineExtensions = true, part = AcLayoutPart.FUNCTIONS)
+                        }
+                    }
+                }
+            }
+        }
+        actions.forEach { action -> compose.onNodeWithContentDescription(app.getString(action.labelRes)).assertIsDisplayed() }
+        capture("remote_ac_semantic_icons_${name}_before")
+        val toggles = listOf(AcAction.SWING, AcAction.HORIZONTAL_SWING, AcAction.VENTILATION,
+            AcAction.AUXILIARY_HEAT, AcAction.DRY)
+        toggles.forEach { action ->
+            compose.onNodeWithContentDescription(app.getString(action.labelRes)).performTouchInput { click() }
+                .assertIsOn()
+        }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(toggles, pressed)
+            assertTrue(settings.isSwingOn && settings.horizontalSwingOn && settings.ventilationOn &&
+                settings.auxiliaryHeatOn && settings.dryOn)
+            assertEquals(AcMode.HEAT, settings.mode)
+        }
+        capture("remote_ac_semantic_icons_${name}_after")
     }
 
     private fun capture(name: String, dialog: Boolean = false) =

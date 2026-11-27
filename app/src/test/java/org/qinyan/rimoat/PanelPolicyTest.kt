@@ -237,7 +237,38 @@ class PanelPolicyTest {
         for (key in listOf(ButtonKey.OK, ButtonKey.DIGIT_0, ButtonKey.DIGIT_9, ButtonKey.PLUS_TEN)) {
             assertNull(resolveButtonIcon(button("custom").copy(key = key)))
         }
+        assertSame(getIconVector("swing"), resolveButtonIcon(button("custom").copy(key = ButtonKey.SWING)))
     }
 
+    @Test fun independentClimateActionsHaveDistinctIconsFromTheirModes() {
+        val state = AcSettings()
+        val distinctPairs = listOf(
+            state.copy(mode = AcMode.FAN).controlAppearance(AcAction.MODE).icon to
+                state.controlAppearance(AcAction.VENTILATION).icon,
+            state.copy(mode = AcMode.DRY).controlAppearance(AcAction.MODE).icon to
+                state.controlAppearance(AcAction.DRY).icon,
+            state.copy(mode = AcMode.COOL).controlAppearance(AcAction.MODE).icon to
+                state.controlAppearance(AcAction.QUICK_COOL).icon,
+            state.copy(mode = AcMode.HEAT).controlAppearance(AcAction.MODE).icon to
+                state.controlAppearance(AcAction.QUICK_HEAT).icon,
+            state.copy(mode = AcMode.HEAT).controlAppearance(AcAction.MODE).icon to
+                state.controlAppearance(AcAction.AUXILIARY_HEAT).icon
+        )
+        distinctPairs.forEach { (mode, action) -> assertNotEquals(mode, action) }
+        val actions = listOf(AcAction.VENTILATION, AcAction.DRY, AcAction.AUXILIARY_HEAT,
+            AcAction.QUICK_COOL, AcAction.QUICK_HEAT, AcAction.TURBO,
+            AcAction.HORIZONTAL_SWING, AcAction.SWING, AcAction.TEMP_DOWN)
+        val icons = actions.map { state.controlAppearance(it).icon }
+        assertEquals(actions.size, icons.distinct().size)
+        for (action in listOf(AcAction.HORIZONTAL_SWING, AcAction.SWING)) {
+            val off = state.controlAppearance(action)
+            val on = state.apply(action).controlAppearance(action)
+            assertSame(off.icon, on.icon)
+            assertEquals(false, off.active)
+            assertEquals(true, on.active)
+        }
+        assertSame(Icons.Rounded.SwapHoriz, state.controlAppearance(AcAction.HORIZONTAL_SWING).icon)
+        assertSame(Icons.Rounded.SwapVert, state.controlAppearance(AcAction.SWING).icon)
+    }
 
 }

@@ -4,8 +4,43 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.VectorGroup
+import androidx.compose.ui.graphics.vector.VectorPath
+import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.data.*
 import java.util.Locale
+
+private fun quickActionIcon(name: String, badge: ImageVector): ImageVector {
+    val builder = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
+    fun append(group: VectorGroup) {
+        for (node in group) when (node) {
+            is VectorPath -> builder.addPath(
+                pathData = node.pathData, pathFillType = node.pathFillType, name = node.name,
+                fill = node.fill, fillAlpha = node.fillAlpha, stroke = node.stroke,
+                strokeAlpha = node.strokeAlpha, strokeLineWidth = node.strokeLineWidth,
+                strokeLineCap = node.strokeLineCap, strokeLineJoin = node.strokeLineJoin,
+                strokeLineMiter = node.strokeLineMiter)
+            is VectorGroup -> {
+                builder.addGroup(name = node.name, rotate = node.rotation,
+                    pivotX = node.pivotX, pivotY = node.pivotY, scaleX = node.scaleX, scaleY = node.scaleY,
+                    translationX = node.translationX, translationY = node.translationY,
+                    clipPathData = node.clipPathData)
+                append(node)
+                builder.clearGroup()
+            }
+        }
+    }
+    builder.addGroup(scaleX = .85f, scaleY = .85f, translationX = -2f, translationY = 3f)
+    append(Icons.Rounded.Bolt.root)
+    builder.clearGroup()
+    builder.addGroup(scaleX = .48f, scaleY = .48f, translationX = 12.5f)
+    append(badge.root)
+    builder.clearGroup()
+    return builder.build()
+}
+
+private val QuickCoolIcon = quickActionIcon("RemoteQuickCool", Icons.Rounded.AcUnit)
+private val QuickHeatIcon = quickActionIcon("RemoteQuickHeat", Icons.Rounded.WbSunny)
 
 private val namedIcons: Map<String, ImageVector> = mapOf(
     "power" to Icons.Rounded.PowerSettingsNew,
@@ -40,8 +75,8 @@ private val namedIcons: Map<String, ImageVector> = mapOf(
     "timer" to Icons.Rounded.Timer,
     "sync_alt" to Icons.Rounded.SyncAlt,
     "oscillation" to Icons.Rounded.SyncAlt,
-    "swap_calls" to Icons.Rounded.SwapCalls,
-    "swing" to Icons.Rounded.SwapCalls,
+    "swap_calls" to Icons.Rounded.SwapVert,
+    "swing" to Icons.Rounded.SwapVert,
     "nature" to Icons.Rounded.Nature,
     "center_focus_strong" to Icons.Rounded.CenterFocusStrong,
     "filter_center_focus" to Icons.Rounded.FilterCenterFocus,
@@ -62,6 +97,10 @@ private val namedIcons: Map<String, ImageVector> = mapOf(
     "settings" to Icons.Rounded.Settings,
     "ac_unit" to Icons.Rounded.AcUnit,
     "wb_sunny" to Icons.Rounded.WbSunny,
+    "swap_vert" to Icons.Rounded.SwapVert,
+    "vertical_swing" to Icons.Rounded.SwapVert,
+    "swap_horiz" to Icons.Rounded.SwapHoriz,
+    "horizontal_swing" to Icons.Rounded.SwapHoriz,
     "lock" to Icons.Rounded.Lock,
     "eco" to Icons.Rounded.Eco,
     "osd" to Icons.Rounded.Monitor,
@@ -73,6 +112,11 @@ private val namedIcons: Map<String, ImageVector> = mapOf(
     "add" to Icons.Rounded.Add,
     "remove" to Icons.Rounded.Remove,
     "fan" to Icons.Rounded.Air,
+    "quick_cool" to QuickCoolIcon,
+    "quick_heat" to QuickHeatIcon,
+    "hvac" to Icons.Rounded.Hvac,
+    "dry" to Icons.Rounded.LocalLaundryService,
+    "auxiliary_heat" to Icons.Rounded.LocalFireDepartment
 )
 
 private val buttonIcons: Map<ButtonKey, ImageVector> = mapOf(
@@ -109,9 +153,9 @@ private val buttonIcons: Map<ButtonKey, ImageVector> = mapOf(
     ButtonKey.NEXT to Icons.Rounded.SkipNext,
     ButtonKey.FAN_SPEED to Icons.Rounded.Speed,
     ButtonKey.AIRFLOW to Icons.Rounded.Speed,
-    ButtonKey.SWING to Icons.Rounded.SyncAlt,
-    ButtonKey.HORIZONTAL_SWING to Icons.Rounded.SyncAlt,
-    ButtonKey.VERTICAL_SWING to Icons.Rounded.SyncAlt,
+    ButtonKey.SWING to Icons.Rounded.SwapVert,
+    ButtonKey.HORIZONTAL_SWING to Icons.Rounded.SwapHoriz,
+    ButtonKey.VERTICAL_SWING to Icons.Rounded.SwapVert,
     ButtonKey.OSCILLATION to Icons.Rounded.SyncAlt,
     ButtonKey.TIMER to Icons.Rounded.Timer,
     ButtonKey.BATH_TIMER to Icons.Rounded.Timer,
@@ -122,9 +166,9 @@ private val buttonIcons: Map<ButtonKey, ImageVector> = mapOf(
     ButtonKey.ZOOM_IN to Icons.Rounded.ZoomIn,
     ButtonKey.ZOOM_OUT to Icons.Rounded.ZoomOut,
     ButtonKey.SLEEP to Icons.Rounded.Bedtime,
-    ButtonKey.QUICK_COOL to Icons.Rounded.AcUnit,
+    ButtonKey.QUICK_COOL to QuickCoolIcon,
     ButtonKey.COOL_WIND to Icons.Rounded.AcUnit,
-    ButtonKey.QUICK_HEAT to Icons.Rounded.WbSunny,
+    ButtonKey.QUICK_HEAT to QuickHeatIcon,
     ButtonKey.EJECT to Icons.Rounded.Eject,
     ButtonKey.SUBTITLES to Icons.Rounded.Subtitles,
     ButtonKey.SETTINGS to Icons.Rounded.Settings,
@@ -135,6 +179,12 @@ private val buttonIcons: Map<ButtonKey, ImageVector> = mapOf(
     ButtonKey.SWITCH to Icons.Rounded.SwapHoriz,
     ButtonKey.BRIGHTNESS to Icons.Rounded.Brightness6,
     ButtonKey.ION to Icons.Rounded.Air,
+    ButtonKey.VENTILATION to Icons.Rounded.Hvac,
+    ButtonKey.DRY to Icons.Rounded.LocalLaundryService,
+    ButtonKey.AUXILIARY_HEAT to Icons.Rounded.LocalFireDepartment,
+    ButtonKey.TURBO to Icons.Rounded.Bolt,
+    ButtonKey.COMFORT to Icons.Rounded.Spa,
+    ButtonKey.CLEAN to Icons.Rounded.CleaningServices
 )
 
 val ButtonKey.icon: ImageVector? get() = buttonIcons[this]
@@ -152,3 +202,37 @@ fun resolveButtonIcon(button: RemoteButton): ImageVector? = resolveButtonIcon(bu
 @Suppress("UNUSED_PARAMETER")
 fun resolveButtonIcon(iconName: String?, label: String, id: String = "", builtinLabel: String? = null): ImageVector? =
     resolveButtonIcon(builtinLabel?.let(LegacyLabelMap::key) ?: LegacyLabelMap.id(id), iconName)
+
+internal fun AcSettings.controlIcon(action: AcAction): ImageVector = when (action) {
+    AcAction.MODE -> when (mode) {
+        AcMode.COOL -> Icons.Rounded.AcUnit
+        AcMode.HEAT -> Icons.Rounded.WbSunny
+        AcMode.DRY -> Icons.Rounded.WaterDrop
+        AcMode.FAN -> Icons.Rounded.Air
+        AcMode.AUTO -> Icons.Rounded.AutoMode
+    }
+    AcAction.FAN -> when (fanSpeed) {
+        AcFanSpeed.AUTO -> Icons.Rounded.AutoMode
+        AcFanSpeed.LOW -> Icons.Rounded.SignalCellularAlt1Bar
+        AcFanSpeed.MEDIUM -> Icons.Rounded.SignalCellularAlt2Bar
+        AcFanSpeed.HIGH -> Icons.Rounded.SignalCellularAlt
+    }
+    AcAction.WIND_DIRECTION -> when (windDirection) {
+        AcWindDirection.AUTO -> Icons.Rounded.UnfoldMore
+        AcWindDirection.UP -> Icons.Rounded.KeyboardDoubleArrowUp
+        AcWindDirection.MIDDLE -> Icons.Rounded.DragHandle
+        AcWindDirection.DOWN -> Icons.Rounded.KeyboardDoubleArrowDown
+    }
+    AcAction.SLEEP -> if (sleepOn) Icons.Rounded.Bedtime else Icons.Rounded.BedtimeOff
+    AcAction.TIMER -> if (timerMinutes > 0) Icons.Rounded.Timer else Icons.Rounded.TimerOff
+    AcAction.TEMPERATURE_DISPLAY -> when (temperatureDisplay) {
+        AcTemperatureDisplay.OUTDOOR -> Icons.Rounded.Landscape
+        AcTemperatureDisplay.INDOOR -> Icons.Rounded.Home
+        AcTemperatureDisplay.TARGET -> Icons.Rounded.Thermostat
+        AcTemperatureDisplay.OFF -> Icons.Rounded.VisibilityOff
+    }
+    AcAction.QUIET -> if (quietOn) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp
+    AcAction.TEMP_UP -> Icons.Rounded.Add
+    AcAction.TEMP_DOWN -> Icons.Rounded.Remove
+    else -> requireNotNull(action.buttonKey.icon)
+}

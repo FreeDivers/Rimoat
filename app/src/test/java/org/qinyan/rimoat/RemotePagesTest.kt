@@ -32,7 +32,6 @@ import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
-import kotlin.math.abs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "zh-rCN-w411dp-h891dp-mdpi", application = Application::class)
@@ -67,67 +66,6 @@ class RemotePagesTest {
     @Test fun genericKeepsNumbersAndOnlyFirstMatchingDirectionsSoDuplicateKeysRemainAccessible() {
         val p = remote(DeviceCategory.CUSTOM, listOf("电源", "上", "下", "左", "右", "OK", "0", "1", "A", "B", "C", "D", "E", "F", "G", "上"))
         assertEquals(listOf("G", "上"), remoteExtraButtons(p).map { it.label })
-    }
-
-    @Test fun dynamicAcFillsFewExtensionsDirectlyBehindMainControlsAndPagesWhenMany() {
-        val app = RuntimeEnvironment.getApplication()
-        AppStrings.initialize(app)
-        var actions = setOf(
-            AcAction.POWER_ON, AcAction.POWER_OFF, AcAction.TEMP_UP, AcAction.TEMP_DOWN,
-            AcAction.MODE, AcAction.FAN, AcAction.SWING, AcAction.HORIZONTAL_SWING,
-            AcAction.WIND_DIRECTION, AcAction.QUICK_COOL, AcAction.QUICK_HEAT
-        )
-        val encoder = object : AcSignalEncoder {
-            override suspend fun protocolFor(sourceRemoteId: String) = 1
-            override suspend fun supportedModes(protocol: Int) = listOf(AcMode.COOL, AcMode.HEAT)
-            override suspend fun availableActions(protocol: Int) = actions
-            override suspend fun encode(protocol: Int, settings: AcSettings, action: AcAction) =
-                listOf(IrSignal.Raw(patternMicros = intArrayOf(9000, 4500, 560)))
-        }
-        val compactAc = RemoteProfile(id = "ac", name = "客厅空调", category = DeviceCategory.AC, acProtocolId = 1)
-        val store = ViewModelStore()
-        val vm = RemoteControlViewModel("ac", initialProfile = compactAc, acSignalEncoder = encoder).also { store.put("ac", it) }
-
-        try {
-            composeRule.setContent {
-                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
-                    RemoteControlScreen(viewModel = vm, onBack = {})
-                }
-            }
-            composeRule.waitUntil(5_000) {
-                Shadows.shadowOf(Looper.getMainLooper()).idle()
-                vm.availableAcActions.value.contains(AcAction.QUICK_COOL)
-            }
-            composeRule.waitForIdle()
-
-            // 2 extension actions ("一键制冷", "一键制热") merge without tabs and fill directly behind "风向" on row 2.
-            composeRule.onNodeWithText("常规功能").assertDoesNotExist()
-            composeRule.onNodeWithText("更多功能").assertDoesNotExist()
-            val windDirBounds = composeRule.onNodeWithContentDescription(AcAction.WIND_DIRECTION.label).fetchSemanticsNode().boundsInRoot
-            val quickCoolBounds = composeRule.onNodeWithContentDescription(AcAction.QUICK_COOL.label).fetchSemanticsNode().boundsInRoot
-            assertTrue("一键制冷 should fill the trailing slot on the same row as 风向", abs(windDirBounds.top - quickCoolBounds.top) < 2f)
-            composeRule.onNodeWithContentDescription(AcAction.QUICK_HEAT.label).performScrollTo().assertIsDisplayed()
-            composeRule.onRoot().captureRoboImage("src/test/screenshots/remote_ac_inline_extensions.webp", roborazziOptions = options)
-
-            // 8 extra actions (> 6) must still split into "常规功能 / 更多功能" tabs.
-            actions = actions + setOf(
-                AcAction.LIGHT, AcAction.TURBO, AcAction.SLEEP, AcAction.VENTILATION,
-                AcAction.AUXILIARY_HEAT, AcAction.DRY, AcAction.ECO, AcAction.QUIET
-            )
-            vm.setProfileForTesting(compactAc.copy(name = "全功能空调", acProtocolId = 2))
-            composeRule.waitUntil(5_000) {
-                Shadows.shadowOf(Looper.getMainLooper()).idle()
-                vm.availableAcActions.value.contains(AcAction.QUIET)
-            }
-            composeRule.waitForIdle()
-            composeRule.onNodeWithText("常规功能").assertIsDisplayed()
-            composeRule.onNodeWithText("更多功能").assertIsDisplayed()
-            composeRule.onNodeWithText("更多功能").performClick()
-            composeRule.waitForIdle()
-            composeRule.onRoot().captureRoboImage("src/test/screenshots/remote_ac_paged_extensions.webp", roborazziOptions = options)
-        } finally {
-            store.clear()
-        }
     }
 
     @Test fun acTemperatureLimitReasonDialogShowsConciseCopy() {
