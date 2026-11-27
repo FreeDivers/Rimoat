@@ -92,7 +92,8 @@ data class CustomRemoteWizardUiState(
     val isRestoring: Boolean = false,
     val applianceType: ApplianceType? = null,
     val templateApplianceType: ApplianceType? = null,
-    val keySchemaVersion: Int = 0
+    val keySchemaVersion: Int = 0,
+    @kotlinx.serialization.Transient val pendingApplianceType: ApplianceType? = null
 ) {
     val selectedApplianceType: ApplianceType
         get() = applianceType ?: ApplianceType.fromCategory(category)
@@ -167,6 +168,7 @@ private fun normalizeRestored(state: CustomRemoteWizardUiState): CustomRemoteWiz
         isSaving = false,
         isTestingTransmit = false,
         isRestoring = false,
+        pendingApplianceType = null,
         templateApplianceType = template,
         keySchemaVersion = 1,
         keyQueue = normalizedQueue.map { item ->
@@ -342,23 +344,56 @@ class CustomRemoteWizardViewModel(
     }
 
     fun setApplianceType(type: ApplianceType) {
-        if (_uiState.value.selectedApplianceType == type) return
+        val state = _uiState.value
+        if (state.selectedApplianceType == type || state.isSaving || state.isRestoring) return
+        if (state.hasLearningProgress) {
+            _uiState.update { it.copy(pendingApplianceType = type) }
+        } else {
+            applyApplianceType(type, keepLearnedKeys = false)
+        }
+    }
+
+    fun cancelApplianceTypeChange() {
+        _uiState.update { it.copy(pendingApplianceType = null) }
+    }
+
+    fun confirmApplianceTypeChange(keepLearnedKeys: Boolean) {
+        val state = _uiState.value
+        val type = state.pendingApplianceType ?: return
+        if (state.isSaving || state.isRestoring) return
+        applyApplianceType(type, keepLearnedKeys)
+    }
+
+    private fun applyApplianceType(type: ApplianceType, keepLearnedKeys: Boolean) {
+        cancelTest()
+        cancelCurrentKeyLearning()
         _uiState.update {
-            if (it.step == WizardStep.SETUP && !it.hasLearningProgress) {
-                it.copy(
-                    category = type.category,
-                    applianceType = type,
-                    templateApplianceType = type,
-                    currentIndex = 0,
-                    keyQueue = generateDefaultQueue(type)
-                )
-            } else {
-                it.copy(category = type.category, applianceType = type)
+            val retained = if (keepLearnedKeys) it.keyQueue.filter { item ->
+                item.capturedSignal != null || item.builtinLabel == null || item.id.startsWith("custom_")
+            } else emptyList()
+            val defaults = generateDefaultQueue(type)
+            val queue = retained + defaults.filter { item ->
+                retained.none { existing ->
+                    if (item.acAction != null) existing.acAction == item.acAction
+                    else existing.key == item.key && existing.acAction == null
+                }
             }
+            if (queue.size > 256) return@update it.copy(errorMessage = UiText.Resource(R.string.screen_key_limits))
+            it.copy(
+                category = type.category,
+                applianceType = type,
+                templateApplianceType = if (retained.isEmpty()) type else it.templateApplianceType.takeIf { origin -> origin == type },
+                keySchemaVersion = 1,
+                pendingApplianceType = null,
+                currentIndex = queue.indexOfFirst { item -> item.id == it.currentKey?.id }.coerceAtLeast(0),
+                keyQueue = queue,
+                errorMessage = null
+            )
         }
     }
 
     fun proceedToLearning(): Boolean {
+        if (_uiState.value.pendingApplianceType != null) return false
         val name = _uiState.value.remoteName.trim()
         if (name.isBlank()) {
             _uiState.update { it.copy(errorMessage = UiText.Resource(R.string.screen_enter_name)) }
@@ -645,7 +680,7 @@ class CustomRemoteWizardViewModel(
             brand = state.brand.trim(),
             category = state.category,
             applianceType = state.selectedApplianceType,
-            useStaticAcButtons = state.category == DeviceCategory.AC,
+            useStaticAcButtons = state.category == DeviceCategory.AC && state.templateApplianceType == ApplianceType.AC,
             keySchemaVersion = LegacyRemoteMigration.KEY_SCHEMA_VERSION,
             buttons = learnedButtons,
             updatedAt = System.currentTimeMillis()
@@ -711,6 +746,10 @@ class CustomRemoteWizardViewModel(
 
     fun handleBack(): Boolean {
         if (completed || _uiState.value.isSaving || _uiState.value.isRestoring) return true
+        if (_uiState.value.pendingApplianceType != null) {
+            cancelApplianceTypeChange()
+            return true
+        }
         cancelTest()
         val current = _uiState.value
         return when (current.step) {

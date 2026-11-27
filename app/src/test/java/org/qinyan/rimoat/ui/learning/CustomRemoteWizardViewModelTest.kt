@@ -592,91 +592,97 @@ class CustomRemoteWizardViewModelTest {
         assertEquals(UiText.Resource(R.string.screen_need_learned_key), vm.uiState.value.errorMessage)
     }
 
-    @Test fun switchingTypeAfterReturningFromLearningKeepsLearnedAndCustomKeys() {
+    @Test fun switchingTypeRequiresConfirmationAndKeepsSignalsWithNewDefaults() {
         val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.TV))
-        vm.setRemoteName("客厅电视")
+        vm.setRemoteName("Living room")
         assertTrue(vm.proceedToLearning())
-
-        val powerSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560))
-        learnerManager.mockLearner.triggerManualSignal(powerSignal)
-        vm.startLearningCurrentKey()
-        assertTrue(awaitCondition { vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
-        vm.confirmCurrentKey()
-
-        val volUpSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1690))
-        learnerManager.mockLearner.triggerManualSignal(volUpSignal)
-        vm.startLearningCurrentKey()
-        assertTrue(awaitCondition { vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
-        vm.confirmCurrentKey()
-
-        vm.addCustomKey("睡前定时")
-        val queueBeforeBack = vm.uiState.value.keyQueue
-        val indexBeforeBack = vm.uiState.value.currentIndex
-
+        val powerSignal = learnCurrentKey(vm)
+        val volumeSignal = learnCurrentKey(vm)
+        vm.addCustomKey("Bedtime")
+        val original = vm.uiState.value.keyQueue
         assertTrue(vm.handleBack())
-        assertEquals(WizardStep.SETUP, vm.uiState.value.step)
 
-        vm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.SET_TOP_BOX)
-        assertEquals(org.qinyan.rimoat.data.ApplianceType.SET_TOP_BOX, vm.uiState.value.selectedApplianceType)
-        assertEquals(DeviceCategory.TV, vm.uiState.value.category)
-        assertEquals(queueBeforeBack, vm.uiState.value.keyQueue)
-        assertEquals(indexBeforeBack, vm.uiState.value.currentIndex)
+        vm.setApplianceType(ApplianceType.AC)
+        assertEquals(ApplianceType.TV, vm.uiState.value.selectedApplianceType)
+        assertEquals(ApplianceType.AC, vm.uiState.value.pendingApplianceType)
+        assertEquals(original, vm.uiState.value.keyQueue)
+        assertFalse(vm.proceedToLearning())
+        vm.cancelApplianceTypeChange()
+        assertEquals(null, vm.uiState.value.pendingApplianceType)
+        assertEquals(original, vm.uiState.value.keyQueue)
 
-        vm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.AC)
-        assertEquals(org.qinyan.rimoat.data.ApplianceType.AC, vm.uiState.value.selectedApplianceType)
-        assertEquals(DeviceCategory.AC, vm.uiState.value.category)
-        assertEquals(queueBeforeBack, vm.uiState.value.keyQueue)
-        assertEquals(indexBeforeBack, vm.uiState.value.currentIndex)
+        vm.setApplianceType(ApplianceType.AC)
+        vm.confirmApplianceTypeChange(keepLearnedKeys = true)
+        val state = vm.uiState.value
+        assertEquals(ApplianceType.AC, state.selectedApplianceType)
+        assertEquals(null, state.pendingApplianceType)
+        assertEquals(null, state.templateApplianceType)
+        assertEquals(2, state.learnedCount)
+        assertEquals(powerSignal, state.keyQueue[0].capturedSignal)
+        assertEquals(volumeSignal, state.keyQueue[1].capturedSignal)
+        assertEquals("Bedtime", state.keyQueue[2].label)
+        assertEquals(9, state.keyQueue.size)
+        assertEquals(null, state.keyQueue[0].acAction)
+        assertEquals(6, state.keyQueue.count { it.acAction != null })
+        assertTrue(state.keyQueue.none { it.key == ButtonKey.MUTE })
 
-        assertTrue(vm.proceedToLearning())
-        assertEquals(WizardStep.LEARNING, vm.uiState.value.step)
-        assertEquals(2, vm.uiState.value.learnedCount)
-        assertEquals(powerSignal, vm.uiState.value.keyQueue[0].capturedSignal)
-        assertEquals(volUpSignal, vm.uiState.value.keyQueue[1].capturedSignal)
-        assertEquals("睡前定时", vm.uiState.value.keyQueue.last().label)
-        assertEquals(indexBeforeBack, vm.uiState.value.currentIndex)
+        var saved: RemoteProfile? = null
+        vm.saveRemote { saved = it }
+        assertTrue(awaitCondition { saved != null })
+        assertFalse(saved!!.useStaticAcButtons)
+        assertEquals(listOf(powerSignal.patternMicros.toList(), volumeSignal.patternMicros.toList()), saved!!.buttons.map { it.rawPattern })
     }
 
-    @Test fun switchingTypeAfterAddingOnlyCustomKeyOrCapturedKeyKeepsQueue() {
-        val customOnlyVm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.TV))
-        customOnlyVm.setRemoteName("自定义键测试")
-        assertTrue(customOnlyVm.proceedToLearning())
-        customOnlyVm.addCustomKey("自定义功能")
-        val customQueue = customOnlyVm.uiState.value.keyQueue
-        assertTrue(customOnlyVm.handleBack())
-        customOnlyVm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.FAN)
-        assertEquals(org.qinyan.rimoat.data.ApplianceType.FAN, customOnlyVm.uiState.value.selectedApplianceType)
-        assertEquals(customQueue, customOnlyVm.uiState.value.keyQueue)
-        assertTrue(customOnlyVm.proceedToLearning())
-        assertEquals("自定义功能", customOnlyVm.uiState.value.keyQueue.last().label)
+    @Test fun switchingTypeKeepsCapturedAndCustomKeysWithoutDuplicatingSharedDefaults() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.TV))
+        vm.setRemoteName("Living room")
+        assertTrue(vm.proceedToLearning())
+        val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1120))
+        learnerManager.mockLearner.triggerManualSignal(signal)
+        vm.startLearningCurrentKey()
+        assertTrue(awaitCondition { vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
+        vm.addCustomKey("Custom function")
+        val captured = vm.uiState.value.currentKey
+        assertTrue(vm.handleBack())
+        vm.setApplianceType(ApplianceType.FAN)
+        vm.confirmApplianceTypeChange(keepLearnedKeys = true)
+        val state = vm.uiState.value
+        assertEquals(ApplianceType.FAN, state.selectedApplianceType)
+        assertEquals(captured, state.currentKey)
+        assertEquals(1, state.keyQueue.count { it.key == ButtonKey.POWER })
+        assertEquals(1, state.keyQueue.count { it.label == "Custom function" })
+        assertEquals(6, state.keyQueue.size)
+        assertEquals(signal, state.currentKey?.capturedSignal)
+        assertEquals(KeyLearnStatus.CAPTURED, state.currentKey?.status)
+    }
 
-        val capturedOnlyVm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.TV))
-        capturedOnlyVm.setRemoteName("已捕获未确认测试")
-        assertTrue(capturedOnlyVm.proceedToLearning())
-        val capturedSignal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1120))
-        learnerManager.mockLearner.triggerManualSignal(capturedSignal)
-        capturedOnlyVm.startLearningCurrentKey()
-        assertTrue(awaitCondition { capturedOnlyVm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED })
-        val capturedQueue = capturedOnlyVm.uiState.value.keyQueue
-        assertTrue(capturedOnlyVm.handleBack())
-        capturedOnlyVm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.LIGHT)
-        assertEquals(org.qinyan.rimoat.data.ApplianceType.LIGHT, capturedOnlyVm.uiState.value.selectedApplianceType)
-        assertEquals(capturedQueue, capturedOnlyVm.uiState.value.keyQueue)
-        assertTrue(capturedOnlyVm.proceedToLearning())
-        assertEquals(capturedSignal, capturedOnlyVm.uiState.value.currentKey?.capturedSignal)
-        assertEquals(KeyLearnStatus.CAPTURED, capturedOnlyVm.uiState.value.currentKey?.status)
+    @Test fun switchingTypeCanExplicitlyClearProgressAndUseTheNewTemplate() {
+        val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.TV))
+        vm.setRemoteName("Bedroom")
+        assertTrue(vm.proceedToLearning())
+        learnCurrentKey(vm)
+        vm.addCustomKey("Custom function")
+        assertTrue(vm.handleBack())
+        vm.setApplianceType(ApplianceType.AC)
+        vm.confirmApplianceTypeChange(keepLearnedKeys = false)
+        val state = vm.uiState.value
+        assertEquals(ApplianceType.AC, state.templateApplianceType)
+        assertEquals(0, state.learnedCount)
+        assertEquals(0, state.currentIndex)
+        assertEquals(6, state.keyQueue.size)
+        assertTrue(state.keyQueue.all { it.status == KeyLearnStatus.PENDING && it.capturedSignal == null && it.acAction != null })
+        assertEquals("Bedroom", state.remoteName)
     }
 
     @Test fun switchingTypeWithoutProgressStillUpdatesDefaultQueueAfterReturningFromLearning() {
         val vm = tracked(CustomRemoteWizardViewModel(learnerManager = learnerManager, initialCategory = DeviceCategory.TV))
-        vm.setRemoteName("未学切换测试")
+        vm.setRemoteName("No learned keys")
         assertTrue(vm.proceedToLearning())
         assertTrue(vm.handleBack())
-        assertEquals(WizardStep.SETUP, vm.uiState.value.step)
-
-        vm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.CAMERA)
-        assertEquals(org.qinyan.rimoat.data.ApplianceType.CAMERA, vm.uiState.value.selectedApplianceType)
+        vm.setApplianceType(ApplianceType.CAMERA)
+        assertEquals(ApplianceType.CAMERA, vm.uiState.value.selectedApplianceType)
         assertEquals(listOf(ButtonKey.SHUTTER, ButtonKey.SUB_SHUTTER), vm.uiState.value.keyQueue.map { it.key })
+        assertEquals(null, vm.uiState.value.pendingApplianceType)
         assertEquals(0, vm.uiState.value.currentIndex)
     }
 

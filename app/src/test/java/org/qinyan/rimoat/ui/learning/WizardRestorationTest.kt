@@ -80,14 +80,22 @@ class WizardRestorationTest {
             val vm = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("first", it) }
             await(dispatcher) { !vm.uiState.value.isRestoring }
 
-            val normalizedQueue = vm.uiState.value.keyQueue
             assertTrue(vm.handleBack())
             assertEquals(WizardStep.SETUP, vm.uiState.value.step)
 
             vm.setApplianceType(org.qinyan.rimoat.data.ApplianceType.FAN)
+            assertEquals(ApplianceType.TV, vm.uiState.value.selectedApplianceType)
+            assertEquals(ApplianceType.FAN, vm.uiState.value.pendingApplianceType)
+            vm.confirmApplianceTypeChange(keepLearnedKeys = true)
             assertEquals(org.qinyan.rimoat.data.ApplianceType.FAN, vm.uiState.value.selectedApplianceType)
-            assertEquals(normalizedQueue, vm.uiState.value.keyQueue)
-            assertEquals(1, vm.uiState.value.currentIndex)
+            val confirmedQueue = vm.uiState.value.keyQueue
+            assertEquals(6, confirmedQueue.size)
+            assertEquals(original.keyQueue[0].label, confirmedQueue[0].label)
+            assertEquals(ButtonKey.POWER, confirmedQueue[0].key)
+            assertEquals(ButtonKey.POWER.name, confirmedQueue[0].builtinLabel)
+            assertEquals(original.keyQueue[2], confirmedQueue[1])
+            assertEquals(null, vm.uiState.value.templateApplianceType)
+            assertEquals(0, vm.uiState.value.currentIndex)
 
             await(dispatcher) {
                 val disk = WizardDrafts.read(draft) ?: return@await false
@@ -99,8 +107,9 @@ class WizardRestorationTest {
             await(dispatcher) { !restored.uiState.value.isRestoring }
             assertEquals(org.qinyan.rimoat.data.ApplianceType.FAN, restored.uiState.value.selectedApplianceType)
             assertEquals(1, restored.uiState.value.learnedCount)
-            assertEquals(normalizedQueue, restored.uiState.value.keyQueue)
-            assertEquals(1, restored.uiState.value.currentIndex)
+            assertEquals(confirmedQueue, restored.uiState.value.keyQueue)
+            assertEquals(null, restored.uiState.value.templateApplianceType)
+            assertEquals(0, restored.uiState.value.currentIndex)
             assertTrue(restored.proceedToLearning())
             assertEquals(signal, restored.uiState.value.keyQueue.first().capturedSignal)
         } finally {
@@ -544,6 +553,8 @@ class WizardRestorationTest {
             await(dispatcher) { !vm.uiState.value.isRestoring }
             vm.setRemoteName("Bedroom")
             vm.addCustomKey("+", AcAction.TEMP_UP)
+            vm.setApplianceType(ApplianceType.TV)
+            assertEquals(ApplianceType.TV, vm.uiState.value.pendingApplianceType)
             vm.onScreenStopped()
             await(dispatcher) { draft.exists() }
             org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
@@ -553,6 +564,7 @@ class WizardRestorationTest {
             val state = restored.uiState.value
             assertEquals(ApplianceType.AC, state.selectedApplianceType)
             assertEquals(ApplianceType.AC, state.templateApplianceType)
+            assertEquals(null, state.pendingApplianceType)
             assertEquals(1, state.keySchemaVersion)
             val custom = state.keyQueue.single { it.acAction == AcAction.TEMP_UP }
             assertEquals("+", custom.label)
@@ -622,6 +634,10 @@ class WizardRestorationTest {
                 "wizard_state" to Json.encodeToString(CustomRemoteWizardUiState.serializer(), state)
             ))).also { store.put("wizard", it) }
             assertEquals(null, vm.uiState.value.templateApplianceType)
+            var saved: org.qinyan.rimoat.data.RemoteProfile? = null
+            vm.saveRemote { saved = it }
+            await(dispatcher) { saved != null }
+            assertFalse(saved!!.useStaticAcButtons)
         } finally {
             org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
             Dispatchers.resetMain()

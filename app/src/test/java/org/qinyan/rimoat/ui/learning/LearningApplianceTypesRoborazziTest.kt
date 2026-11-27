@@ -198,54 +198,124 @@ class LearningApplianceTypesRoborazziTest {
     }
 
     @Test fun returningFromLearningAndSwitchingTypePreservesLearnedQueueAndCustomKeys() {
+        typeChangeFlow("change_light", keepLearnedKeys = true)
+    }
+
+    @Test fun changingTypeCanDiscardProgressAndStartWithTheNewTemplate() {
+        typeChangeFlow("change_dark", dark = true, keepLearnedKeys = false)
+    }
+
+    @Test
+    @Config(qualifiers = "en-w320dp-h891dp-port-mdpi")
+    fun narrowAmoledTypeChangeAtDoubleFontSizeKeepsEveryChoiceReachable() {
+        RuntimeEnvironment.setFontScale(2f)
+        assertEquals(2f, app.resources.configuration.fontScale, 0f)
+        typeChangeFlow("change_amoled_large", dark = true, pureBlack = true, keepLearnedKeys = true)
+    }
+
+    @Test fun dynamicColorTypeChangeUsesTheNewTemplateAfterReset() {
+        typeChangeFlow("change_dynamic", dynamic = true, keepLearnedKeys = false)
+    }
+
+    private fun typeChangeFlow(
+        screenshot: String,
+        dark: Boolean = false,
+        pureBlack: Boolean = false,
+        dynamic: Boolean = false,
+        keepLearnedKeys: Boolean
+    ) {
         AppStrings.initialize(app)
-        val learner = org.qinyan.rimoat.hardware.learning.IrLearnerManager(context = null)
+        val learner = IrLearnerManager(context = null)
         learner.mockLearner.setSimulatedDelayMs(0L)
         val vm = CustomRemoteWizardViewModel(learnerManager = learner).also { store.put("switch_preserve", it) }
         try {
             compose.setContent {
-                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                IrRemoteTheme(darkTheme = dark, pureBlackBackground = pureBlack, dynamicColor = dynamic) {
                     CustomRemoteWizardScreen(vm, {}, {})
                 }
             }
             select(ApplianceType.TV, vm)
             compose.onNode(hasSetTextAction() and hasText(app.getString(R.string.screen_remote_name)))
-                .performScrollTo().performTextInput("客厅电视")
+                .performScrollTo().performTextInput("Living room")
             compose.onNodeWithText(app.getString(R.string.screen_start_learning)).performScrollTo().performClick()
             compose.waitForIdle()
             assertEquals(WizardStep.LEARNING, vm.uiState.value.step)
 
-            val signal = org.qinyan.rimoat.hardware.IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1690))
+            val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1690))
             learner.mockLearner.triggerManualSignal(signal)
-            vm.startLearningCurrentKey()
-            compose.waitUntil(3000) {
-                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-                vm.uiState.value.currentKey?.status == KeyLearnStatus.CAPTURED
+            compose.onNodeWithText(app.getString(R.string.screen_record_signal)).assertIsEnabled()
+                .performTouchInput { click() }
+            waitForCapture(vm)
+            compose.runOnIdle {
+                vm.confirmCurrentKey()
+                vm.addCustomKey("Extra key")
             }
-            vm.confirmCurrentKey()
-            vm.addCustomKey("自定义键")
             compose.waitForIdle()
             val expectedQueue = vm.uiState.value.keyQueue
             val expectedIndex = vm.uiState.value.currentIndex
+            val retained = expectedQueue.filter { it.capturedSignal != null || it.builtinLabel == null }
 
             compose.onNodeWithContentDescription(app.getString(R.string.screen_back)).performClick()
             compose.waitForIdle()
             assertEquals(WizardStep.SETUP, vm.uiState.value.step)
+            capture("${screenshot}_before")
 
-            select(ApplianceType.AC, vm)
+            requestAcType()
+            assertEquals(ApplianceType.AC, vm.uiState.value.pendingApplianceType)
+            assertEquals(ApplianceType.TV, vm.uiState.value.selectedApplianceType)
             assertEquals(expectedQueue, vm.uiState.value.keyQueue)
             assertEquals(expectedIndex, vm.uiState.value.currentIndex)
+            compose.onNodeWithTag("wizard_change_type_dialog").assertExists()
+            capture("${screenshot}_dialog", dialog = true)
+            listOf(R.string.wizard_change_type_keep, R.string.wizard_change_type_reset, R.string.screen_cancel).forEach { label ->
+                compose.onNodeWithText(app.getString(label)).performScrollTo()
+                    .assertIsDisplayed().assertIsEnabled().assertHeightIsAtLeast(48.dp)
+            }
+            if (app.resources.configuration.fontScale == 2f) {
+                capture("${screenshot}_dialog_actions", dialog = true)
+            }
+            compose.onNodeWithText(app.getString(R.string.screen_cancel)).performTouchInput { click() }
+            compose.onNodeWithTag("wizard_change_type_dialog").assertDoesNotExist()
+            assertNull(vm.uiState.value.pendingApplianceType)
+            assertEquals(ApplianceType.TV, vm.uiState.value.selectedApplianceType)
+            assertEquals(expectedQueue, vm.uiState.value.keyQueue)
+            assertEquals(expectedIndex, vm.uiState.value.currentIndex)
+
+            requestAcType()
+            val choice = if (keepLearnedKeys) R.string.wizard_change_type_keep else R.string.wizard_change_type_reset
+            compose.onNodeWithText(app.getString(choice)).performScrollTo().performTouchInput { click() }
+            compose.onNodeWithTag("wizard_change_type_dialog").assertDoesNotExist()
+            assertEquals(ApplianceType.AC, vm.uiState.value.selectedApplianceType)
+            compose.onNodeWithText(app.getString(R.string.screen_category_ac)).assertIsSelected()
+            assertNull(vm.uiState.value.pendingApplianceType)
+            val newQueue = vm.uiState.value.keyQueue
+            val defaults = CustomRemoteWizardViewModel.generateDefaultQueue(ApplianceType.AC)
+            if (keepLearnedKeys) {
+                assertEquals(retained, newQueue.take(retained.size))
+                assertEquals(1, vm.uiState.value.learnedCount)
+                assertTrue(newQueue.none { it.key == ButtonKey.VOLUME_UP })
+                assertTrue(defaults.all { expected -> newQueue.any { it.acAction == expected.acAction } })
+            } else {
+                assertEquals(defaults.map { it.key to it.acAction }, newQueue.map { it.key to it.acAction })
+                assertTrue(newQueue.all { it.status == KeyLearnStatus.PENDING && it.capturedSignal == null })
+                assertEquals(0, vm.uiState.value.learnedCount)
+                assertTrue(newQueue.none { it.id in expectedQueue.map(WizardKeyItem::id) })
+            }
+            capture("${screenshot}_after")
 
             compose.onNodeWithText(app.getString(R.string.screen_start_learning)).performScrollTo().performClick()
             compose.waitForIdle()
             assertEquals(WizardStep.LEARNING, vm.uiState.value.step)
-            assertEquals(1, vm.uiState.value.learnedCount)
-            assertEquals(expectedQueue, vm.uiState.value.keyQueue)
-            assertEquals(expectedIndex, vm.uiState.value.currentIndex)
-            compose.onNodeWithText("自定义键").performScrollTo().assertIsDisplayed()
+            assertEquals(newQueue, vm.uiState.value.keyQueue)
         } finally {
             learner.cancel()
         }
+    }
+
+    private fun requestAcType() {
+        compose.onNodeWithText(app.getString(R.string.screen_category_ac))
+            .performScrollTo().performTouchInput { click() }
+        compose.waitForIdle()
     }
 
     private fun waitForCapture(vm: CustomRemoteWizardViewModel) {

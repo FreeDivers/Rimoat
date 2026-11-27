@@ -284,6 +284,15 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
         }
         }
     }
+    if (active) state.pendingApplianceType?.let { type ->
+        ChangeLearningTypeDialog(
+            type = type,
+            errorMessage = state.errorMessage,
+            onKeep = { viewModel.confirmApplianceTypeChange(keepLearnedKeys = true) },
+            onReset = { viewModel.confirmApplianceTypeChange(keepLearnedKeys = false) },
+            onDismiss = viewModel::cancelApplianceTypeChange
+        )
+    }
     if (active && assignmentKeyId == state.currentKey?.id) assignmentAction?.let { action ->
         AssignLearningActionDialog(
             action = action,
@@ -647,6 +656,48 @@ private fun CustomRemoteWizardUiState.suggestedAcAction(context: android.content
             it.id != item.id && it.acAction == action && (it.capturedSignal != null || it.builtinLabel == null)
         }
     }?.acAction
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ChangeLearningTypeDialog(
+    type: ApplianceType,
+    errorMessage: UiText?,
+    onKeep: () -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+    MotionBasicAlertDialog(onDismissRequest = onDismiss) {
+        Surface(shape = AlertDialogDefaults.shape, color = AlertDialogDefaults.containerColor) {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(24.dp).testTag("wizard_change_type_dialog"),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(stringResource(R.string.wizard_change_type_title, type.label()),
+                    style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+                Text(stringResource(R.string.wizard_change_type_message), style = MaterialTheme.typography.bodyMedium)
+                errorMessage?.let {
+                    Text(it.asString(), color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                }
+                Button(onClick = { HapticHelper.performSelection(haptic, context); onKeep() },
+                    shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.wizard_change_type_keep), textAlign = TextAlign.Center)
+                }
+                FilledTonalButton(onClick = { HapticHelper.performSelection(haptic, context); onReset() },
+                    shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.wizard_change_type_reset), textAlign = TextAlign.Center)
+                }
+                TextButton(onClick = onDismiss, shapes = ButtonDefaults.shapes(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.screen_cancel))
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
