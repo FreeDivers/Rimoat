@@ -2,8 +2,11 @@ package org.qinyan.rimoat.widget
 
 import android.app.Activity
 import android.app.Application
+import android.app.PendingIntent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -116,6 +119,68 @@ class RemoteCommandRecoveryRoborazziTest {
             reopened.load()
             assertEquals(journal.records.value, reopened.records.value)
             assertEquals(damagedContent, backup.readText())
+        } finally {
+            host.pause().stop().destroy()
+        }
+    }
+
+    @Test fun globalSendingDisablesOtherWidgetInstanceAndRecovers() = runBlocking {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val context = WidgetPreviewComposer.previewContext(app)
+        val buttons = listOf(
+            RemoteButton("power", "电源", iconName = "power", rawPattern = listOf(9000, 4500, 560)),
+            RemoteButton("vol_up", "音量+", iconName = "add", rawPattern = listOf(9000, 4500, 560))
+        )
+        val profile = RemoteProfile("tv_other", "客厅电视", category = DeviceCategory.TV, buttons = buttons)
+        val configuration = WidgetConfiguration(
+            WidgetKind.PANEL,
+            profile.id,
+            buttons.map { WidgetShortcut(profile.id, it.id) }
+        )
+        val baseSnapshot = WidgetSnapshot(
+            loaded = true,
+            profiles = listOf(profile),
+            commands = mapOf(profile.id to WidgetCommands.choices(profile)),
+            localeTags = "zh-CN"
+        )
+        fun descendants(view: View): List<View> = listOf(view) +
+            if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+
+        fun assertAllButtonsEnabled(root: ViewGroup, expectedEnabled: Boolean) {
+            val pendingIntentTag = root.resources.getIdentifier("pending_intent_tag", "id", "android")
+            val targets = descendants(root).mapNotNull { view ->
+                val pendingIntent = view.getTag(pendingIntentTag) as? PendingIntent ?: return@mapNotNull null
+                val intent = org.robolectric.Shadows.shadowOf(pendingIntent).savedIntent
+                if (intent.getStringExtra("ActionCallbackBroadcastReceiver:callbackClass") != SendWidgetCommand::class.java.name) {
+                    return@mapNotNull null
+                }
+                val icon = descendants(view).filterIsInstance<ImageView>().single { !it.contentDescription.isNullOrBlank() }
+                val content = generateSequence(icon.parent as? View) { it.parent as? View }.takeWhile { it !== view }.last()
+                assertEquals(expectedEnabled, content.isEnabled)
+                view
+            }
+            assertEquals(2, targets.size)
+        }
+
+        val host = Robolectric.buildActivity(Activity::class.java).setup()
+        try {
+            suspend fun renderAndAssert(name: String, snapshot: WidgetSnapshot, expectedEnabled: Boolean) {
+                val views = composeConfigurationPreview(context, configuration, snapshot, DpSize(250.dp, 160.dp))
+                val parent = FrameLayout(host.get())
+                host.get().setContentView(parent)
+                parent.addView(views.apply(host.get(), parent))
+                parent.measure(View.MeasureSpec.makeMeasureSpec(250, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(160, View.MeasureSpec.EXACTLY))
+                parent.layout(0, 0, 250, 160)
+                assertAllButtonsEnabled(parent, expectedEnabled)
+                parent.captureRoboImage("src/test/screenshots/$name.webp", roborazziOptions = options)
+            }
+
+            renderAndAssert("widget_global_sending_before", baseSnapshot.copy(sending = false), expectedEnabled = true)
+            renderAndAssert("widget_global_sending_busy", baseSnapshot.copy(sending = true), expectedEnabled = false)
+            renderAndAssert("widget_global_sending_busy_dark", baseSnapshot.copy(sending = true, colorMode = AppColorMode.DARK), expectedEnabled = false)
+            renderAndAssert("widget_global_sending_after", baseSnapshot.copy(sending = false), expectedEnabled = true)
         } finally {
             host.pause().stop().destroy()
         }

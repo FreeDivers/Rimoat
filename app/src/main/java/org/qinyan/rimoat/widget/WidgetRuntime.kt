@@ -8,13 +8,14 @@ import org.qinyan.rimoat.i18n.UiTextException
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
-import android.content.res.Configuration
 import org.qinyan.rimoat.IrRemoteApplication
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.TransmitterType
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.updateAll
 import java.io.File
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -33,7 +34,8 @@ data class WidgetSnapshot(
     val fontScale: Float = 1f,
     val isRtl: Boolean = false,
     val error: UiText? = null,
-    val localeTags: String = ""
+    val localeTags: String = "",
+    val sending: Boolean = false
 )
 
 internal fun WidgetSnapshot.withRepositoryError(error: UiText?): WidgetSnapshot =
@@ -56,12 +58,19 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
         val actions: Set<AcAction>
     )
 
+    private data class DisplayConfig(
+        val fontScale: Float,
+        val isRtl: Boolean,
+        val localeTags: String
+    )
+
     val store = WidgetStore(File(app.filesDir, "widgets.json"))
     private val _state = MutableStateFlow(WidgetSnapshot())
-    private val configuration = MutableStateFlow(Configuration(AppLanguage.wrap(app).resources.configuration))
+    private val configuration = MutableStateFlow(readDisplayConfig())
     val state = _state.asStateFlow()
     private val _feedback = MutableStateFlow<Map<Int, WidgetFeedback>>(emptyMap())
     val feedback = _feedback.asStateFlow()
+    private val sending = MutableStateFlow(false)
     private val ready = CompletableDeferred<Unit>()
     private val actionMutex = Mutex()
     private val observationLock = Any()
@@ -69,6 +78,36 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
     private var observation: Job? = null
     private val actions = mutableMapOf<Int, Set<AcAction>>()
     private val cachedCommands = mutableMapOf<String, Pair<CommandCacheKey, List<WidgetCommand>>>()
+    internal var updateDebounceMs: Long = 50L
+    internal var updateWidgetById: suspend (Int) -> Unit = ::defaultUpdateWidget
+    internal var updateAllWidgets: suspend () -> Unit = ::defaultUpdateAll
+    private val updateAllRequests = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
+    init {
+        app.applicationScope.launch {
+            @OptIn(FlowPreview::class)
+            updateAllRequests
+                .conflate()
+                .debounce { updateDebounceMs }
+                .collect { updateAll() }
+        }
+    }
+
+    private fun readDisplayConfig(): DisplayConfig {
+        val current = AppLanguage.wrap(app).resources.configuration
+        return DisplayConfig(
+            fontScale = current.fontScale,
+            isRtl = current.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL,
+            localeTags = current.locales.toLanguageTags()
+        )
+    }
+
+    private fun requestUpdateAll() {
+        updateAllRequests.tryEmit(Unit)
+    }
 
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     fun start() {
@@ -118,19 +157,21 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
                             })
                         }.combine(configuration) { snapshot, current ->
                             snapshot.copy(fontScale = current.fontScale,
-                                isRtl = current.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL,
-                                localeTags = current.locales.toLanguageTags())
+                                isRtl = current.isRtl,
+                                localeTags = current.localeTags)
+                        }.combine(sending) { snapshot, isSending ->
+                            snapshot.copy(sending = isSending)
                         }.collect { snapshot ->
                             _state.value = snapshot
                             ready.complete(Unit)
-                            updateAll()
+                            requestUpdateAll()
                         }
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) {
                         _state.value = WidgetSnapshot(loaded = true, error = UiText.Resource(R.string.widget_config_read_failed))
                         ready.complete(Unit)
                         android.util.Log.e("RimoatWidget", "Widget initialization failed", e)
-                        updateAll()
+                        requestUpdateAll()
                     }
                 }
             }
@@ -143,7 +184,10 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
 
     suspend fun configurationChanged() {
         WidgetPickerPreviews.synchronize(app)
-        configuration.value = Configuration(AppLanguage.wrap(app).resources.configuration)
+        val next = readDisplayConfig()
+        if (configuration.value != next) {
+            configuration.value = next
+        }
     }
 
     suspend fun retry() {
@@ -154,10 +198,24 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
     suspend fun save(id: Int, configuration: WidgetConfiguration) {
         store.save(id, configuration)
         _state.update { it.copy(configurations = store.configurations.value) }
-        updateAll()
+        updateWidget(id)
     }
 
-    suspend fun updateAll() {
+    suspend fun updateAll() = updateAllWidgets()
+
+    suspend fun updateWidget(widgetId: Int) = updateWidgetById(widgetId)
+
+    private suspend fun defaultUpdateWidget(widgetId: Int) {
+        val manager = runCatching { AppWidgetManager.getInstance(app) }.getOrNull() ?: return
+        val provider = runCatching { manager.getAppWidgetInfo(widgetId)?.provider }.getOrNull() ?: return
+        val entry = WidgetPickerPreviews.entries.firstOrNull { it.receiver.name == provider.className } ?: return
+        val glanceId = runCatching { GlanceAppWidgetManager(app).getGlanceIdBy(widgetId) }.getOrNull() ?: return
+        try { entry.widget.update(app, glanceId) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { android.util.Log.e("RimoatWidget", "Widget update failed for $widgetId", e) }
+    }
+
+    private suspend fun defaultUpdateAll() {
         val manager = runCatching { AppWidgetManager.getInstance(app) }.getOrNull()
         for (entry in WidgetPickerPreviews.entries) {
             val hasBoundInstances = if (manager != null) {
@@ -177,16 +235,19 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
     suspend fun perform(widgetId: Int, shortcut: WidgetShortcut) {
         awaitReady()
         if (!actionMutex.tryLock()) {
-            // Keep the in-flight disabled state; never queue an unbounded number of IR commands.
+            // Refresh the rejected instance so it reflects the active global busy state without queuing IR commands.
+            updateWidget(widgetId)
             return
         }
         try {
+            sending.value = true
+            _state.update { it.copy(sending = true) }
             val configuration = store.configurations.value[widgetId] ?: error(AppStrings.get(R.string.widget_select_remote_first, "请先选择遥控器"))
             check(shortcut in configuration.shortcuts) { AppStrings.get(R.string.widget_shortcut_changed, "快捷键已改变，请重新操作") }
             val profile = app.repository.getRemote(shortcut.remoteId) ?: error(AppStrings.get(R.string.widget_remote_removed, "遥控器已移除"))
             check(state.value.commands[profile.id].orEmpty().any { it.id == shortcut.buttonId }) { AppStrings.get(R.string.widget_button_unavailable, "按键不可用，请重新选择") }
             _feedback.update { it + (widgetId to WidgetFeedback(AppStrings.get(R.string.widget_sending, "发送中"), busy = true)) }
-            updateAll()
+            updateWidget(widgetId)
             val validateBinding: suspend () -> Unit = {
                 check(shortcut in store.configurations.value[widgetId]?.shortcuts.orEmpty()) { AppStrings.get(R.string.widget_shortcut_changed, "快捷键已改变，请重新操作") }
             }
@@ -224,8 +285,12 @@ class WidgetRuntime(private val app: IrRemoteApplication) {
                 ?: AppStrings.get(R.string.widget_send_failed, "发送失败，请重试")
             _feedback.update { it + (widgetId to WidgetFeedback(detail, error = true, shortcut = shortcut)) }
         } finally {
+            sending.value = false
+            _state.update { it.copy(sending = false) }
             actionMutex.unlock()
-            updateAll()
+            withContext(NonCancellable) {
+                updateWidget(widgetId)
+            }
         }
     }
 }

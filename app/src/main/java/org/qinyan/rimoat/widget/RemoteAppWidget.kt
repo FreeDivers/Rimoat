@@ -206,7 +206,7 @@ private fun SingleContent(id: Int, profile: RemoteProfile, config: WidgetConfigu
             }
         }
         Spacer(GlanceModifier.width(8.dp))
-        ShortcutIcon(id, config.shortcuts.first(), state, feedback?.busy == true,
+        ShortcutIcon(id, config.shortcuts.first(), state, feedback?.busy == true || state.sending,
             primary = true, size = if (!compact && wide) 56.dp else 48.dp)
     }
 }
@@ -215,7 +215,7 @@ private fun SingleContent(id: Int, profile: RemoteProfile, config: WidgetConfigu
 private fun PanelContent(id: Int, config: WidgetConfiguration, state: WidgetSnapshot,
                          feedback: WidgetFeedback?, compact: Boolean, wide: Boolean) {
     val largeFont = LocalWidgetFontScale.current >= 1.5f
-    val busy = feedback?.busy == true
+    val busy = feedback?.busy == true || state.sending
     val size = LocalSize.current
     val contentWidth = size.width.value - if (compact) 16 else 24
     val contentHeight = size.height.value - if (compact) 8 else 24
@@ -290,7 +290,7 @@ private fun DeviceContent(id: Int, profile: RemoteProfile, config: WidgetConfigu
                           feedback: WidgetFeedback?, compact: Boolean, wide: Boolean, tall: Boolean) {
     val ac = profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons
     val largeFont = LocalWidgetFontScale.current >= 1.5f
-    val busy = feedback?.busy == true
+    val busy = feedback?.busy == true || state.sending
     val first = config.shortcuts.first()
     val rest = config.shortcuts.drop(1)
     val width = LocalSize.current.width.value - if (compact) 16 else 24
