@@ -37,6 +37,9 @@ class RemoteRepository(
         encodeDefaults = true
     }
 
+    internal val appFilesDir: File
+        get() = context.filesDir
+
     private val storageDir: File by lazy {
         File(context.filesDir, "remotes").apply {
             if (!exists()) mkdirs()

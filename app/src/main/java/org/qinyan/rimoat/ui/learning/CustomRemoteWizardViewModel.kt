@@ -22,12 +22,17 @@ import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.hardware.learning.LearningState
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -99,8 +104,51 @@ data class CustomRemoteWizardUiState(
                 it.builtinLabel == null ||
                 it.id.startsWith("custom_")
         }
+
+    val hasDraftProgress: Boolean
+        get() = step != WizardStep.SETUP ||
+            remoteName.isNotBlank() ||
+            brand.isNotBlank() ||
+            hasLearningProgress
 }
 
+@Serializable
+private data class WizardDraftSnapshot(
+    val step: WizardStep,
+    val remoteName: String,
+    val brand: String,
+    val category: DeviceCategory,
+    val keyQueue: List<WizardKeyItem>,
+    val currentIndex: Int,
+    val applianceType: ApplianceType?
+)
+
+private fun CustomRemoteWizardUiState.toDraftSnapshot(): WizardDraftSnapshot = WizardDraftSnapshot(
+    step = step,
+    remoteName = remoteName,
+    brand = brand,
+    category = category,
+    keyQueue = keyQueue,
+    currentIndex = currentIndex,
+    applianceType = applianceType
+)
+
+private fun normalizeRestored(state: CustomRemoteWizardUiState): CustomRemoteWizardUiState = state.copy(
+    isSaving = false,
+    isTestingTransmit = false,
+    isRestoring = false,
+    keyQueue = state.keyQueue.map { item ->
+        if (item.status == KeyLearnStatus.LEARNING) {
+            item.copy(
+                status = if (item.capturedSignal == null) KeyLearnStatus.PENDING else KeyLearnStatus.CAPTURED
+            )
+        } else {
+            item
+        }
+    }
+)
+
+@OptIn(FlowPreview::class)
 class CustomRemoteWizardViewModel(
     val repository: RemoteRepository? = null,
     val transmitterManager: IrTransmitterManager? = null,
@@ -113,17 +161,33 @@ class CustomRemoteWizardViewModel(
 
     private val draftJson = Json { ignoreUnknownKeys = true }
 
+    private val initialSavedState = savedStateHandle?.get<String>(KEY_WIZARD_STATE)
+    private val initialInlineState = initialSavedState
+        ?.takeIf { it.trimStart().startsWith("{") }
+        ?.let { encoded ->
+            runCatching { draftJson.decodeFromString<CustomRemoteWizardUiState>(encoded) }
+                .getOrNull()
+                ?.let(::normalizeRestored)
+        }
+    private val resolvedDraftFile: File? = draftFile ?: if (savedStateHandle != null) {
+        val sessionId = savedStateHandle.get<String>(KEY_DRAFT_SESSION_ID)
+            ?.takeIf { WizardDrafts.isValidSessionId(it) }
+            ?: UUID.randomUUID().toString()
+        val baseDir = repository?.appFilesDir
+            ?: File(System.getProperty("java.io.tmpdir") ?: ".", "rimoat-drafts")
+        WizardDrafts.file(baseDir, sessionId)
+    } else null
+    private val draftSessionId: String? = if (draftFile == null && savedStateHandle != null) {
+        resolvedDraftFile?.nameWithoutExtension
+    } else null
+    private val shouldRestoreFromDisk: Boolean = initialInlineState == null &&
+        (draftFile != null || (initialSavedState == LOCAL_DRAFT_MARKER && resolvedDraftFile != null))
+
     private val _uiState = MutableStateFlow(
-        savedStateHandle?.get<String>("wizard_state")?.let { encoded ->
-            runCatching { draftJson.decodeFromString<CustomRemoteWizardUiState>(encoded) }.getOrNull()?.let { state ->
-                state.copy(isSaving = false, isTestingTransmit = false, keyQueue = state.keyQueue.map { item ->
-                    if (item.status == KeyLearnStatus.LEARNING) item.copy(status = KeyLearnStatus.PENDING) else item
-                })
-            }
-        } ?: CustomRemoteWizardUiState(
+        initialInlineState ?: CustomRemoteWizardUiState(
             category = initialCategory,
             keyQueue = generateDefaultQueue(initialCategory)
-        ).copy(isRestoring = draftFile != null)
+        ).copy(isRestoring = shouldRestoreFromDisk)
     )
     val uiState: StateFlow<CustomRemoteWizardUiState> = _uiState.asStateFlow()
     private val _savedRemote = MutableStateFlow<RemoteProfile?>(null)
@@ -138,25 +202,26 @@ class CustomRemoteWizardViewModel(
 
     private var completed = false
     private var draftJob: Job? = null
+    private var draftFlushJob: Job? = null
+    @Volatile private var initialSettledSnapshot: WizardDraftSnapshot? =
+        if (shouldRestoreFromDisk) null else _uiState.value.toDraftSnapshot()
+    @Volatile private var lastWrittenSnapshot: WizardDraftSnapshot? = null
 
     init {
-        if (savedStateHandle != null || draftFile != null) draftJob = viewModelScope.launch {
-            var initialDiskState: CustomRemoteWizardUiState? = null
+        val targetFile = resolvedDraftFile
+        if (targetFile != null) draftJob = viewModelScope.launch {
             if (_uiState.value.isRestoring) {
                 val initial = _uiState.value.copy(isRestoring = false)
                 try {
                     val restored = withContext(Dispatchers.IO) {
-                        WizardDrafts.read(checkNotNull(draftFile))?.let {
+                        WizardDrafts.read(targetFile)?.let {
                             draftJson.decodeFromString<CustomRemoteWizardUiState>(it)
                         }
                     }
-                    val resumable = restored?.copy(isSaving = false, isTestingTransmit = false, isRestoring = false,
-                        keyQueue = restored.keyQueue.map { item ->
-                            if (item.status == KeyLearnStatus.LEARNING) item.copy(status =
-                                if (item.capturedSignal == null) KeyLearnStatus.PENDING else KeyLearnStatus.CAPTURED)
-                            else item
-                        })
-                    initialDiskState = resumable ?: initial
+                    val resumable = restored?.let(::normalizeRestored)
+                    val settled = (resumable ?: initial).toDraftSnapshot()
+                    initialSettledSnapshot = settled
+                    if (resumable != null) lastWrittenSnapshot = settled
                     _uiState.update { current -> resumable ?: current.copy(isRestoring = false) }
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
@@ -165,23 +230,46 @@ class CustomRemoteWizardViewModel(
                     return@launch
                 }
             }
-            uiState.collect { state ->
-                if (state == initialDiskState) return@collect
-                initialDiskState = null
-                try {
-                    if (draftFile != null) {
-                        withContext(Dispatchers.IO) {
-                            WizardDrafts.write(draftFile,
-                                draftJson.encodeToString(CustomRemoteWizardUiState.serializer(), state))
+            var skipInitialIfUnchanged = true
+            withContext(Dispatchers.IO) {
+                uiState
+                    .filter { !it.isRestoring }
+                    .map { it.toDraftSnapshot() }
+                    .distinctUntilChanged()
+                    .debounce(DRAFT_WRITE_DEBOUNCE_MS)
+                    .collect { snapshot ->
+                        if (skipInitialIfUnchanged) {
+                            skipInitialIfUnchanged = false
+                            if (snapshot == initialSettledSnapshot) return@collect
                         }
-                        savedStateHandle?.set("wizard_state", "local-draft")
-                    } else {
-                        savedStateHandle?.set("wizard_state", draftJson.encodeToString(CustomRemoteWizardUiState.serializer(), state))
+                        writeDraftSnapshot(targetFile, snapshot)
                     }
-                } catch (e: CancellationException) { throw e }
-                catch (e: Exception) {
-                    _uiState.update { it.copy(errorMessage = UiText.resource(R.string.screen_save_draft_failed, e.uiTextDetail(R.string.control_unknown_error))) }
+            }
+        }
+    }
+
+    private suspend fun writeDraftSnapshot(file: File, snapshot: WizardDraftSnapshot) {
+        try {
+            withContext(Dispatchers.IO) {
+                WizardDrafts.write(file, draftJson.encodeToString(WizardDraftSnapshot.serializer(), snapshot))
+            }
+            lastWrittenSnapshot = snapshot
+            if (savedStateHandle != null) {
+                withContext(Dispatchers.Main.immediate) {
+                    draftSessionId?.let { savedStateHandle.set(KEY_DRAFT_SESSION_ID, it) }
+                    savedStateHandle.set(KEY_WIZARD_STATE, LOCAL_DRAFT_MARKER)
                 }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    errorMessage = UiText.resource(
+                        R.string.screen_save_draft_failed,
+                        e.uiTextDetail(R.string.control_unknown_error)
+                    )
+                )
             }
         }
     }
@@ -333,6 +421,19 @@ class CustomRemoteWizardViewModel(
     fun onScreenStopped() {
         cancelCurrentKeyLearning()
         cancelTest()
+        val targetFile = resolvedDraftFile ?: return
+        if (completed || _uiState.value.isRestoring) return
+        val snapshot = _uiState.value.toDraftSnapshot()
+        val hasPendingChange = snapshot != lastWrittenSnapshot &&
+            !(lastWrittenSnapshot == null && snapshot == initialSettledSnapshot)
+        if (!hasPendingChange) return
+        val previousFlush = draftFlushJob
+        draftFlushJob = viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            withContext(NonCancellable) {
+                previousFlush?.join()
+                if (!completed) writeDraftSnapshot(targetFile, snapshot)
+            }
+        }
     }
 
     private fun cancelTest() {
@@ -510,12 +611,16 @@ class CustomRemoteWizardViewModel(
         val writer = draftJob
         draftJob = null
         writer?.cancel()
-        savedStateHandle?.remove<String>("wizard_state")
+        val flush = draftFlushJob
+        draftFlushJob = null
+        savedStateHandle?.remove<String>(KEY_WIZARD_STATE)
+        savedStateHandle?.remove<String>(KEY_DRAFT_SESSION_ID)
         // Exiting the route may clear this ViewModel immediately. Finish the file cleanup first.
         return viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
             withContext(NonCancellable) {
                 writer?.cancelAndJoin()
-                draftFile?.let { file ->
+                flush?.cancelAndJoin()
+                resolvedDraftFile?.let { file ->
                     withContext(Dispatchers.IO) {
                         try {
                             if (!WizardDrafts.delete(file)) Log.w("WizardDrafts", "Could not delete wizard draft")
@@ -561,6 +666,11 @@ class CustomRemoteWizardViewModel(
     }
 
     companion object {
+        private const val KEY_WIZARD_STATE = "wizard_state"
+        private const val KEY_DRAFT_SESSION_ID = "wizard_draft_id"
+        private const val LOCAL_DRAFT_MARKER = "local-draft"
+        private const val DRAFT_WRITE_DEBOUNCE_MS = 300L
+
         fun generateDefaultQueue(type: ApplianceType): List<WizardKeyItem> {
             val keys = when (type) {
                 ApplianceType.SET_TOP_BOX, ApplianceType.IPTV -> generateDefaultQueue(DeviceCategory.TV) + listOf(

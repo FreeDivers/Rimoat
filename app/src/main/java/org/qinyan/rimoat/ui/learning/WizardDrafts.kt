@@ -11,6 +11,8 @@ internal object WizardDrafts {
     private val temporaryName = Regex("[.]$SESSION_ID[.]json[.]-?[0-9]+[.]tmp")
     private val retentionMillis = TimeUnit.DAYS.toMillis(7)
 
+    fun isValidSessionId(sessionId: String): Boolean = draftName.matches("$sessionId.json")
+
     fun file(filesDir: File, sessionId: String): File {
         val name = "$sessionId.json"
         require(draftName.matches(name))

@@ -323,6 +323,173 @@ class WizardRestorationTest {
         } finally { org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher); Dispatchers.resetMain(); dir.deleteRecursively() }
     }
 
+    @Test fun savedStateAndDiskRestoreBothPreserveCapturedSignalOnInterruptedReRecording() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val dir = java.nio.file.Files.createTempDirectory("wizard-rerecord-").toFile()
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 1690))
+            val original = CustomRemoteWizardUiState(
+                step = WizardStep.LEARNING,
+                remoteName = "客厅电视",
+                currentIndex = 0,
+                keyQueue = listOf(
+                    WizardKeyItem(id = "power", label = "电源", status = KeyLearnStatus.LEARNING, capturedSignal = signal),
+                    WizardKeyItem(id = "vol_up", label = "音量+", status = KeyLearnStatus.LEARNING, capturedSignal = null)
+                )
+            )
+            val encoded = Json.encodeToString(CustomRemoteWizardUiState.serializer(), original)
+
+            val fromHandle = CustomRemoteWizardViewModel(
+                savedStateHandle = SavedStateHandle(mapOf("wizard_state" to encoded))
+            ).also { store.put("handle", it) }
+            assertEquals(KeyLearnStatus.CAPTURED, fromHandle.uiState.value.keyQueue[0].status)
+            assertEquals(signal, fromHandle.uiState.value.keyQueue[0].capturedSignal)
+            assertEquals(KeyLearnStatus.PENDING, fromHandle.uiState.value.keyQueue[1].status)
+            fromHandle.confirmCurrentKey()
+            assertEquals(KeyLearnStatus.LEARNED, fromHandle.uiState.value.keyQueue[0].status)
+
+            val draft = File(dir, "rerecord.json").apply { writeText(encoded) }
+            val fromDisk = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("disk", it) }
+            await(dispatcher) { !fromDisk.uiState.value.isRestoring }
+            assertEquals(KeyLearnStatus.CAPTURED, fromDisk.uiState.value.keyQueue[0].status)
+            assertEquals(signal, fromDisk.uiState.value.keyQueue[0].capturedSignal)
+            assertEquals(KeyLearnStatus.PENDING, fromDisk.uiState.value.keyQueue[1].status)
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun fallbackDraftWritesToDiskWithoutStoringRawPulsesInSavedStateHandle() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val dir = java.nio.file.Files.createTempDirectory("wizard-fallback-").toFile()
+        val store = androidx.lifecycle.ViewModelStore()
+        val context = object : android.content.ContextWrapper(null) {
+            override fun getApplicationContext() = this
+            override fun getFilesDir() = dir
+            override fun getSystemService(name: String): Any? = null
+        }
+        val repoScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+        try {
+            val repo = org.qinyan.rimoat.data.RemoteRepository(context, repoScope)
+            val handle = SavedStateHandle()
+            val signal = IrSignal.Raw(patternMicros = IntArray(600) { 1500 })
+            val vm = CustomRemoteWizardViewModel(
+                repository = repo,
+                savedStateHandle = handle,
+                draftFile = null
+            ).also { store.put("first", it) }
+
+            vm.setRemoteName("大脉冲草稿")
+            repeat(64) { index -> vm.addCustomKey("自定义$index") }
+            val firstCustom = vm.uiState.value.keyQueue.last()
+            val largeQueue = vm.uiState.value.keyQueue.mapIndexed { idx, item ->
+                if (idx == 0 || item.id == firstCustom.id) {
+                    item.copy(status = KeyLearnStatus.LEARNED, capturedSignal = signal)
+                } else item
+            }
+            // Trigger state change with large waveforms via handleBack/proceedToLearning + encoded state
+            assertTrue(vm.proceedToLearning())
+            await(dispatcher) {
+                handle.get<String>("wizard_state") == "local-draft" &&
+                    !handle.get<String>("wizard_draft_id").isNullOrBlank()
+            }
+            val sessionId = checkNotNull(handle.get<String>("wizard_draft_id"))
+            val fallbackFile = WizardDrafts.file(dir, sessionId)
+            assertTrue(fallbackFile.exists())
+            assertFalse(checkNotNull(handle.get<String>("wizard_state")).contains("patternMicros"))
+
+            // Overwrite fallback draft with large 256-key payload, restore via SavedStateHandle only (no draftFile arg)
+            val hugeState = CustomRemoteWizardUiState(
+                step = WizardStep.REVIEW,
+                remoteName = "256键遥控器",
+                keyQueue = List(256) {
+                    WizardKeyItem(id = "k$it", label = "键$it", status = KeyLearnStatus.LEARNED, capturedSignal = signal)
+                } + largeQueue.take(0)
+            )
+            WizardDrafts.write(fallbackFile, Json.encodeToString(CustomRemoteWizardUiState.serializer(), hugeState))
+
+            val restoredHandle = SavedStateHandle(
+                mapOf(
+                    "wizard_state" to handle.get<String>("wizard_state"),
+                    "wizard_draft_id" to sessionId
+                )
+            )
+            val restored = CustomRemoteWizardViewModel(
+                repository = repo,
+                savedStateHandle = restoredHandle,
+                draftFile = null
+            ).also { store.put("restored", it) }
+            await(dispatcher) { !restored.uiState.value.isRestoring }
+            assertEquals(256, restored.uiState.value.learnedCount)
+            assertEquals(signal, restored.uiState.value.keyQueue.last().capturedSignal)
+            assertEquals("local-draft", restoredHandle.get<String>("wizard_state"))
+
+            restored.discardDraft()
+            await(dispatcher) { !fallbackFile.exists() }
+            assertNull(restoredHandle.get<String>("wizard_state"))
+            assertNull(restoredHandle.get<String>("wizard_draft_id"))
+        } finally {
+            repoScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun transientFeedbackDoesNotTriggerDiskDraftRewrite() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val dir = java.nio.file.Files.createTempDirectory("wizard-debounce-").toFile()
+        val store = androidx.lifecycle.ViewModelStore()
+        try {
+            val draft = WizardDrafts.file(dir, UUID.randomUUID().toString())
+            val signal = IrSignal.Raw(38000, intArrayOf(9000, 4500, 560, 560))
+            val initial = CustomRemoteWizardUiState(
+                step = WizardStep.LEARNING,
+                remoteName = "卧室",
+                keyQueue = listOf(WizardKeyItem(id = "power", label = "电源", status = KeyLearnStatus.CAPTURED, capturedSignal = signal))
+            )
+            draft.parentFile!!.mkdirs()
+            draft.writeText(Json.encodeToString(CustomRemoteWizardUiState.serializer(), initial))
+
+            val vm = CustomRemoteWizardViewModel(draftFile = draft).also { store.put("wizard", it) }
+            await(dispatcher) { !vm.uiState.value.isRestoring }
+
+            // Rapid name edits should debounce instead of writing every keystroke, and transient test feedback should not write at all.
+            vm.testTransmitCurrentKey()
+            dispatcher.scheduler.advanceUntilIdle()
+            Thread.sleep(400)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertNotNull(vm.uiState.value.testFeedbackMessage)
+            val savedAfterTest = Json.decodeFromString<CustomRemoteWizardUiState>(draft.readText())
+            assertEquals("卧室", savedAfterTest.remoteName)
+            assertNull(savedAfterTest.testFeedbackMessage)
+
+            // Deleting the file after restore lets us verify testTransmitCurrentKey alone never triggers a write.
+            assertTrue(draft.delete())
+            vm.testTransmitCurrentKey()
+            dispatcher.scheduler.advanceUntilIdle()
+            Thread.sleep(400)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertFalse(draft.exists())
+
+            vm.setRemoteName("主")
+            vm.setRemoteName("主卧")
+            vm.setRemoteName("主卧电视")
+            await(dispatcher) { draft.exists() }
+            assertEquals("主卧电视", Json.decodeFromString<CustomRemoteWizardUiState>(draft.readText()).remoteName)
+        } finally {
+            org.qinyan.rimoat.clearViewModelsAndAwait(store, dispatcher)
+            Dispatchers.resetMain()
+            dir.deleteRecursively()
+        }
+    }
+
     private fun await(dispatcher: TestDispatcher, condition: () -> Boolean) {
         val deadline = System.nanoTime() + 5_000_000_000L
         while (!condition() && System.nanoTime() < deadline) {
