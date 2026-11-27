@@ -146,7 +146,7 @@
     <string name="screen_testing_transmit">Testing transmission</string>
     <string name="screen_no_valid_ir">No valid IR signal detected</string>
     <string name="screen_saving_progress">Saving</string>
-    <string name="screen_save_button">Save button</string>
+    <string name="screen_save_button">Save</string>
     <string name="screen_start_record">Start recording</string>
     <string name="screen_retry">Retry</string>
     <string name="screen_received_waveform">Received IR waveform</string>
