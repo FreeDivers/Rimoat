@@ -21,6 +21,15 @@ SOURCE = ROOT / "app/src/main/java/org/qinyan/rimoat"
 LOCALES = ("values", "values-en", "values-zh", "values-b+zh+Hant", "values-ja")
 EXPECTED_TAGS = {"zh-CN", "zh-Hant", "en", "ja"}
 HAN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
+KOTLIN_COMMENT_OR_STRING = re.compile(
+    r'//[^\n]*|/\*[\s\S]*?\*/|"""([\s\S]*?)"""|"([^"\n\\]*(?:\\.[^"\n\\]*)*)"'
+)
+APP_STRINGS_CHINESE_FALLBACK = re.compile(
+    r'AppStrings\.get\(\s*(?:org\.qinyan\.rimoat\.)?R\.string\.(\w+)\s*,\s*"([^"\n]*)"'
+)
+LOCALIZED_LABEL_CHINESE_LITERAL = re.compile(
+    r'(?:org\.qinyan\.rimoat\.i18n\.)?localizedLabel\(\s*"([^"\n]*)"'
+)
 FORMAT = re.compile(r"%(?:(\d+)\$)?([-#+ 0,(<]*)(?:\d+)?(?:\.\d+)?([tT][a-zA-Z]|[a-zA-Z%])")
 REFERENCE = re.compile(r"(?<![\w.])(?:org\.qinyan\.rimoat\.)?R\.(string|plurals)\.(\w+)")
 LANGUAGE_NAMES = {"settings_language_traditional_chinese", "language_chinese", "language_english", "language_japanese"}
@@ -220,10 +229,65 @@ def audit_catalog(bundles):
     }
 
 
+def strip_kotlin_comments(text):
+    return KOTLIN_COMMENT_OR_STRING.sub(
+        lambda m: " " if m.group(1) is None and m.group(2) is None else m.group(0),
+        text,
+    )
+
+
+def kotlin_string_literals(text):
+    for match in KOTLIN_COMMENT_OR_STRING.finditer(text):
+        if match.group(1) is not None:
+            yield match.group(1)
+        elif match.group(2) is not None:
+            yield match.group(2)
+
+
+def audit_ui_i18n_counts(bundles):
+    app_strings_chinese_fallback = 0
+    localized_label_chinese_literal = 0
+    for path in sorted(SOURCE.rglob("*.kt")):
+        cleaned = strip_kotlin_comments(path.read_text(encoding="utf-8-sig"))
+        for match in APP_STRINGS_CHINESE_FALLBACK.finditer(cleaned):
+            if HAN.search(match.group(2)):
+                app_strings_chinese_fallback += 1
+        for match in LOCALIZED_LABEL_CHINESE_LITERAL.finditer(cleaned):
+            if HAN.search(match.group(1)):
+                localized_label_chinese_literal += 1
+
+    ui_and_widget_literals = {}
+    for scope in ("ui", "widget"):
+        count = 0
+        for path in sorted((SOURCE / scope).rglob("*.kt")):
+            for literal in kotlin_string_literals(path.read_text(encoding="utf-8-sig")):
+                if HAN.search(literal):
+                    count += 1
+        ui_and_widget_literals[scope] = count
+
+    resource_u00b7 = 0
+    for entries in bundles.values():
+        for entry in entries.values():
+            for value in entry["values"].values():
+                if "\u00b7" in value:
+                    resource_u00b7 += 1
+
+    return {
+        "app_strings_get_chinese_fallback": app_strings_chinese_fallback,
+        "localized_label_chinese_literal": localized_label_chinese_literal,
+        "resource_u00b7": resource_u00b7,
+        "ui_and_widget_chinese_literals": {
+            "total": sum(ui_and_widget_literals.values()),
+            **ui_and_widget_literals,
+        },
+    }
+
+
 def audit():
     errors = []
     bundles, resources = audit_resources(errors)
     return {"status": "PASS" if not errors else "FAIL", "resources": resources,
+            "ui_i18n_counts": audit_ui_i18n_counts(bundles),
             "catalog": audit_catalog(bundles), "errors": errors}
 
 
