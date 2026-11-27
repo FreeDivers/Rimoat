@@ -39,15 +39,36 @@ sealed interface UiText {
 private fun List<Any>.resolveArguments(context: Context): Array<Any> =
     map { if (it is UiText) it.resolve(context) else it }.toTypedArray()
 
+/** Common contract for exceptions carrying a structured [UiText] and optional [ErrorAction]. */
+interface UiTextCarryable {
+    val uiText: UiText
+    val action: ErrorAction?
+}
+
 /** Exception carrying a [UiText] so layers below ViewModel avoid pre-translating messages. */
 class UiTextException(
-    val uiText: UiText,
+    override val uiText: UiText,
     cause: Throwable? = null,
-    val action: ErrorAction? = null
-) : IllegalStateException(cause)
+    override val action: ErrorAction? = null
+) : IllegalStateException(cause), UiTextCarryable
+
+/** Validation exception carrying a [UiText] while remaining an [IllegalArgumentException]. */
+class UiTextArgumentException(
+    override val uiText: UiText,
+    cause: Throwable? = null,
+    override val action: ErrorAction? = null
+) : IllegalArgumentException(cause), UiTextCarryable
+
+inline fun requireUiText(condition: Boolean, @StringRes resId: Int, vararg args: Any) {
+    if (!condition) throw UiTextArgumentException(UiText.resource(resId, *args))
+}
+
+inline fun checkUiText(condition: Boolean, @StringRes resId: Int, vararg args: Any) {
+    if (!condition) throw UiTextException(UiText.resource(resId, *args))
+}
 
 fun Throwable.uiTextDetail(@StringRes fallback: Int): UiText = when (this) {
-    is UiTextException -> uiText
+    is UiTextCarryable -> uiText
     else -> UiText.Resource(fallback)
 }
 

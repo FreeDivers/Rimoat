@@ -113,8 +113,12 @@ class RemoteListViewModel(
         operation ?: storage
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-    val errorAppMessage: StateFlow<AppError?> = combine(_operationAppError, repository.errorMessage) { operation, storage ->
-        operation ?: storage?.let { AppError.Resource(it) }
+    val errorAppMessage: StateFlow<AppError?> = combine(
+        _operationAppError,
+        repository.errorAppMessage,
+        repository.errorMessage
+    ) { operation, storageApp, storageText ->
+        operation ?: storageApp ?: storageText?.let { AppError.Resource(it) }
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 

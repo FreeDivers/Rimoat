@@ -18,7 +18,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.AtomicLocalFile
 import org.qinyan.rimoat.data.LegacyDirectionIds
-import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.requireUiText
 
 @Serializable
 private data class StoredWidgets(val configurations: Map<Int, WidgetConfiguration> = emptyMap(),
@@ -92,7 +92,7 @@ class WidgetStore(private val file: File) {
     }
 
     suspend fun save(id: Int, configuration: WidgetConfiguration) = mutate {
-        require(id > 0) { AppStrings.get(R.string.widget_invalid_id, "小组件标识无效") }
+        requireUiText(id > 0, R.string.widget_invalid_id)
         configuration.validate()
         it + (id to configuration)
     }

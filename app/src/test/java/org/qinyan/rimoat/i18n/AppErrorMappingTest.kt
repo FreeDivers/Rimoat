@@ -111,4 +111,34 @@ class AppErrorMappingTest {
         )
         assertEquals(ErrorAction.Retry, wrapped.action)
     }
+
+    @Test
+    fun requireAndCheckUiTextPreserveResourceIdentityAndExceptionHierarchy() {
+        val argError = runCatching {
+            requireUiText(false, R.string.msg_backup_format_unsupported)
+        }.exceptionOrNull()
+        assertTrue(argError is IllegalArgumentException)
+        assertEquals(
+            UiText.Resource(R.string.msg_backup_format_unsupported),
+            argError!!.toAppError(R.string.msg_file_unavailable).message
+        )
+
+        val stateError = runCatching {
+            checkUiText(false, R.string.msg_remote_missing)
+        }.exceptionOrNull()
+        assertTrue(stateError is IllegalStateException)
+        assertEquals(
+            UiText.Resource(R.string.msg_remote_missing),
+            stateError!!.toAppError(R.string.msg_storage_unavailable).message
+        )
+
+        val decodedError = runCatching {
+            org.qinyan.rimoat.data.RemoteBackupCodec.decodeBackup("""{"format":"other","version":1,"remotes":[]}""")
+        }.exceptionOrNull()
+        assertTrue(decodedError is IllegalArgumentException)
+        assertEquals(
+            UiText.Resource(R.string.msg_backup_format_unsupported),
+            decodedError!!.toAppError(R.string.msg_file_unavailable).message
+        )
+    }
 }

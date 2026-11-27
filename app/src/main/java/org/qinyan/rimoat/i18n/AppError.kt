@@ -66,7 +66,7 @@ fun Throwable.toAppError(
     @StringRes fallback: Int,
     defaultAction: ErrorAction? = null
 ): AppError {
-    if (this !is UiTextException) {
+    if (this !is UiTextCarryable) {
         try {
             Log.w("AppError", "${this::class.java.simpleName}: ${message.orEmpty()}", this)
         } catch (_: Throwable) {
@@ -74,7 +74,7 @@ fun Throwable.toAppError(
         }
     }
     return when {
-        this is UiTextException -> AppError.Resource(uiText, action ?: defaultAction)
+        this is UiTextCarryable -> AppError.Resource(uiText, action ?: defaultAction)
         this is LearningTimeoutException || this is TimeoutException || this is TimeoutCancellationException ->
             AppError.LearningTimeout(action = defaultAction ?: ErrorAction.Retry)
         this is ActivityNotFoundException -> AppError.ShareUnavailable(action = defaultAction)

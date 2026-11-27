@@ -1,9 +1,13 @@
 package org.qinyan.rimoat.data
 
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.i18n.AppError
 import org.qinyan.rimoat.i18n.UiText
-import org.qinyan.rimoat.i18n.uiTextDetail
+import org.qinyan.rimoat.i18n.UiTextException
+import org.qinyan.rimoat.i18n.checkUiText
+import org.qinyan.rimoat.i18n.requireUiText
+import org.qinyan.rimoat.i18n.toAppError
+import org.qinyan.rimoat.i18n.wrapped
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,10 +54,17 @@ class RemoteRepository(
     private val _remotes = MutableStateFlow<List<RemoteProfile>>(emptyList())
     val remotes: StateFlow<List<RemoteProfile>> = _remotes.asStateFlow()
 
+    private val _errorAppMessage = MutableStateFlow<AppError?>(null)
+    val errorAppMessage: StateFlow<AppError?> = _errorAppMessage.asStateFlow()
     private val _errorMessage = MutableStateFlow<UiText?>(null)
     val errorMessage: StateFlow<UiText?> = _errorMessage.asStateFlow()
 
-    fun clearError() { _errorMessage.value = null }
+    private fun setRepositoryError(error: AppError?) {
+        _errorAppMessage.value = error
+        _errorMessage.value = error?.message
+    }
+
+    fun clearError() { setRepositoryError(null) }
 
     private val _rooms = MutableStateFlow<List<String>>(emptyList())
     val rooms: StateFlow<List<String>> = _rooms.asStateFlow()
@@ -71,8 +82,9 @@ class RemoteRepository(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _errorMessage.value = UiText.resource(R.string.msg_remote_load_failed,
-                    e.uiTextDetail(R.string.msg_storage_unavailable))
+                setRepositoryError(
+                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_remote_load_failed)
+                )
             } finally {
                 _isLoaded.value = true
                 initialLoad.complete(Unit)
@@ -82,7 +94,7 @@ class RemoteRepository(
 
     suspend fun loadAllRemotes(): List<RemoteProfile> = withContext(Dispatchers.IO) {
         mutex.withLock {
-            _errorMessage.value = null
+            setRepositoryError(null)
             try {
                 recoverRoomMutation()
                 recoverPendingImport()
@@ -93,7 +105,7 @@ class RemoteRepository(
                         try {
                             val content = file.readText()
                             val profile = json.decodeFromString(RemoteProfile.serializer(), content)
-                            require(profile.id == file.nameWithoutExtension) { AppStrings.get(R.string.msg_remote_file_id_mismatch, "遥控器标识与文件名不一致") }
+                            requireUiText(profile.id == file.nameWithoutExtension, R.string.msg_remote_file_id_mismatch)
                             var upgraded = LegacyRemoteMigration.normalizeKeys(LegacyRemoteMigration.upgradeLegacyAc(profile))
                             RemoteBackupCodec.validate(upgraded)
                             try {
@@ -101,7 +113,9 @@ class RemoteRepository(
                                 if (candidate != upgraded) RemoteBackupCodec.validate(candidate)
                                 upgraded = candidate
                             } catch (e: CancellationException) { throw e
-                            } catch (e: Exception) { _errorMessage.value = UiText.resource(R.string.msg_button_upgrade_failed, profile.name) }
+                            } catch (_: Exception) {
+                                setRepositoryError(AppError.Resource(UiText.resource(R.string.msg_button_upgrade_failed, profile.name)))
+                            }
                             if (upgraded.category == DeviceCategory.AC && !upgraded.useStaticAcButtons && upgraded.acProtocolId == null) {
                                 val source = upgraded.sourceRemoteId ?: upgraded.buttons.firstNotNullOfOrNull {
                                     Regex("^(R_air_\\d+_\\d+)_").find(it.id)?.groupValues?.get(1)
@@ -111,12 +125,14 @@ class RemoteRepository(
                             }
                             if (upgraded != profile) {
                                 try { AtomicLocalFile.write(file, json.encodeToString(RemoteProfile.serializer(), upgraded)) }
-                                catch (e: Exception) { _errorMessage.value = UiText.Resource(R.string.msg_configuration_upgrade_unsaved) }
+                                catch (_: Exception) {
+                                    setRepositoryError(AppError.Resource(UiText.Resource(R.string.msg_configuration_upgrade_unsaved)))
+                                }
                             }
                             list.add(upgraded)
                         } catch (e: CancellationException) { throw e
-                        } catch (e: Exception) {
-                            _errorMessage.value = UiText.resource(R.string.msg_remote_file_unreadable, file.name)
+                        } catch (_: Exception) {
+                            setRepositoryError(AppError.Resource(UiText.resource(R.string.msg_remote_file_unreadable, file.name)))
                         }
                     }
 
@@ -132,8 +148,9 @@ class RemoteRepository(
                 sorted
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                _errorMessage.value = UiText.resource(R.string.msg_remote_load_failed,
-                    e.uiTextDetail(R.string.msg_storage_unavailable))
+                setRepositoryError(
+                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_remote_load_failed)
+                )
                 throw e
             }
         }
@@ -178,11 +195,11 @@ class RemoteRepository(
                 if (file.exists()) {
                     try {
                         json.decodeFromString(RemoteProfile.serializer(), file.readText())
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         null
                     }
                 } else null
-            } ?: throw IllegalStateException(AppStrings.get(R.string.msg_remote_missing_save_button, "遥控器不存在，无法保存按键"))
+            } ?: throw UiTextException(UiText.Resource(R.string.msg_remote_missing_save_button))
 
             val updatedButtons = current.buttons.toMutableList()
             val index = updatedButtons.indexOfFirst { it.id == updatedButton.id }
@@ -201,7 +218,7 @@ class RemoteRepository(
     suspend fun deleteRemote(id: String): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             recoverRoomMutation()
-            require(id.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { AppStrings.get(R.string.msg_remote_id_invalid, "遥控器标识无效") }
+            requireUiText(id.matches(Regex("[A-Za-z0-9_-]{1,128}")), R.string.msg_remote_id_invalid)
             val file = File(storageDir, "$id.json")
             val trash = File(storageDir, ".trash").apply { if (!exists()) mkdirs() }
             if (!file.exists()) {
@@ -211,7 +228,7 @@ class RemoteRepository(
             // Give each deleted version a unique filename to preserve earlier learned signals.
             val trashFile = File(trash, "$id-${System.currentTimeMillis()}-${UUID.randomUUID()}.json")
             val deleted = file.renameTo(trashFile)
-            check(deleted) { AppStrings.get(R.string.msg_delete_failed, "删除失败，原遥控器已保留") }
+            checkUiText(deleted, R.string.msg_delete_failed)
             _remotes.value = _remotes.value.filter { it.id != id }
             deleted
         }
@@ -220,7 +237,8 @@ class RemoteRepository(
     suspend fun updateAcSettings(id: String, settings: AcSettings) = withContext(Dispatchers.IO) {
         mutex.withLock {
             recoverRoomMutation()
-            val current = _remotes.value.find { it.id == id } ?: error(AppStrings.get(R.string.msg_remote_missing, "遥控器不存在"))
+            val current = _remotes.value.find { it.id == id }
+                ?: throw UiTextException(UiText.Resource(R.string.msg_remote_missing))
             val updated = current.copy(acSettings = settings, lastSentAt = System.currentTimeMillis())
             RemoteBackupCodec.validate(updated)
             AtomicLocalFile.write(File(storageDir, "$id.json"), json.encodeToString(RemoteProfile.serializer(), updated))
@@ -236,7 +254,7 @@ class RemoteRepository(
                 if (file.exists()) {
                     try {
                         json.decodeFromString(RemoteProfile.serializer(), file.readText())
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         null
                     }
                 } else null
@@ -248,10 +266,11 @@ class RemoteRepository(
     }
 
     suspend fun updateDetails(id: String, name: String, room: String) = withContext(Dispatchers.IO) {
-        require(name.isNotBlank() && name.length <= 100 && room.length <= 60) { AppStrings.get(R.string.msg_enter_valid_name_room, "请填写有效名称和房间") }
+        requireUiText(name.isNotBlank() && name.length <= 100 && room.length <= 60, R.string.msg_enter_valid_name_room)
         mutex.withLock {
             recoverRoomMutation()
-            val current = _remotes.value.find { it.id == id } ?: error(AppStrings.get(R.string.msg_remote_missing, "遥控器不存在"))
+            val current = _remotes.value.find { it.id == id }
+                ?: throw UiTextException(UiText.Resource(R.string.msg_remote_missing))
             saveRemoteLocked(current.copy(name = name.trim(), room = room.trim()))
         }
     }
@@ -286,11 +305,11 @@ class RemoteRepository(
     suspend fun permanentlyDelete(entryId: String) = withContext(Dispatchers.IO) {
         mutex.withLock {
             val entry = deletedEntriesLocked().firstOrNull { it.entryId == entryId }
-                ?: error(AppStrings.get(R.string.msg_trash_remote_missing, "回收站中没有这个遥控器"))
+                ?: throw UiTextException(UiText.Resource(R.string.msg_trash_remote_missing))
             val trashDir = File(storageDir, ".trash")
             val file = File(trashDir, entry.entryId)
-            check(file.canonicalFile.parentFile == trashDir.canonicalFile) { AppStrings.get(R.string.msg_trash_path_invalid, "无效的回收站路径") }
-            check(file.delete()) { AppStrings.get(R.string.msg_permanent_delete_retry, "无法彻底删除，请重试") }
+            checkUiText(file.canonicalFile.parentFile == trashDir.canonicalFile, R.string.msg_trash_path_invalid)
+            checkUiText(file.delete(), R.string.msg_permanent_delete_retry)
         }
     }
 
@@ -300,13 +319,14 @@ class RemoteRepository(
             require(id.matches(Regex("[A-Za-z0-9_-]{1,128}")))
             val candidate = deletedEntriesLocked().firstOrNull {
                 it.profile.id == id && (entryId == null || it.entryId == entryId)
-            } ?: error(AppStrings.get(R.string.msg_trash_remote_missing, "回收站中没有这个遥控器"))
+            } ?: throw UiTextException(UiText.Resource(R.string.msg_trash_remote_missing))
             val file = File(File(storageDir, ".trash"), candidate.entryId)
-            check(_remotes.value.none { it.id == id } && !File(storageDir, "$id.json").exists()) {
-                AppStrings.get(R.string.msg_trash_existing_id, "已有同标识遥控器，回收站副本已保留；请先导出当前配置再处理")
-            }
+            checkUiText(
+                _remotes.value.none { it.id == id } && !File(storageDir, "$id.json").exists(),
+                R.string.msg_trash_existing_id
+            )
             saveRemoteLocked(upgradeCatalog?.invoke(candidate.profile) ?: candidate.profile)
-            check(file.delete()) { AppStrings.get(R.string.msg_restore_cleanup_failed, "已恢复，但无法清理回收站副本") }
+            checkUiText(file.delete(), R.string.msg_restore_cleanup_failed)
         }
     }
 
@@ -314,11 +334,21 @@ class RemoteRepository(
         mutex.withLock {
             recoverRoomMutation()
             val profiles = _remotes.value.filter { id == null || it.id == id }
-            check(id == null || profiles.isNotEmpty()) { AppStrings.get(R.string.msg_no_remotes_export, "没有可导出的遥控器") }
-            require(profiles.size <= RemoteBackupCodec.MAX_PROFILES) {
-                AppStrings.get(R.string.msg_export_profile_limit, "一次最多导出 %1\$s 个遥控器，请分批导出", (RemoteBackupCodec.MAX_PROFILES).toString())
+            checkUiText(id == null || profiles.isNotEmpty(), R.string.msg_no_remotes_export)
+            requireUiText(
+                profiles.size <= RemoteBackupCodec.MAX_PROFILES,
+                R.string.msg_export_profile_limit,
+                RemoteBackupCodec.MAX_PROFILES.toString()
+            )
+            RemoteBackupCodec.encode(
+                RemoteBackup(
+                    remotes = profiles,
+                    rooms = if (id == null) _rooms.value else profiles.map { it.room }.filter { it.isNotBlank() }.distinct(),
+                    preferences = preferences
+                )
+            ).also {
+                checkUiText(it.toByteArray().size <= RemoteBackupCodec.MAX_BYTES, R.string.msg_backup_split_needed)
             }
-            RemoteBackupCodec.encode(RemoteBackup(remotes = profiles, rooms = if (id == null) _rooms.value else profiles.map { it.room }.filter { it.isNotBlank() }.distinct(), preferences = preferences)).also { check(it.toByteArray().size <= RemoteBackupCodec.MAX_BYTES) { AppStrings.get(R.string.msg_backup_split_needed, "备份过大，请分别导出遥控器") } }
         }
     }
 
@@ -329,9 +359,9 @@ class RemoteRepository(
         ids.forEach { id ->
             require(id.matches(Regex("[A-Za-z0-9_-]{1,128}")))
             val file = File(storageDir, "$id.json")
-            check(!file.exists() || file.delete()) { AppStrings.get(R.string.msg_import_rollback_failed, "无法回退中断的导入，请检查存储权限") }
+            checkUiText(!file.exists() || file.delete(), R.string.msg_import_rollback_failed)
         }
-        check(journal.delete()) { AppStrings.get(R.string.msg_import_recovery_failed, "无法完成导入恢复") }
+        checkUiText(journal.delete(), R.string.msg_import_recovery_failed)
     }
 
     suspend fun importRemotes(profiles: List<RemoteProfile>, mode: ImportMode): Int =
@@ -349,7 +379,7 @@ class RemoteRepository(
     suspend fun readRecoverySnapshot(): RemoteBackup = withContext(Dispatchers.IO) {
         mutex.withLock {
             recoverMigration()
-            check(recoverySnapshot.exists()) { AppStrings.get(R.string.migration_no_snapshot) }
+            checkUiText(recoverySnapshot.exists(), R.string.migration_no_snapshot)
             RemoteBackupCodec.decodeRecoverySnapshot(recoverySnapshot.readText())
         }
     }
@@ -366,7 +396,7 @@ class RemoteRepository(
             if (previous == null) check(!file.exists() || file.delete()) else AtomicLocalFile.write(file, previous)
         }
         transaction.preferences?.let { PortablePreferenceStore.write(context, it) }
-        check(migrationJournal.delete()) { AppStrings.get(R.string.msg_import_recovery_failed) }
+        checkUiText(migrationJournal.delete(), R.string.msg_import_recovery_failed)
     }
 
     /** One journal covers profile replacements/additions, empty rooms and the selected appearance preferences. */
@@ -398,7 +428,7 @@ class RemoteRepository(
             try {
                 writes.forEach { (relative, content) -> AtomicLocalFile.write(migrationTarget(relative), content) }
                 preferences?.let { PortablePreferenceStore.write(context, it) }
-                check(migrationJournal.delete()) { AppStrings.get(R.string.msg_import_commit_failed) }
+                checkUiText(migrationJournal.delete(), R.string.msg_import_commit_failed)
             } catch (e: Exception) {
                 try { recoverMigration() } catch (rollback: Exception) { e.addSuppressed(rollback) }
                 throw e
@@ -423,13 +453,13 @@ class RemoteRepository(
         val content = roomsFile.readText()
         return try {
             json.decodeFromString<List<String>>(content)
-        } catch (e: kotlinx.serialization.SerializationException) {
+        } catch (_: kotlinx.serialization.SerializationException) {
             val backup = File(context.filesDir, "rooms-corrupt-${System.currentTimeMillis()}-${UUID.randomUUID()}.json")
             // Do not replace damaged metadata until its original contents have been preserved.
             AtomicLocalFile.write(backup, content)
             val recovered = _remotes.value.map { it.room }.filter { it.isNotBlank() }.distinct().sorted()
             AtomicLocalFile.write(roomsFile, json.encodeToString(recovered))
-            _errorMessage.value = UiText.Resource(R.string.msg_rooms_recovered)
+            setRepositoryError(AppError.Resource(UiText.Resource(R.string.msg_rooms_recovered)))
             recovered
         }
     }
@@ -445,7 +475,7 @@ class RemoteRepository(
             AtomicLocalFile.write(File(storageDir, "${profile.id}.json"), json.encodeToString(profile))
         }
         AtomicLocalFile.write(roomsFile, json.encodeToString(change.rooms))
-        check(roomJournal.delete()) { AppStrings.get(R.string.msg_room_update_incomplete, "房间修改尚未完成，请重试") }
+        checkUiText(roomJournal.delete(), R.string.msg_room_update_incomplete)
         val replacements = change.profiles.associateBy { it.id }
         _remotes.value = _remotes.value.map { replacements[it.id] ?: it }
         _rooms.value = change.rooms
@@ -456,9 +486,9 @@ class RemoteRepository(
             recoverRoomMutation()
             refreshRooms()
             val name = newName?.trim()
-            require(name == null || name.isNotBlank() && name.length <= 60) { AppStrings.get(R.string.msg_room_name_length, "房间名称为 1–60 字") }
-            require(oldName == null || oldName in _rooms.value) { AppStrings.get(R.string.msg_room_missing, "房间不存在") }
-            require(name == null || name == oldName || name !in _rooms.value) { AppStrings.get(R.string.msg_room_duplicate, "已有同名房间") }
+            requireUiText(name == null || name.isNotBlank() && name.length <= 60, R.string.msg_room_name_length)
+            requireUiText(oldName == null || oldName in _rooms.value, R.string.msg_room_missing)
+            requireUiText(name == null || name == oldName || name !in _rooms.value, R.string.msg_room_duplicate)
             val names = (_rooms.value.filter { it != oldName } + listOfNotNull(name)).sorted()
             val changed = if (oldName == null) emptyList() else _remotes.value.filter { it.room == oldName }
                 .map { it.copy(room = name.orEmpty()) }
@@ -474,7 +504,7 @@ class RemoteRepository(
         mutex.withLock {
             recoverRoomMutation()
             val current = _remotes.value.firstOrNull { it.id == id }
-                ?: error(AppStrings.get(R.string.msg_remote_missing, "遥控器不存在"))
+                ?: throw UiTextException(UiText.Resource(R.string.msg_remote_missing))
             saveRemoteLocked(current.copy(panelLayout = layout, updatedAt = System.currentTimeMillis()))
         }
     }
@@ -482,8 +512,9 @@ class RemoteRepository(
     suspend fun moveToRoom(remoteId: String, room: String) = withContext(Dispatchers.IO) {
         mutex.withLock {
             recoverRoomMutation()
-            val current = _remotes.value.firstOrNull { it.id == remoteId } ?: error(AppStrings.get(R.string.msg_remote_missing, "遥控器不存在"))
-            require(room.isBlank() || room in _rooms.value) { AppStrings.get(R.string.msg_room_missing, "房间不存在") }
+            val current = _remotes.value.firstOrNull { it.id == remoteId }
+                ?: throw UiTextException(UiText.Resource(R.string.msg_remote_missing))
+            requireUiText(room.isBlank() || room in _rooms.value, R.string.msg_room_missing)
             saveRemoteLocked(current.copy(room = room))
         }
     }
