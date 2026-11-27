@@ -197,7 +197,6 @@ class DeviceCategoryIconsRoborazziTest {
         val stb = profiles.first { it.id == "stb" }
         compose.onNodeWithContentDescription(app.getString(R.string.screen_manage_name, stb.name)).performClick()
         compose.onNodeWithText(app.getString(R.string.screen_trash_remote)).performClick()
-        compose.onNodeWithText(app.getString(R.string.screen_delete)).performClick()
         waitFor { repository.remotes.value.none { it.id == stb.id } }
         val deleted = runBlocking { repository.deletedEntries().single() }
         val trashDirectory = File(app.filesDir, "remotes/.trash")

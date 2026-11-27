@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.motion.AppMotion
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -33,7 +32,7 @@ import kotlin.math.abs
 fun SwipeRemoteCard(
     favorite: Boolean,
     onFavorite: () -> Unit,
-    onRemove: () -> Unit,
+    onRemove: suspend () -> Boolean,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -61,6 +60,7 @@ fun SwipeRemoteCard(
         if (settling) return
         settling = true
         scope.launch {
+            var keepHidden = false
             try {
                 val completed = released && abs(offset) >= threshold
                 val removing = completed && offset < 0
@@ -76,18 +76,21 @@ fun SwipeRemoteCard(
                     ) { value, _ -> offset = value }
                 }
                 if (removing) {
-                    removeAction()
-                    // A storage failure must leave a usable card. Successful removal disposes it.
-                    delay(700)
-                    animate(offset, 0f, animationSpec = motion.defaultSpatialSpec()) { value, _ ->
-                        offset = value
+                    if (removeAction()) {
+                        keepHidden = true
+                    } else {
+                        animate(offset, 0f, animationSpec = motion.defaultSpatialSpec()) { value, _ ->
+                            offset = value
+                        }
                     }
                 } else if (completed) {
                     favoriteAction()
                 }
             } finally {
-                actionOpacity = 1f
-                settling = false
+                if (!keepHidden) {
+                    actionOpacity = 1f
+                    settling = false
+                }
             }
         }
     }

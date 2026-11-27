@@ -76,7 +76,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Clear
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DevicesOther
 import androidx.compose.material.icons.rounded.Edit
@@ -147,6 +146,7 @@ import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -234,12 +234,16 @@ fun RemoteListScreen(
         }
     }
 
-    var deleteId by rememberSaveable { mutableStateOf<String?>(null) }
-
     val rooms by viewModel.rooms.collectAsStateWithLifecycle()
     val selectedRoom by viewModel.selectedRoom.collectAsStateWithLifecycle()
     val recentFirst by viewModel.recentFirst.collectAsStateWithLifecycle()
-    val deletedId by viewModel.deletedId.collectAsStateWithLifecycle()
+    val deletedIds by viewModel.deletedIds.collectAsStateWithLifecycle()
+    val trashedMessage = if (deletedIds.isNotEmpty()) {
+        pluralStringResource(R.plurals.screen_trashed_remotes, deletedIds.size, deletedIds.size)
+    } else {
+        null
+    }
+    val undoLabel = stringResource(R.string.screen_undo)
     val transferBusy by viewModel.transferBusy.collectAsStateWithLifecycle()
     val transferMessage by viewModel.transferMessage.collectAsStateWithLifecycle()
     val displayedTransfer = transferMessage?.asString()
@@ -249,16 +253,18 @@ fun RemoteListScreen(
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) viewModel.export(uri, exportId) { exportedUri = uri.toString() }
     }
-    LaunchedEffect(screenActive, deletedId) {
-        if (screenActive) deletedId?.let { id ->
+    LaunchedEffect(screenActive, deletedIds) {
+        if (screenActive && deletedIds.isNotEmpty()) {
+            val ids = deletedIds
+            val message = trashedMessage ?: return@LaunchedEffect
             try {
                 val result = snackbar.showSnackbar(
-                    AppStrings.get(R.string.screen_trashed, "已移入回收站"), actionLabel = AppStrings.get(R.string.screen_undo, "撤销"), duration = SnackbarDuration.Long
+                    message, actionLabel = undoLabel, duration = SnackbarDuration.Long
                 )
-                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) viewModel.restoreDeleted(id)
+                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) viewModel.restoreDeleted(ids)
             } finally {
                 // Do not replay a cancelled notice on return or consume a newer deletion.
-                viewModel.consumeDeleted(id)
+                viewModel.consumeDeleted(ids)
             }
         }
     }
@@ -364,12 +370,12 @@ fun RemoteListScreen(
             }
             val remoteRow: @Composable (RemoteProfile, Int, Int, Modifier) -> Unit = { remote, index, count, itemModifier ->
                 org.qinyan.rimoat.ui.components.SwipeRemoteCard(remote.isFavorite,
-                    onFavorite = { viewModel.toggleFavorite(remote.id) }, onRemove = { viewModel.deleteRemote(remote.id) }, modifier = itemModifier) {
+                    onFavorite = { viewModel.toggleFavorite(remote.id) }, onRemove = { viewModel.deleteRemote(remote.id).await() }, modifier = itemModifier) {
                     RemoteCard(
                         remote = remote,
                         onClick = { onRemoteClick(remote.id) },
                         onToggleFavorite = { viewModel.toggleFavorite(remote.id) },
-                        onDelete = { deleteId = remote.id },
+                        onDelete = { viewModel.deleteRemote(remote.id) },
                         onEdit = { editingId = remote.id },
                         onExport = { exportId = remote.id; exportLauncher.launch("Rimoat-remote.json") },
                         index = index,
@@ -483,31 +489,6 @@ fun RemoteListScreen(
     }
 
     if (screenActive) {
-        // Delete Confirmation Dialog
-        allRemotes.firstOrNull { it.id == deleteId }?.let { profile ->
-            MotionAlertDialog(
-                onDismissRequest = { deleteId = null },
-                title = { Text(AppStrings.get(R.string.screen_delete_remote, "删除遥控器")) },
-                text = { Text(AppStrings.get(R.string.screen_trash_question, "将「%1\$s」移入回收站？", profile.name)) },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            viewModel.deleteRemote(profile.id)
-                            deleteId = null
-                        },
-                        shapes = ButtonDefaults.shapes()
-                    ) {
-                        Text(AppStrings.get(R.string.screen_delete, "删除"), color = MaterialTheme.colorScheme.error)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { deleteId = null }, shapes = ButtonDefaults.shapes()) {
-                        Text(AppStrings.get(R.string.screen_cancel, "取消"))
-                    }
-                }
-            )
-        }
-
         remotes.firstOrNull { it.id == editingId }?.let { profile ->
             var name by rememberSaveable(profile.id) { mutableStateOf(profile.name) }
             var room by rememberSaveable(profile.id) { mutableStateOf(profile.room) }

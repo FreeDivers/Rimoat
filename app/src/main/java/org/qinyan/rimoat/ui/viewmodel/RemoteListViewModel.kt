@@ -21,10 +21,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.update
 
 class RemoteListViewModel(
     private val repository: RemoteRepository,
@@ -123,9 +126,9 @@ class RemoteListViewModel(
         }
     }
 
-    private val _deletedId = MutableStateFlow<String?>(null)
-    val deletedId = _deletedId.asStateFlow()
-    fun consumeDeleted(id: String) { _deletedId.compareAndSet(id, null) }
+    private val _deletedIds = MutableStateFlow<List<String>>(emptyList())
+    val deletedIds: StateFlow<List<String>> = _deletedIds.asStateFlow()
+    fun consumeDeleted(ids: List<String>) { _deletedIds.compareAndSet(ids, emptyList()) }
     private val _trash = MutableStateFlow<List<org.qinyan.rimoat.data.DeletedRemoteEntry>?>(null)
     val trash = _trash.asStateFlow()
     fun loadTrash() = performStorageOperation { _trash.value = repository.deletedEntries() }
@@ -136,11 +139,31 @@ class RemoteListViewModel(
         viewModelScope.launch {
             try {
                 repository.restoreDeleted(id, entryId)
-                _deletedId.value = null
+                _deletedIds.update { current -> current.filterNot { it == id } }
                 if (_trash.value != null) _trash.value = repository.deletedEntries()
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_operation_failed, e.uiTextDetail(R.string.msg_storage_unavailable)) }
             finally { _trashBusy.value = false }
+        }
+    }
+    fun restoreDeleted(ids: List<String>) {
+        if (ids.isEmpty() || !_trashBusy.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            val restored = mutableSetOf<String>()
+            try {
+                ids.asReversed().forEach { id ->
+                    repository.restoreDeleted(id)
+                    restored += id
+                }
+                if (_trash.value != null) _trash.value = repository.deletedEntries()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _operationError.value = UiText.resource(R.string.msg_operation_failed, e.uiTextDetail(R.string.msg_storage_unavailable)) }
+            finally {
+                if (restored.isNotEmpty()) {
+                    _deletedIds.update { current -> current.filterNot(restored::contains) }
+                }
+                _trashBusy.value = false
+            }
         }
     }
     fun permanentlyDelete(entryId: String, onDeleted: () -> Unit) {
@@ -158,10 +181,18 @@ class RemoteListViewModel(
     fun updateDetails(id: String, name: String, room: String, onSaved: () -> Unit) = performStorageOperation {
         repository.updateDetails(id, name, room); onSaved()
     }
-    fun deleteRemote(remoteId: String) {
-        performStorageOperation {
-            repository.deleteRemote(remoteId)
-            _deletedId.value = remoteId
+    fun deleteRemote(remoteId: String): Deferred<Boolean> = viewModelScope.async {
+        try {
+            val removed = repository.deleteRemote(remoteId)
+            if (removed) {
+                _deletedIds.update { current -> if (remoteId in current) current else current + remoteId }
+            }
+            removed
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _operationError.value = UiText.resource(R.string.msg_operation_failed, e.uiTextDetail(R.string.msg_storage_unavailable))
+            false
         }
     }
 

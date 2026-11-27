@@ -1,12 +1,22 @@
 package org.qinyan.rimoat.ui.screens
 
 import android.app.Application
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
 import com.github.takahirom.roborazzi.*
 import kotlinx.coroutines.*
@@ -19,6 +29,7 @@ import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.*
 import org.qinyan.rimoat.hardware.IrTransmitterManager
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.ui.components.SwipeRemoteCard
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
 import org.robolectric.RobolectricTestRunner
@@ -54,6 +65,7 @@ class RemoteListSwipeRoborazziTest {
     private fun showHome(
         profiles: List<RemoteProfile> = listOf(tv, fan),
         dark: Boolean = false,
+        pureBlackBackground: Boolean = false,
         direction: LayoutDirection = LayoutDirection.Ltr,
         onOpen: (String) -> Unit = {},
         onAdd: () -> Unit = {}
@@ -69,7 +81,7 @@ class RemoteListSwipeRoborazziTest {
         store.put("home", vm)
         compose.setContent {
             CompositionLocalProvider(LocalLayoutDirection provides direction) {
-                IrRemoteTheme(darkTheme = dark, dynamicColor = false) {
+                IrRemoteTheme(darkTheme = dark, dynamicColor = false, pureBlackBackground = pureBlackBackground) {
                     RemoteListScreen(vm, onOpen, onAdd)
                 }
             }
@@ -174,7 +186,102 @@ class RemoteListSwipeRoborazziTest {
         compose.waitUntil(5_000) { vm.allRemotes.value.none { it.id == tv.id } }
         compose.onNodeWithText(fan.name).assertIsDisplayed()
         assertCategory(vm, null, R.string.screen_category_all)
+        val trashedOne = app.resources.getQuantityString(R.plurals.screen_trashed_remotes, 1, 1)
+        val undoLabel = app.getString(R.string.screen_undo)
+        compose.onNodeWithText(trashedOne).assertIsDisplayed()
+        compose.onNodeWithText(undoLabel).assertIsDisplayed()
+        capture("card_trashed")
+        compose.onNodeWithText(undoLabel).performClick()
+        compose.waitUntil(5_000) { vm.allRemotes.value.any { it.id == tv.id } }
+        compose.onNodeWithText(tv.name).assertIsDisplayed()
+        capture("card_undone")
         compose.runOnIdle { assertEquals(listOf(tv.id), opened) }
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w320dp-h891dp-mdpi")
+    fun consecutiveLeftSwipesCombineUndoSnackbarAndRestoreAllInCompactAmoledLargeFont() {
+        RuntimeEnvironment.setFontScale(2f)
+        try {
+            val vm = showHome(dark = true, pureBlackBackground = true)
+            compose.onNodeWithText(tv.name).performTouchInput { swipeLeft() }
+            compose.waitUntil(5_000) { vm.allRemotes.value.none { it.id == tv.id } }
+            compose.waitForIdle()
+            compose.onNodeWithText(fan.name).performScrollTo()
+            compose.onNodeWithText(fan.name).performTouchInput { swipeLeft() }
+            compose.waitUntil(5_000) { vm.allRemotes.value.isEmpty() }
+            compose.waitForIdle()
+
+            val trashedTwo = app.resources.getQuantityString(R.plurals.screen_trashed_remotes, 2, 2)
+            val undoLabel = app.getString(R.string.screen_undo)
+            compose.onNodeWithText(trashedTwo).assertIsDisplayed()
+            compose.onNodeWithText(undoLabel).assertIsDisplayed()
+            capture("batch_trashed_dark_compact")
+
+            compose.onNodeWithText(undoLabel).performClick()
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                !vm.trashBusy.value && vm.allRemotes.value.size == 2
+            }
+            compose.waitForIdle()
+            assertNull(vm.errorMessage.value)
+            compose.onNodeWithText(tv.name).assertIsDisplayed()
+            compose.onNodeWithText(fan.name).assertIsDisplayed()
+            capture("batch_undone_dark_compact")
+        } finally {
+            RuntimeEnvironment.setFontScale(1f)
+        }
+    }
+
+    @Test fun swipeLeftWaitsForSlowRemovalAndOnlySnapsBackOnFailure() {
+        AppStrings.initialize(app)
+        val pendingRemoval = CompletableDeferred<Boolean>()
+        var removeSuccess by mutableStateOf(false)
+        var visible by mutableStateOf(true)
+        var favorites = 0
+        compose.setContent {
+            IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                if (visible) {
+                    SwipeRemoteCard(
+                        favorite = false,
+                        onFavorite = { favorites++ },
+                        onRemove = {
+                            if (removeSuccess) pendingRemoval.await() else false
+                        },
+                        modifier = Modifier.fillMaxWidth().height(72.dp)
+                    ) {
+                        Box(Modifier.fillMaxWidth().height(72.dp).testTag("swipe_card_body")) {
+                            Text("测试卡片")
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        capture("failed_delete_before")
+
+        // Removal failure must spring back to 0f and keep the card usable.
+        compose.onNodeWithTag("swipe_card_body").performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        val recoveredBounds = compose.onNodeWithTag("swipe_card_body").fetchSemanticsNode().boundsInRoot
+        assertEquals(0f, recoveredBounds.left, 1f)
+        capture("failed_delete_recovered")
+
+        compose.onNodeWithTag("swipe_card_body").performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        assertEquals(1, favorites)
+
+        // Slow removal (> 700ms) must stay off-screen instead of bouncing back at 700ms.
+        removeSuccess = true
+        compose.onNodeWithTag("swipe_card_body").performTouchInput { swipeLeft() }
+        compose.mainClock.advanceTimeBy(900)
+        compose.waitForIdle()
+        val hiddenBounds = compose.onNodeWithTag("swipe_card_body").fetchSemanticsNode().boundsInRoot
+        assertTrue(hiddenBounds.right <= 1f)
+
+        pendingRemoval.complete(true)
+        compose.runOnIdle { visible = false }
+        compose.waitForIdle()
     }
 
     @Test fun shortOrCancelledDragsDoNotChangeTabsAndTabClicksStillWork() {

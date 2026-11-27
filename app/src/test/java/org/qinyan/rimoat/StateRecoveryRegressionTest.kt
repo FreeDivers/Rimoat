@@ -167,4 +167,69 @@ class StateRecoveryRegressionTest {
         assertEquals(listOf("A\\B"), repo.getBrandsForCategory(1, "\\").map { it.nameEn })
         assertEquals(4, repo.getBrandsForCategory(1, "").size)
     }
+
+    @Test fun consecutiveDeletionsAccumulateDeletedIdsAndUndoRestoresAll() = runBlocking {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val app = RuntimeEnvironment.getApplication()
+        val dir = Files.createTempDirectory("batch-undo-").toFile()
+        val context = object : ContextWrapper(app) { override fun getFilesDir() = dir }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val store = ViewModelStore()
+        val transmitter = IrTransmitterManager(context, scope)
+        try {
+            val repo = RemoteRepository(context, scope)
+            repo.awaitLoaded()
+            repo.saveRemote(RemoteProfile("first", "客厅电视"))
+            repo.saveRemote(RemoteProfile("second", "卧室空调"))
+            repo.saveRemote(RemoteProfile("third", "书房风扇"))
+            val vm = RemoteListViewModel(repo, transmitter, ThemePreferences(app)).also { store.put("home", it) }
+            val d1 = vm.deleteRemote("first")
+            val d2 = vm.deleteRemote("second")
+            pump(dispatcher) { d1.isCompleted && d2.isCompleted }
+            assertTrue(d1.await())
+            assertTrue(d2.await())
+            assertEquals(listOf("first", "second"), vm.deletedIds.value)
+            assertEquals(listOf("third"), repo.remotes.value.map { it.id })
+
+            // Stale snapshot consumption must not drop newer deletions.
+            vm.consumeDeleted(listOf("first"))
+            assertEquals(listOf("first", "second"), vm.deletedIds.value)
+
+            vm.restoreDeleted(vm.deletedIds.value)
+            pump(dispatcher) { !vm.trashBusy.value && vm.deletedIds.value.isEmpty() }
+            assertEquals(setOf("first", "second", "third"), repo.remotes.value.map { it.id }.toSet())
+            assertTrue(repo.deletedEntries().isEmpty())
+        } finally {
+            clearViewModelsAndAwait(store, dispatcher)
+            transmitter.release(); scope.cancel(); Dispatchers.resetMain(); dir.deleteRecursively()
+        }
+    }
+
+    @Test fun failedDeleteReturnsFalseAndLeavesDeletedQueueUnchanged() = runBlocking {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        val app = RuntimeEnvironment.getApplication()
+        val dir = Files.createTempDirectory("failed-delete-").toFile()
+        val context = object : ContextWrapper(app) { override fun getFilesDir() = dir }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val store = ViewModelStore()
+        val transmitter = IrTransmitterManager(context, scope)
+        try {
+            val repo = RemoteRepository(context, scope)
+            repo.awaitLoaded()
+            repo.saveRemote(RemoteProfile("valid_remote", "客厅电视"))
+            val vm = RemoteListViewModel(repo, transmitter, ThemePreferences(app)).also { store.put("home", it) }
+            val errors = scope.launch { vm.errorMessage.collect {} }
+            val invalidResult = vm.deleteRemote("bad/id")
+            pump(dispatcher) { invalidResult.isCompleted && vm.errorMessage.value != null }
+            assertFalse(invalidResult.await())
+            assertTrue(vm.deletedIds.value.isEmpty())
+            assertEquals(listOf("valid_remote"), repo.remotes.value.map { it.id })
+            errors.cancel()
+        } finally {
+            clearViewModelsAndAwait(store, dispatcher)
+            transmitter.release(); scope.cancel(); Dispatchers.resetMain(); dir.deleteRecursively()
+        }
+    }
 }

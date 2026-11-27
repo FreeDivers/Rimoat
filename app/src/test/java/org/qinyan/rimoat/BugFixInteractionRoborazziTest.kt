@@ -577,7 +577,7 @@ class BugFixInteractionRoborazziTest {
         }
     }
 
-    @Test fun deleteConfirmationDialogSurvivesStateRestoration() {
+    @Test fun menuMoveToTrashExecutesDirectlyAndRestoresFromUndoSnackbar() {
         AppStrings.initialize(app)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val repository = RemoteRepository(app, scope)
@@ -590,9 +590,8 @@ class BugFixInteractionRoborazziTest {
         val store = ViewModelStore()
         val vm = RemoteListViewModel(repository, transmitter, ThemePreferences(app), BackupFileStore(app))
             .also { store.put("home_delete_restore", it) }
-        val restoration = StateRestorationTester(compose)
         try {
-            restoration.setContent {
+            compose.setContent {
                 IrRemoteTheme(darkTheme = false, dynamicColor = false) {
                     RemoteListScreen(vm, {}, {})
                 }
@@ -604,24 +603,25 @@ class BugFixInteractionRoborazziTest {
             compose.onNodeWithContentDescription(app.getString(R.string.screen_manage_name, tv.name)).performClick()
             compose.waitForIdle()
             compose.onNodeWithText(app.getString(R.string.screen_trash_remote)).performClick()
-            compose.waitForIdle()
-
-            val question = app.getString(R.string.screen_trash_question, tv.name)
-            compose.onNodeWithText(question).assertIsDisplayed()
-            capture("delete_dialog_before_restore", dialog = true)
-
-            restoration.emulateSavedInstanceStateRestore()
-            compose.waitForIdle()
-
-            compose.onNodeWithText(question).assertIsDisplayed()
-            capture("delete_dialog_after_restore", dialog = true)
-
-            compose.onNodeWithText(app.getString(R.string.screen_delete)).performClick()
             compose.waitUntil(5_000) {
                 org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
                 repository.remotes.value.none { it.id == tv.id }
             }
-            assertEquals(tv.id, runBlocking { repository.deletedEntries() }.single().profile.id)
+            compose.onNodeWithText(app.getString(R.string.screen_delete_remote)).assertDoesNotExist()
+            val trashedMessage = app.resources.getQuantityString(R.plurals.screen_trashed_remotes, 1, 1)
+            val undoLabel = app.getString(R.string.screen_undo)
+            compose.onNodeWithText(trashedMessage).assertIsDisplayed()
+            compose.onNodeWithText(undoLabel).assertIsDisplayed()
+            capture("trash_snackbar_after_menu")
+
+            compose.onNodeWithText(undoLabel).performClick()
+            compose.waitUntil(5_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                repository.remotes.value.any { it.id == tv.id }
+            }
+            compose.onNodeWithText(tv.name).assertIsDisplayed()
+            capture("trash_snackbar_after_undo")
+            assertTrue(runBlocking { repository.deletedEntries() }.isEmpty())
         } finally {
             compose.runOnIdle { store.clear() }
             transmitter.release()
