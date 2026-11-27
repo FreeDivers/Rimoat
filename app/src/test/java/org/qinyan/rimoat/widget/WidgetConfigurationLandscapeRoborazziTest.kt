@@ -1,7 +1,5 @@
 package org.qinyan.rimoat.widget
 
-import org.qinyan.rimoat.testing.collectScreenshotDifference
-import org.junit.rules.ErrorCollector
 import android.app.Activity
 import android.os.Looper
 import android.view.View
@@ -19,11 +17,14 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ErrorCollector
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.IrRemoteApplication
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.testing.collectScreenshotDifference
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.AppColorMode
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
@@ -46,12 +47,12 @@ class WidgetConfigurationLandscapeRoborazziTest {
 
     @Test
     @Config(qualifiers = "en-rUS-w360dp-h640dp-port-mdpi")
-    fun selectingRemoteDefaultsToEnglishPowerWithoutAnIcon() {
+    fun selectingRemoteDefaultsToStablePowerKeyWithoutAnIcon() {
         val app = RuntimeEnvironment.getApplication() as IrRemoteApplication
         val profile = RemoteProfile("remote", "Living room television", category = DeviceCategory.TV,
             buttons = listOf(
                 RemoteButton("input", "Input", rawPattern = listOf(9000, 4500, 560)),
-                RemoteButton("custom", "Power", rawPattern = listOf(9000, 4500, 560))))
+                RemoteButton("custom", "Power", key = ButtonKey.POWER, rawPattern = listOf(9000, 4500, 560))))
         val widgetId = 44
         val initial = WidgetConfiguration(WidgetKind.SINGLE, profile.id, listOf(WidgetShortcut(profile.id, "input")))
         fun capturePreview(configuration: WidgetConfiguration, filename: String, label: String) = runBlocking {
@@ -91,6 +92,13 @@ class WidgetConfigurationLandscapeRoborazziTest {
                 app.widgets.state.value.commands[profile.id]?.size == 2
             }
             val storedProfile = app.repository.remotes.value.first { it.id == profile.id }
+            val storedPower = storedProfile.buttons.single { it.id == "custom" }
+            assertEquals(ButtonKey.POWER, storedPower.key)
+            assertNull(storedPower.iconName)
+            assertEquals(WidgetShortcut(profile.id, "custom"),
+                WidgetCommands.default(storedProfile.copy(buttons = storedProfile.buttons.map {
+                    if (it.id == "custom") it.copy(label = "Primary switch") else it
+                })))
             capturePreview(initial, "widget_power_selection_before", "Input")
             composeRule.setContent { IrRemoteTheme(darkTheme = false, dynamicColor = false) {
                 WidgetConfigurationScreen(app, widgetId, WidgetKind.SINGLE, onCancel = {}, onSaved = { saved++ })

@@ -1,7 +1,5 @@
 package org.qinyan.rimoat.ui.screens
 
-import org.qinyan.rimoat.testing.collectScreenshotDifference
-import org.junit.rules.ErrorCollector
 import android.app.Application
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -18,7 +16,9 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.rules.ErrorCollector
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.db.*
@@ -26,9 +26,13 @@ import org.qinyan.rimoat.hardware.IrSignal
 import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.hardware.learning.LearningState
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.testing.collectScreenshotDifference
 import org.qinyan.rimoat.ui.learning.*
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.qinyan.rimoat.ui.viewmodel.AddRemoteUiState
+import org.qinyan.rimoat.ui.viewmodel.PairingObservation
+import org.qinyan.rimoat.ui.viewmodel.PairingResult
+import org.qinyan.rimoat.ui.viewmodel.pairingFingerprint
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -47,7 +51,8 @@ class AddLearningLandscapeRoborazziTest {
     private val options = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(imageIoFormat = LosslessWebPImageIoFormat()))
     private val category = IrCategory(1, "电视", "TV", "tv")
     private val model = IrRemoteModel("code_one", 1, "TV", 1, "示例", "Example", 1, "", 2)
-    private val power = RemoteButton("power", "Power", iconName = "power", rawPattern = listOf(9000, 4500, 560))
+    private val power = RemoteButton("power", "Power", key = ButtonKey.POWER,
+        iconName = "power", rawPattern = listOf(9000, 4500, 560))
 
     private fun show(fontScale: Float = 1f, content: @Composable () -> Unit) {
         AppStrings.initialize(app)
@@ -133,7 +138,11 @@ class AddLearningLandscapeRoborazziTest {
             CodeMatchingWizardView(state, onTestKey = {
                 sends++; state = state.copy(testedButton = it, canConfirmTest = true)
             }, onNextModel = {}, onPrevModel = {}, onMatched = { saves++ }, onConfirmTest = {
-                assertTrue(it); confirms++; state = state.copy(canConfirmTest = false, verifiedFunctions = setOf("Power"))
+                assertTrue(it)
+                confirms++
+                state = state.copy(canConfirmTest = false, verifiedFunctions = setOf(power.id),
+                    observations = mapOf(power.id to PairingObservation(
+                        pairingFingerprint(power), PairingResult.VALID, sent = true)))
             })
         }
         panes()
@@ -148,6 +157,10 @@ class AddLearningLandscapeRoborazziTest {
             compose.onNodeWithTag("pairing_answers_overflow").performScrollTo().performClick()
         }
         compose.onNodeWithText(response).performScrollTo().performClick()
+        assertEquals(1, state.verifiedCount)
+        assertEquals(setOf(power.id), state.verifiedFunctions)
+        assertEquals(PairingResult.VALID, state.observations.getValue(power.id).result)
+        compose.onNodeWithText(app.getString(R.string.screen_verified_count, 1)).assertIsDisplayed()
         compose.onNodeWithText(app.getString(R.string.screen_use_code)).performScrollTo().performClick()
         assertEquals(1, sends); assertEquals(1, confirms); assertEquals(1, saves)
         capture("pairing_after")
@@ -214,7 +227,8 @@ class AddLearningLandscapeRoborazziTest {
         var saves = 0
         val signal = IrSignal.Raw(patternMicros = intArrayOf(9000, 4500, 560))
         val page = CustomRemoteWizardUiState(step = WizardStep.REVIEW, remoteName = "Study remote",
-            keyQueue = listOf(WizardKeyItem("power", "Power", status = KeyLearnStatus.LEARNED, capturedSignal = signal)))
+            keyQueue = listOf(WizardKeyItem("power", "Power", key = ButtonKey.POWER,
+                status = KeyLearnStatus.LEARNED, capturedSignal = signal)))
         show { LearningReviewContent(page, {}, { saves++ }, Modifier.fillMaxSize()) }
         panes()
         capture("learning_review_before")

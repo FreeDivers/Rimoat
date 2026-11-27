@@ -50,6 +50,9 @@ import org.qinyan.rimoat.data.db.IrRemoteModel
 import org.qinyan.rimoat.i18n.AppStrings
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.qinyan.rimoat.ui.viewmodel.AddRemoteUiState
+import org.qinyan.rimoat.ui.viewmodel.PairingObservation
+import org.qinyan.rimoat.ui.viewmodel.PairingResult
+import org.qinyan.rimoat.ui.viewmodel.pairingFingerprint
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -270,9 +273,17 @@ class ExpressiveScreensRoborazziTest {
                 Surface(Modifier.fillMaxSize()) {
                     Box(contentAlignment = Alignment.TopCenter) {
                         Column(Modifier.width(paneWidth).verticalScroll(rememberScrollState())) {
-                            CodeMatchingActions(page, onMatched = {}, onConfirmTest = {
-                                answers += it
-                                page = page.copy(canConfirmTest = false, verifiedFunctions = setOf(power.id))
+                            CodeMatchingActions(page, onMatched = {}, onConfirmTest = { didRespond ->
+                                answers += didRespond
+                                page = page.copy(
+                                    canConfirmTest = false,
+                                    verifiedFunctions = if (didRespond) setOf(power.id) else emptySet(),
+                                    observations = mapOf(power.id to PairingObservation(
+                                        pairingFingerprint(power),
+                                        if (didRespond) PairingResult.VALID else PairingResult.INVALID,
+                                        sent = true
+                                    ))
+                                )
                             })
                         }
                     }
@@ -309,15 +320,26 @@ class ExpressiveScreensRoborazziTest {
         compose.waitForIdle()
         compose.runOnIdle {
             assertEquals(listOf(false), answers)
-            page = page.copy(canConfirmTest = true, verifiedFunctions = emptySet())
+            assertEquals(PairingResult.INVALID, page.observations.getValue(power.id).result)
+            assertEquals(0, page.verifiedCount)
+            assertTrue(page.verifiedFunctions.isEmpty())
+            page = page.copy(canConfirmTest = true, verifiedFunctions = emptySet(), observations = emptyMap())
         }
         assertAnswerLayout()
         respondedNode.performTouchInput { click() }
         compose.waitForIdle()
-        compose.runOnIdle { assertEquals(listOf(false, true), answers) }
+        compose.runOnIdle {
+            assertEquals(listOf(false, true), answers)
+            assertEquals(PairingResult.VALID, page.observations.getValue(power.id).result)
+            assertEquals(1, page.verifiedCount)
+            assertEquals(setOf(power.id), page.verifiedFunctions)
+        }
+        compose.onNodeWithText(app.getString(R.string.screen_verified_count, 1)).assertIsDisplayed()
         capture("${prefix}_after")
 
-        compose.runOnIdle { page = page.copy(canConfirmTest = true, verifiedFunctions = emptySet()) }
+        compose.runOnIdle {
+            page = page.copy(canConfirmTest = true, verifiedFunctions = emptySet(), observations = emptyMap())
+        }
         compose.waitForIdle()
         compose.runOnIdle { page = page.copy(canConfirmTest = false, isSendingTest = true) }
         compose.onNodeWithText(app.getString(R.string.screen_response_question, "Power")).assertIsDisplayed()
