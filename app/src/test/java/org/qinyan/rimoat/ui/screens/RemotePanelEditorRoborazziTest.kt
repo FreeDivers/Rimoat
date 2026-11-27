@@ -27,6 +27,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -39,6 +41,8 @@ import org.qinyan.rimoat.data.RemotePanelLayout
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.data.RemoteRepository
 import org.qinyan.rimoat.i18n.AppStrings
+import org.qinyan.rimoat.ui.components.icon
+import org.qinyan.rimoat.ui.components.resolveButtonIcon
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
 import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
 import org.robolectric.RobolectricTestRunner
@@ -55,6 +59,8 @@ import java.nio.file.Files
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class)
 class RemotePanelEditorRoborazziTest {
+    @get:Rule val screenshotDifferences = org.junit.rules.ErrorCollector()
+
     @get:Rule
     val composeRule = createComposeRule()
 
@@ -86,7 +92,7 @@ class RemotePanelEditorRoborazziTest {
         fun tile(label: String) = composeRule.onNodeWithContentDescription(app.getString(R.string.panel_show_control, label))
 
         tile("风速").assertIsOn()
-        composeRule.onRoot().captureRoboImage("src/test/screenshots/panel_editor_before.webp", roborazziOptions = options)
+        composeRule.onRoot().captureScreenshot("src/test/screenshots/panel_editor_before.webp", roborazziOptions = options)
 
         tile("定时").performClick()
         composeRule.waitForIdle()
@@ -108,7 +114,7 @@ class RemotePanelEditorRoborazziTest {
         assertEquals(listOf("key:swing", "key:timer", "key:mode", "key:speed"), saved.value!!.order.take(4))
         assertTrue("key:timer" in saved.value!!.hidden)
         tile("风速").assertIsOn()
-        composeRule.onRoot().captureRoboImage("src/test/screenshots/panel_editor_after.webp", roborazziOptions = options)
+        composeRule.onRoot().captureScreenshot("src/test/screenshots/panel_editor_after.webp", roborazziOptions = options)
     }
 
     @Test
@@ -257,6 +263,77 @@ class RemotePanelEditorRoborazziTest {
                 composeRule.onAllNodes(hasContentDescription(app.getString(R.string.panel_show_control, label)))
                     .fetchSemanticsNodes().isEmpty()
             )
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "en-rUS-w320dp-h891dp-mdpi")
+    fun englishNarrowEditorKeepsSemanticAndCustomKeysReachable() =
+        exerciseSemanticKeys("en_light", dark = false)
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w320dp-h891dp-mdpi")
+    fun chineseNarrowEditorKeepsSemanticAndCustomKeysReachable() =
+        exerciseSemanticKeys("zh_dark", dark = true)
+
+    @Test
+    @Config(qualifiers = "b+zh+Hant-w320dp-h891dp-mdpi")
+    fun traditionalChineseNarrowEditorKeepsSemanticAndCustomKeysReachable() =
+        exerciseSemanticKeys("zh_hant_amoled", dark = true, pureBlack = true)
+
+    @Test
+    @Config(qualifiers = "ja-w320dp-h891dp-mdpi")
+    fun japaneseNarrowEditorKeepsSemanticAndCustomKeysReachable() =
+        exerciseSemanticKeys("ja_dynamic", dark = false, dynamic = true)
+
+    private fun exerciseSemanticKeys(name: String, dark: Boolean, pureBlack: Boolean = false, dynamic: Boolean = false) {
+        val originalFontScale = RuntimeEnvironment.getApplication().resources.configuration.fontScale
+        RuntimeEnvironment.setFontScale(2f)
+        try {
+            val app = RuntimeEnvironment.getApplication()
+            assertEquals(2f, app.resources.configuration.fontScale, 0f)
+            assertEquals(320, app.resources.configuration.screenWidthDp)
+            AppStrings.initialize(app)
+            val source = key("learned_input", app.getString(R.string.control_source), semanticKey = ButtonKey.SOURCE)
+            val custom = key("scene", "Scene")
+            assertSame(ButtonKey.SOURCE.icon, resolveButtonIcon(source))
+            assertNull(resolveButtonIcon(custom))
+            val customProfile = RemoteProfile("semantic_editor", "Remote", category = DeviceCategory.CUSTOM,
+                buttons = listOf(source, custom))
+            val saved = mutableStateOf<RemotePanelLayout?>(null)
+            composeRule.setContent {
+                IrRemoteTheme(darkTheme = dark, dynamicColor = dynamic, pureBlackBackground = pureBlack) {
+                    RemotePanelEditor(customProfile, emptySet(), onSave = { saved.value = it }, onBack = {})
+                }
+            }
+            fun tile(button: RemoteButton) = composeRule.onNodeWithContentDescription(
+                app.getString(R.string.panel_show_control, button.label))
+            for (button in customProfile.buttons) {
+                val node = tile(button).assertIsDisplayed().assertIsOn()
+                val bounds = node.fetchSemanticsNode().boundsInRoot
+                assertTrue(bounds.width >= 48f && bounds.height >= 48f)
+                assertTrue(bounds.left >= 0f && bounds.right <= 320f)
+            }
+            composeRule.onRoot().captureScreenshot("src/test/screenshots/panel_editor_semantic_${name}_before.webp",
+                roborazziOptions = options)
+            tile(custom).performClick()
+            composeRule.waitForIdle()
+            tile(custom).assertIsOff().assertIsDisplayed()
+            tile(source).assertIsOn().assertIsDisplayed()
+            assertEquals(setOf("key:scene"), saved.value?.hidden)
+            assertEquals(listOf(source, custom), customProfile.buttons)
+            composeRule.onRoot().captureScreenshot("src/test/screenshots/panel_editor_semantic_${name}_after.webp",
+                roborazziOptions = options)
+        } finally {
+            RuntimeEnvironment.setFontScale(originalFontScale)
+        }
+    }
+
+    private fun androidx.compose.ui.test.SemanticsNodeInteraction.captureScreenshot(
+        path: String, roborazziOptions: RoborazziOptions
+    ) {
+        screenshotDifferences.checkSucceeds {
+            captureRoboImage(path, roborazziOptions = roborazziOptions)
         }
     }
 }

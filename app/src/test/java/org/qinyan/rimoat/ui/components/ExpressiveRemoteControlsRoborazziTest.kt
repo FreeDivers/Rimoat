@@ -2,14 +2,19 @@ package org.qinyan.rimoat.ui.components
 
 import android.app.Application
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.lifecycle.ViewModelStore
 import org.qinyan.rimoat.data.*
+import org.qinyan.rimoat.ui.screens.RemoteControlScreen
 import org.qinyan.rimoat.ui.screens.tvRemoteItems
 import org.qinyan.rimoat.ui.screens.fanRemoteItems
 import org.qinyan.rimoat.ui.screens.genericRemoteItems
 import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
+import org.qinyan.rimoat.ui.viewmodel.RemoteControlViewModel
 import android.view.View
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -80,6 +85,8 @@ import java.util.TimeZone
 @LooperMode(LooperMode.Mode.PAUSED)
 @OptIn(ExperimentalRoborazziApi::class)
 class ExpressiveRemoteControlsRoborazziTest {
+    @get:Rule val screenshotDifferences = org.junit.rules.ErrorCollector()
+
     @get:Rule val compose = createComposeRule()
     private val app get() = RuntimeEnvironment.getApplication()
     private val originalTimeZone = TimeZone.getDefault()
@@ -92,7 +99,10 @@ class ExpressiveRemoteControlsRoborazziTest {
         AppStrings.initialize(app)
     }
 
-    @After fun restoreTimeZone() = TimeZone.setDefault(originalTimeZone)
+    @After fun restoreEnvironment() {
+        TimeZone.setDefault(originalTimeZone)
+        RuntimeEnvironment.setFontScale(1f)
+    }
 
     @Test fun pressedRemoteRestoresBoundsAndSendsOnceWithoutSystemClickSound() {
         var sends = 0
@@ -232,6 +242,117 @@ class ExpressiveRemoteControlsRoborazziTest {
         compose.runOnIdle { assertEquals(120, sentMinutes) }
     }
 
+    private fun screenshotRemote(
+        category: DeviceCategory,
+        labels: List<String>,
+        keys: List<ButtonKey?>,
+        name: String = "客厅风扇"
+    ): RemoteProfile {
+        require(labels.size == keys.size)
+        return RemoteProfile(id = "test", name = name, category = category,
+            buttons = labels.mapIndexed { index, label ->
+                RemoteButton("key_$index", label, key = keys[index], rawPattern = listOf(9000, 4500, 560))
+            })
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w411dp-h891dp-mdpi")
+    fun fewExtensionKeysMergeDirectlyWithRegularControlsWhileManyUseTabs() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val fanKeys = listOf(ButtonKey.POWER, ButtonKey.FAN_SPEED, ButtonKey.OSCILLATION, ButtonKey.TIMER,
+            ButtonKey.MODE, ButtonKey.WIND_TYPE, ButtonKey.SLEEP, ButtonKey.LIGHT, ButtonKey.MUTE)
+        val compactFan = screenshotRemote(DeviceCategory.FAN,
+            listOf("电源", "风速", "摇头", "定时", "模式", "自然风", "睡眠", "灯光", "静音"), fanKeys)
+        val manyFan = screenshotRemote(DeviceCategory.FAN,
+            listOf("电源", "风速", "摇头", "定时", "模式", "自然风", "睡眠", "灯光", "静音", "负离子", "屏显", "儿童锁", "节能", "强风", "柔风"),
+            fanKeys + listOf(ButtonKey.ION, ButtonKey.OSD, ButtonKey.LOCK, ButtonKey.ECO, null, null))
+        val store = ViewModelStore()
+        val vm = RemoteControlViewModel("test", initialProfile = compactFan).also { store.put("fan", it) }
+
+        try {
+            compose.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    RemoteControlScreen(viewModel = vm, onBack = {})
+                }
+            }
+            compose.waitForIdle()
+
+            compose.onNodeWithText("常规功能").assertDoesNotExist()
+            compose.onNodeWithText("更多功能").assertDoesNotExist()
+            compose.onNodeWithText("声音").assertDoesNotExist()
+            compose.onNodeWithText("其他").assertDoesNotExist()
+            compose.onNodeWithContentDescription("灯光").assertIsDisplayed()
+            compose.onNodeWithContentDescription("静音").assertIsDisplayed()
+            compose.onRoot().captureScreenshot("src/test/screenshots/remote_inline_extensions.webp", roborazziOptions = options)
+
+            vm.setProfileForTesting(manyFan)
+            compose.waitForIdle()
+            compose.onNodeWithText("常规功能").assertIsDisplayed()
+            compose.onNodeWithText("更多功能").assertIsDisplayed()
+            compose.onNodeWithText("更多功能").performClick()
+            compose.waitForIdle()
+            compose.onNodeWithText("声音").assertIsDisplayed()
+            compose.onNodeWithContentDescription("静音").assertIsDisplayed()
+            compose.onRoot().captureScreenshot("src/test/screenshots/remote_paged_extensions.webp", roborazziOptions = options)
+        } finally {
+            store.clear()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w411dp-h891dp-mdpi")
+    fun tvAndGenericWithDigitsAndDpadInlineFewExtensionsBehindRegularKeys() {
+        val app = RuntimeEnvironment.getApplication()
+        AppStrings.initialize(app)
+        val tvCompact = screenshotRemote(
+            DeviceCategory.TV,
+            listOf("0", "1", "2", "电源", "信源", "静音", "上", "下", "左", "右", "OK", "返回", "主页", "菜单", "音量+", "音量-", "频道+", "频道-", "退出", "画中画"),
+            keys = listOf(ButtonKey.DIGIT_0, ButtonKey.DIGIT_1, ButtonKey.DIGIT_2, ButtonKey.POWER,
+                ButtonKey.SOURCE, ButtonKey.MUTE, ButtonKey.UP, ButtonKey.DOWN, ButtonKey.LEFT, ButtonKey.RIGHT,
+                ButtonKey.OK, ButtonKey.BACK, ButtonKey.HOME, ButtonKey.MENU, ButtonKey.VOLUME_UP,
+                ButtonKey.VOLUME_DOWN, ButtonKey.CHANNEL_UP, ButtonKey.CHANNEL_DOWN, ButtonKey.EXIT, ButtonKey.PICTURE_IN_PICTURE),
+            name = "客厅电视"
+        )
+        val genericWithDigits = screenshotRemote(
+            DeviceCategory.CUSTOM,
+            listOf("0", "1", "2", "电源", "上", "下", "左", "右", "OK", "确定", "锁定", "参数", "查看", "切换", "退出", "调光"),
+            keys = listOf(ButtonKey.DIGIT_0, ButtonKey.DIGIT_1, ButtonKey.DIGIT_2, ButtonKey.POWER,
+                ButtonKey.UP, ButtonKey.DOWN, ButtonKey.LEFT, ButtonKey.RIGHT, ButtonKey.OK, null,
+                ButtonKey.LOCK, ButtonKey.MODE, ButtonKey.INFO, ButtonKey.SWITCH, ButtonKey.EXIT, ButtonKey.BRIGHTNESS),
+            name = "红外开关"
+        )
+        val store = ViewModelStore()
+        val vm = RemoteControlViewModel("test", initialProfile = tvCompact).also { store.put("tv", it) }
+
+        try {
+            compose.setContent {
+                IrRemoteTheme(darkTheme = false, dynamicColor = false) {
+                    RemoteControlScreen(viewModel = vm, onBack = {})
+                }
+            }
+            compose.waitForIdle()
+
+            compose.onNodeWithText("常规功能").assertDoesNotExist()
+            compose.onNodeWithText("更多功能").assertDoesNotExist()
+            compose.onNodeWithContentDescription("退出").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithContentDescription("画中画").performScrollTo().assertIsDisplayed()
+            compose.onRoot().captureScreenshot("src/test/screenshots/remote_tv_inline_extensions.webp", roborazziOptions = options)
+
+            vm.setProfileForTesting(genericWithDigits)
+            compose.waitForIdle()
+            compose.onNodeWithText("常规功能").assertDoesNotExist()
+            compose.onNodeWithText("更多功能").assertDoesNotExist()
+            val exitBounds = compose.onNodeWithContentDescription("退出").performScrollTo().fetchSemanticsNode().boundsInRoot
+            val dimBounds = compose.onNodeWithContentDescription("调光").performScrollTo().fetchSemanticsNode().boundsInRoot
+            assertTrue("调光 should appear below 退出 in the same function grid", dimBounds.top > exitBounds.top)
+            compose.onNodeWithContentDescription("调光").assertIsDisplayed()
+            compose.onRoot().captureScreenshot("src/test/screenshots/remote_generic_inline_extensions.webp", roborazziOptions = options)
+        } finally {
+            store.clear()
+        }
+    }
+
     @Test fun powerKeysKeepTheirAccentInLightTheme() = exercisePowerPanels("light")
 
     @Test fun powerKeysKeepTheirAccentInDarkTheme() = exercisePowerPanels("dark", dark = true)
@@ -293,8 +414,52 @@ class ExpressiveRemoteControlsRoborazziTest {
         capture("remote_power_${name}_after")
     }
 
+    @Test
+    @Config(qualifiers = "en-rUS-w320dp-h891dp-mdpi")
+    fun customTextKeysRemainReachableAtDoubleFontSize() {
+        RuntimeEnvironment.setFontScale(2f)
+        assertEquals(2f, app.resources.configuration.fontScale, 0f)
+        val buttons = listOf("Desk lamp", "Scene A", "Movie", "Power").mapIndexed { index, label ->
+            RemoteButton("custom_$index", label, rawPattern = listOf(9000, 4500, 560))
+        }
+        var sentIds by mutableStateOf(emptyList<String>())
+        compose.setContent {
+            IrRemoteTheme(dynamicColor = false) {
+                ProvideExpressiveCanvas {
+                    Surface(Modifier.fillMaxSize(), color = ExpressiveSurface.canvas) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                            RemoteFunctionGrid(buttons, onSend = { sentIds = sentIds + it.id },
+                                onLearn = null, learning = false, enabled = { it.id !in sentIds })
+                        }
+                    }
+                }
+            }
+        }
+        buttons.forEach { button ->
+            assertEquals(null, resolveButtonIcon(button))
+            val bounds = compose.onNodeWithContentDescription(button.label).assertIsDisplayed()
+                .fetchSemanticsNode().boundsInRoot
+            assertEquals("A custom label does not turn its button into a power key", 64f, bounds.width, 0.1f)
+        }
+        capture("remote_custom_text_large_before")
+        val lamp = compose.onNodeWithContentDescription(buttons.first().label)
+        lamp.performTouchInput { click() }
+        compose.waitForIdle()
+        lamp.assertIsNotEnabled().performTouchInput { click() }
+        compose.runOnIdle { assertEquals(listOf(buttons.first().id), sentIds) }
+        capture("remote_custom_text_large_after")
+    }
+
     private fun capture(name: String, dialog: Boolean = false) =
-        (if (dialog) compose.onNode(isDialog()) else compose.onRoot()).captureRoboImage(
+        (if (dialog) compose.onNode(isDialog()) else compose.onRoot()).captureScreenshot(
         "src/test/screenshots/$name.webp", roborazziOptions = options
     )
+
+    private fun androidx.compose.ui.test.SemanticsNodeInteraction.captureScreenshot(
+        path: String, roborazziOptions: RoborazziOptions
+    ) {
+        screenshotDifferences.checkSucceeds {
+            captureRoboImage(path, roborazziOptions = roborazziOptions)
+        }
+    }
 }

@@ -91,6 +91,8 @@ enum class ButtonKey {
     AUTO,
     SIGNAL,
     BRIGHTNESS,
+    LOCK,
+    SWITCH,
     COMPUTER,
     COOL_WIND,
     SETTINGS,

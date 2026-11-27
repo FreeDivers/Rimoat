@@ -91,6 +91,8 @@ val ButtonKey.labelRes: Int
         ButtonKey.CLEAN -> R.string.control_clean
         ButtonKey.AUTO -> R.string.control_auto
         ButtonKey.SIGNAL -> R.string.control_signal
+        ButtonKey.LOCK -> R.string.button_key_lock
+        ButtonKey.SWITCH -> R.string.button_key_switch
         ButtonKey.BRIGHTNESS -> R.string.control_brightness
         ButtonKey.COMPUTER -> R.string.control_computer
         ButtonKey.COOL_WIND -> R.string.control_cool_wind

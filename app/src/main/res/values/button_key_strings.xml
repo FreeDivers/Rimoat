@@ -10,4 +10,6 @@
     <string name="button_key_digit_8" translatable="false">8</string>
     <string name="button_key_digit_9" translatable="false">9</string>
     <string name="button_key_plus_ten" translatable="false">+10</string>
+    <string name="button_key_lock">Lock</string>
+    <string name="button_key_switch">Switch</string>
 </resources>

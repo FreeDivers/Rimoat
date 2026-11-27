@@ -173,7 +173,8 @@ fun CodeMatchingWizardView(
                                                         variant = if (button.isPowerKey()) RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD,
                                                         diameter = if (button.isPowerKey()) 72.dp else 64.dp,
                                                         buttonId = button.id,
-                                                        builtinLabel = button.builtinLabel
+                                                        builtinLabel = button.builtinLabel,
+                                                        buttonKey = button.key
                                                     )
                                                     if (result == PairingResult.VALID || result == PairingResult.INVALID) {
                                                         val isValid = result == PairingResult.VALID

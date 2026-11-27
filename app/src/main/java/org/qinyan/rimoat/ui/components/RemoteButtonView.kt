@@ -43,7 +43,7 @@ import org.qinyan.rimoat.ui.HapticHelper
 import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Tune
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.ui.theme.RemotePowerColors
 import androidx.compose.ui.draw.clip
 
@@ -70,7 +70,8 @@ fun RemoteButtonView(
     showSelectionEntry: Boolean = false,
     onUnavailable: (() -> Unit)? = null,
     buttonId: String = "",
-    builtinLabel: String? = null
+    builtinLabel: String? = null,
+    buttonKey: ButtonKey? = null
 ) {
     SoundEffectOnInteraction(enabled = false) {
     MaterialTheme(motionScheme = MotionScheme.standard()) {
@@ -171,20 +172,13 @@ fun RemoteButtonView(
                 ) { accessibilityRepeat() })
             }
         }
-    val resolvedIcon = icon ?: resolveButtonIcon(iconName, label, buttonId, builtinLabel)
+    val resolvedIcon = remember(icon, iconName, buttonKey) {
+        icon ?: resolveButtonIcon(buttonKey, iconName)
+    }
     val acceptsClick = enabled || onUnavailable != null
-    // Short text-only keys (digits and OK) stay inside their circle. Longer names
-    // get a semantic function icon and a label below, preserving the full accessible name.
-    val textKey = resolvedIcon == null && (label.length == 1 || label == "OK")
+    val textKey = resolvedIcon == null
     val content: @Composable RowScope.() -> Unit = {
-        if (textKey) {
-            Text(label, style = MaterialTheme.typography.titleMedium,
-                maxLines = 1, modifier = Modifier.clearAndSetSemantics {})
-        } else {
-            org.qinyan.rimoat.ui.motion.StateFade(resolvedIcon ?: Icons.Rounded.Tune, Modifier.size(28.dp)) {
-                Icon(it, contentDescription = null, modifier = Modifier.size(28.dp))
-            }
-        }
+        RemoteKeyGlyph(label, resolvedIcon, diameter)
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         // The touch target stays square while only the visible key shape responds to pressure.

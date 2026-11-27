@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="button_key_lock">Lock</string>
+    <string name="button_key_switch">Switch</string>
+</resources>

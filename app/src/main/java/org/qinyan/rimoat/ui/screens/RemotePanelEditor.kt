@@ -28,7 +28,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.*
@@ -77,7 +76,7 @@ private val PanelLayoutSaver = Saver<RemotePanelLayout, String>(
     restore = { Json.decodeFromString(it) }
 )
 
-private fun buttonEntry(button: RemoteButton, label: String) = PanelEntry(panelKey(button), label, getIconVector(button.iconName))
+private fun buttonEntry(button: RemoteButton, label: String) = PanelEntry(panelKey(button), label, resolveButtonIcon(button))
 
 /** The preview and editable groups share the same saved visibility and ordering. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -388,10 +387,8 @@ private fun PanelTile(entry: PanelEntry, visible: Boolean, dragged: Boolean, onT
                     shadowElevation = elevation, modifier = Modifier.padding(6.dp).size(64.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        val resolved = entry.icon ?: resolveButtonIcon(iconName = null, label = entry.label, id = entry.id)
-                        val textKey = resolved == null && (entry.label.length == 1 || entry.label == "OK")
-                        if (textKey) Text(entry.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                        else Icon(resolved ?: Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(28.dp))
+                        RemoteKeyGlyph(entry.label, entry.icon,
+                            modifier = if (entry.icon == null) Modifier.padding(end = 12.dp) else Modifier)
                     }
                 }
                 Surface(

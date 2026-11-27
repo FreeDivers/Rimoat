@@ -1,5 +1,8 @@
 package org.qinyan.rimoat
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Input
+import androidx.compose.material.icons.rounded.*
 import org.junit.Assert.*
 import org.junit.Test
 import org.qinyan.rimoat.data.*
@@ -205,6 +208,34 @@ class PanelPolicyTest {
                 assertEquals(listOf(power), hidden.buttons)
                 assertEquals(ordinary + power, profile.buttons)
             }
+        }
+    }
+
+    @Test fun semanticIconsFollowKeysAndKeepUnidentifiedCustomNamesAsText() {
+        val expected = mapOf(
+            ButtonKey.SOURCE to Icons.AutoMirrored.Rounded.Input,
+            ButtonKey.LOCK to Icons.Rounded.Lock,
+            ButtonKey.ECO to Icons.Rounded.Eco,
+            ButtonKey.OSD to Icons.Rounded.Monitor,
+            ButtonKey.SWITCH to Icons.Rounded.SwapHoriz,
+            ButtonKey.BRIGHTNESS to Icons.Rounded.Brightness6,
+            ButtonKey.ION to Icons.Rounded.Air,
+            ButtonKey.MODE to Icons.Rounded.Tune
+        )
+        for ((key, icon) in expected) {
+            for (label in listOf("Personal name", "Input", "入力切替", "訊號來源")) {
+                assertSame(icon, resolveButtonIcon(button("custom", label).copy(key = key)))
+            }
+        }
+        for (label in listOf("Power", "Input", "OK", "开关", "参数", "Movie night")) {
+            assertNull(resolveButtonIcon(button("custom", label)))
+        }
+        assertNull(resolveButtonIcon(button("tv_power", "Personal name")))
+        assertSame(Icons.Rounded.Lock, resolveButtonIcon(button("custom").copy(iconName = "lock")))
+        assertSame(Icons.AutoMirrored.Rounded.Input,
+            resolveButtonIcon(button("custom").copy(key = ButtonKey.SOURCE, iconName = "power")))
+        for (key in listOf(ButtonKey.OK, ButtonKey.DIGIT_0, ButtonKey.DIGIT_9, ButtonKey.PLUS_TEN)) {
+            assertNull(resolveButtonIcon(button("custom").copy(key = key)))
         }
     }
 

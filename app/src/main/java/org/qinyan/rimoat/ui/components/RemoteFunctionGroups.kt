@@ -104,7 +104,7 @@ internal fun RemoteFunctionGrid(buttons: List<RemoteButton>, onSend: (RemoteButt
                         onUnavailable = onUnavailable?.let { explain -> { explain(button) } },
                         diameter = if (isPower) 72.dp else 64.dp,
                         variant = if (isPower) RemoteButtonVariant.POWER else RemoteButtonVariant.STANDARD,
-                        buttonId = button.id, builtinLabel = button.builtinLabel)
+                        buttonId = button.id, builtinLabel = button.builtinLabel, buttonKey = button.key)
                 }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }

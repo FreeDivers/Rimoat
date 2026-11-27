@@ -1104,7 +1104,7 @@ fun AcRemoteLayout(
             onUnavailable = { onUnavailable(button, AcUnavailableReason.MISSING_SIGNAL) },
             onRepeat = onRepeatButton?.let { { it(button) } },
             onLongClick = onLearnButton?.let { { it(button) } }, isLearningMode = isLearningMode,
-            buttonId = button.id, builtinLabel = button.builtinLabel)
+            buttonId = button.id, builtinLabel = button.builtinLabel, buttonKey = button.key)
     }
     if (part == AcLayoutPart.TEMPERATURE) {
         temperatureCard()

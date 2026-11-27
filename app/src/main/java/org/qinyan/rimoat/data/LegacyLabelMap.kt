@@ -3,6 +3,8 @@ package org.qinyan.rimoat.data
 /** Exact legacy spellings, used only by [LegacyRemoteMigration.normalizeKeys]. */
 internal object LegacyLabelMap {
     private val labels = mapOf(
+        "锁定" to ButtonKey.LOCK, "儿童锁" to ButtonKey.LOCK, "锁" to ButtonKey.LOCK,
+        "切换" to ButtonKey.SWITCH, "Lock" to ButtonKey.LOCK, "Switch" to ButtonKey.SWITCH,
         "电源" to ButtonKey.POWER,
         "开机" to ButtonKey.POWER_ON,
         "关机" to ButtonKey.POWER_OFF,
@@ -329,6 +331,8 @@ internal object LegacyLabelMap {
     }
 
     fun icon(name: String?): ButtonKey? = when (name) {
+        "lock" -> ButtonKey.LOCK
+        "switch" -> ButtonKey.SWITCH
         "power", "power_settings_new" -> ButtonKey.POWER
         "volume_up" -> ButtonKey.VOLUME_UP
         "volume_down" -> ButtonKey.VOLUME_DOWN
