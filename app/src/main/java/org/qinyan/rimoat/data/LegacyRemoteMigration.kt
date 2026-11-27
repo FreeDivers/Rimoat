@@ -2,13 +2,17 @@ package org.qinyan.rimoat.data
 
 object LegacyRemoteMigration {
 
-    const val KEY_SCHEMA_VERSION = 1
+    const val KEY_SCHEMA_VERSION = 2
 
     /** Add semantic metadata without changing signal IDs, labels, or panel references. */
     fun normalizeKeys(profile: RemoteProfile): RemoteProfile {
         val learnedProfile = normalizeLearnedDefaults(profile)
-        if (profile.keySchemaVersion >= KEY_SCHEMA_VERSION) return learnedProfile
-        val buttons = learnedProfile.buttons.map { button ->
+        val step1 = if (learnedProfile.keySchemaVersion < 1) normalizeSemanticKeys(learnedProfile) else learnedProfile
+        return if (step1.keySchemaVersion < KEY_SCHEMA_VERSION) migrateDirectionIds(step1) else step1
+    }
+
+    private fun normalizeSemanticKeys(profile: RemoteProfile): RemoteProfile {
+        val buttons = profile.buttons.map { button ->
             val key = button.key ?: button.acAction?.buttonKey ?: if (button.builtinLabel != null) {
                 LegacyLabelMap.key(button.builtinLabel) ?: LegacyLabelMap.id(button.id)
                     ?: LegacyLabelMap.icon(button.iconName)
@@ -30,11 +34,54 @@ object LegacyRemoteMigration {
             }
         }.distinct()
         val source = legacyCatalogIdentity(profile.sourceRemoteId)
-        return learnedProfile.copy(
+        return profile.copy(
             buttons = buttons,
             verifiedFunctions = verified,
             applianceType = profile.applianceType ?: source?.first ?: ApplianceType.fromCategory(profile.category),
             brandIdx = profile.brandIdx ?: source?.second,
+            keySchemaVersion = 1
+        )
+    }
+
+    private fun migrateDirectionIds(profile: RemoteProfile): RemoteProfile {
+        val conflictComparator = compareBy<IndexedValue<RemoteButton>>(
+            { it.value.hasSignal },
+            { it.value.isLearned },
+            { it.index }
+        )
+        val winners = mutableMapOf<String, IndexedValue<RemoteButton>>()
+        profile.buttons.forEachIndexed { index, button ->
+            val migratedId = LegacyDirectionIds.migrateButtonId(button.id)
+            if (LegacyDirectionIds.keyForMigratedId(migratedId) != null) {
+                val candidate = IndexedValue(index, button)
+                val existing = winners[migratedId]
+                if (existing == null || conflictComparator.compare(candidate, existing) > 0) {
+                    winners[migratedId] = candidate
+                }
+            }
+        }
+        val emittedTargets = mutableSetOf<String>()
+        val buttons = profile.buttons.mapNotNull { button ->
+            val migratedId = LegacyDirectionIds.migrateButtonId(button.id)
+            val directionKey = LegacyDirectionIds.keyForMigratedId(migratedId)
+            if (directionKey == null) {
+                button
+            } else if (emittedTargets.add(migratedId)) {
+                val winner = winners.getValue(migratedId).value
+                val resolvedKey = winner.key ?: directionKey
+                if (winner.id == migratedId && winner.key == resolvedKey) winner
+                else winner.copy(id = migratedId, key = resolvedKey)
+            } else {
+                null
+            }
+        }
+        val layout = profile.panelLayout.copy(
+            order = profile.panelLayout.order.map(LegacyDirectionIds::migratePanelKey).distinct(),
+            hidden = profile.panelLayout.hidden.map(LegacyDirectionIds::migratePanelKey).toSet()
+        )
+        return profile.copy(
+            buttons = buttons,
+            panelLayout = layout,
             keySchemaVersion = KEY_SCHEMA_VERSION
         )
     }

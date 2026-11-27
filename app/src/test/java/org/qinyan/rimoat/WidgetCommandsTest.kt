@@ -371,4 +371,20 @@ class WidgetCommandsTest {
         assertTrue(backups.single().name.matches(Regex("""remote-commands-corrupt-\d+-[0-9a-f-]{36}\.json""")))
         assertEquals(content, backups.single().readText())
     }
+
+    @Test fun widgetStoreMigratesLegacyDirectionShortcutIdsAndPersists() = runBlocking {
+        val file = File(temporary.newFolder(), "widgets.json")
+        val legacy = WidgetConfiguration(
+            WidgetKind.PANEL,
+            shortcuts = listOf(WidgetShortcut("tv", "direction_上"), WidgetShortcut("tv", "direction_up"), WidgetShortcut("tv", "direction_下"))
+        )
+        file.writeText("""{"configurations":{"1":${Json.encodeToString(legacy)}},"completedRestores":[]}""")
+        val store = WidgetStore(file)
+        store.load()
+        assertEquals(
+            listOf(WidgetShortcut("tv", "direction_up"), WidgetShortcut("tv", "direction_down")),
+            store.configurations.value.getValue(1).shortcuts
+        )
+        assertFalse(file.readText().contains("direction_上"))
+    }
 }

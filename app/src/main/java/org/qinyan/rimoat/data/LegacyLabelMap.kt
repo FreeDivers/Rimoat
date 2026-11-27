@@ -334,7 +334,10 @@ internal object LegacyLabelMap {
         "num_9" to ButtonKey.DIGIT_9
     )
     fun id(id: String): ButtonKey? {
-        if (id.startsWith("direction_")) return key(id.removePrefix("direction_"))
+        if (id.startsWith("direction_")) {
+            val migrated = LegacyDirectionIds.migrateButtonId(id)
+            return LegacyDirectionIds.keyForMigratedId(migrated) ?: key(id.removePrefix("direction_"))
+        }
         val name = listOf("tv_", "ac_", "fan_", "audio_", "projector_", "nav_")
             .firstOrNull(id::startsWith)?.let(id::removePrefix) ?: id
         return ids[name] ?: ButtonKey.entries.firstOrNull { it.name.lowercase(java.util.Locale.ROOT) == name }

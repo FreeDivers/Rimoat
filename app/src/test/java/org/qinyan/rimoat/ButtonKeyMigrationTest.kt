@@ -23,7 +23,7 @@ class ButtonKeyMigrationTest {
                     rawPattern = listOf(9000, 4500, 560), isLearned = true)
             }
             val result = migrate(*buttons.toTypedArray())
-            assertEquals(1, result.keySchemaVersion)
+            assertEquals(LegacyRemoteMigration.KEY_SCHEMA_VERSION, result.keySchemaVersion)
             result.buttons.zip(buttons).forEach { (actual, before) ->
                 assertNotNull("$type: ${before.label}", actual.key)
                 assertEquals(before, actual.copy(key = null))
@@ -73,7 +73,7 @@ class ButtonKeyMigrationTest {
         val renamed = profile.copy(buttons = listOf(profile.buttons.single().copy(label = "Power")))
         assertSame(renamed, LegacyRemoteMigration.normalizeKeys(renamed))
         assertNull(LegacyRemoteMigration.normalizeKeys(renamed).buttons.single().key)
-        val future = profile.copy(keySchemaVersion = 2)
+        val future = profile.copy(keySchemaVersion = LegacyRemoteMigration.KEY_SCHEMA_VERSION)
         assertSame(future, LegacyRemoteMigration.normalizeKeys(future))
     }
 
@@ -85,13 +85,22 @@ class ButtonKeyMigrationTest {
         val widget = WidgetConfiguration(WidgetKind.SINGLE, profile.id, listOf(WidgetShortcut(profile.id, "direction_上")))
         val widgetJson = json.encodeToString(widget)
         val migrated = RemoteBackupCodec.decode(RemoteBackupCodec.encode(listOf(profile))).single()
+        assertEquals("direction_up", migrated.buttons.single().id)
         assertEquals(ButtonKey.UP, migrated.buttons.single().key)
-        assertEquals(profile.buttons.single(), migrated.buttons.single().copy(key = null))
-        assertEquals(profile.panelLayout, migrated.panelLayout)
+        assertEquals(profile.buttons.single().copy(id = "direction_up", builtinLabel = "UP"), migrated.buttons.single().copy(key = null))
+        assertEquals(RemotePanelLayout(order = listOf("key:direction_up"), hidden = setOf("key:direction_up")), migrated.panelLayout)
         assertEquals(widgetJson, json.encodeToString(widget))
-        val restoredWidget = json.decodeFromString<WidgetConfiguration>(widgetJson)
-        assertEquals("direction_上", restoredWidget.shortcuts.single().buttonId)
-        assertEquals(migrated.buttons.single().id, restoredWidget.shortcuts.single().buttonId)
+        val file = java.nio.file.Files.createTempFile("widget-migration-", ".json").toFile()
+        try {
+            file.writeText("""{"configurations":{"1":$widgetJson},"completedRestores":[]}""")
+            val store = org.qinyan.rimoat.widget.WidgetStore(file)
+            kotlinx.coroutines.runBlocking { store.load() }
+            val restoredWidget = store.configurations.value.getValue(1)
+            assertEquals("direction_up", restoredWidget.shortcuts.single().buttonId)
+            assertEquals(migrated.buttons.single().id, restoredWidget.shortcuts.single().buttonId)
+        } finally {
+            file.delete()
+        }
         assertEquals(migrated, RemoteBackupCodec.decode(RemoteBackupCodec.encode(listOf(migrated))).single())
     }
 

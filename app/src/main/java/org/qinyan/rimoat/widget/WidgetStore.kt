@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.AtomicLocalFile
+import org.qinyan.rimoat.data.LegacyDirectionIds
 import org.qinyan.rimoat.i18n.AppStrings
 
 @Serializable
@@ -37,7 +38,11 @@ class WidgetStore(private val file: File) {
         val stored = if (file.exists()) {
             val text = file.readText()
             try {
-                decodeStoredWidgets(text)
+                val (decoded, changed) = decodeStoredWidgetsWithMigration(text)
+                if (changed) {
+                    AtomicLocalFile.write(file, json.encodeToString(decoded))
+                }
+                decoded
             } catch (e: IllegalArgumentException) {
                 val backup = File(file.parentFile, "${file.nameWithoutExtension}-corrupt-${UUID.randomUUID()}.json")
                 if (!file.renameTo(backup)) throw IOException("Unable to back up widget storage", e)
@@ -49,7 +54,10 @@ class WidgetStore(private val file: File) {
         loaded = true
     }
 
-    private fun decodeStoredWidgets(text: String): StoredWidgets {
+    private fun decodeStoredWidgets(text: String): StoredWidgets =
+        decodeStoredWidgetsWithMigration(text).first
+
+    private fun decodeStoredWidgetsWithMigration(text: String): Pair<StoredWidgets, Boolean> {
         val root = json.parseToJsonElement(text) as? JsonObject
             ?: throw SerializationException("Expected a widget storage object")
         // Older files store the configuration map directly at the root.
@@ -60,18 +68,27 @@ class WidgetStore(private val file: File) {
         val completedRestores = if (wrappedConfigurations == null) emptySet() else {
             root["completedRestores"]?.let { json.decodeFromJsonElement<Set<String>>(it) }.orEmpty()
         }
+        var changed = false
         val configurations = buildMap {
             for ((key, entry) in entries) {
                 val id = key.toIntOrNull()?.takeIf { it > 0 } ?: continue
                 val configuration = try {
-                    json.decodeFromJsonElement<WidgetConfiguration>(entry).also { it.validate() }
+                    val decoded = json.decodeFromJsonElement<WidgetConfiguration>(entry)
+                    val migratedShortcuts = decoded.shortcuts
+                        .map { it.copy(buttonId = LegacyDirectionIds.migrateButtonId(it.buttonId)) }
+                        .distinct()
+                    val migrated = if (migratedShortcuts != decoded.shortcuts) {
+                        changed = true
+                        decoded.copy(shortcuts = migratedShortcuts)
+                    } else decoded
+                    migrated.also { it.validate() }
                 } catch (_: IllegalArgumentException) {
                     continue
                 }
                 put(id, configuration)
             }
         }
-        return StoredWidgets(configurations, completedRestores)
+        return StoredWidgets(configurations, completedRestores) to changed
     }
 
     suspend fun save(id: Int, configuration: WidgetConfiguration) = mutate {
