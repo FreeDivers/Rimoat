@@ -177,20 +177,6 @@ object ExpressiveSurface {
             else -> MaterialTheme.colorScheme.surfaceContainerLow
         }
 
-    val cardElevated: Color
-        @Composable @ReadOnlyComposable get() = if (isDark) {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        }
-
-    val pill: Color
-        @Composable @ReadOnlyComposable get() = when {
-            isDark -> MaterialTheme.colorScheme.surfaceContainerHigh
-            LocalExpressiveCanvas.current -> MaterialTheme.colorScheme.surfaceContainerLowest
-            else -> MaterialTheme.colorScheme.surfaceContainerHigh
-        }
-
     val scrolledTopBar: Color
         @Composable @ReadOnlyComposable get() = if (isDark) {
             MaterialTheme.colorScheme.surfaceContainer

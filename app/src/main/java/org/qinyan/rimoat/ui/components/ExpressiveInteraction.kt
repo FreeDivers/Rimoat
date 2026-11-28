@@ -20,7 +20,6 @@ object ExpressiveShapeTokens {
     val SegmentedInnerRadius: Dp = 4.dp
     val SegmentedPressedRadius: Dp = 14.dp
     val SegmentedGap: Dp = 2.dp
-    val CardRadius: Dp = 24.dp
 }
 
 /** Computes MD3 Expressive segmented corner radii for an item at [index] within [count] items. */
