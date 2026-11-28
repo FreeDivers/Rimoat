@@ -280,47 +280,47 @@ private fun BrandListItem(
     count: Int = 1
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
-    val compact = maxWidth < 280.dp
-    val interactionSource = remember { MutableInteractionSource() }
-    val shape = rememberSegmentedExpressiveShape(interactionSource, index, count)
-    Surface(
-        shape = shape,
-        color = ExpressiveSurface.card,
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
-            .clip(shape)
-            .clickable(interactionSource = interactionSource, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
-    ) {
-        Row(
+        val compact = maxWidth < 280.dp
+        val interactionSource = remember { MutableInteractionSource() }
+        val shape = rememberSegmentedExpressiveShape(interactionSource, index, count)
+        Surface(
+            shape = shape,
+            color = ExpressiveSurface.card,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 64.dp)
-                .padding(horizontal = if (compact) 12.dp else 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clip(shape)
+                .clickable(interactionSource = interactionSource, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
         ) {
-            BrandMark(brand)
-            Spacer(Modifier.width(if (compact) 10.dp else 16.dp))
-            Text(
-                text = displayName,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(if (compact) 8.dp else 12.dp))
-            if (!compact) Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 64.dp)
+                    .padding(horizontal = if (compact) 12.dp else 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BrandMark(brand)
+                Spacer(Modifier.width(if (compact) 10.dp else 16.dp))
+                Text(
+                    text = displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(if (compact) 8.dp else 12.dp))
+                if (!compact) Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
+
 }
 
 /** Typographic brand identifiers; no invented logo assets or decorative category badges. */
-}
-
 @Composable
 private fun BrandMark(brand: IrBrand) {
     val mark = remember(brand.brandIdx, brand.nameEn, brand.pinyin, brand.nameCn) { brandMonogram(brand) }

@@ -4,8 +4,6 @@ package org.qinyan.rimoat.ui.screens
 
 import org.qinyan.rimoat.ui.components.isPowerKey
 
-import androidx.compose.foundation.layout.fillMaxHeight
-import org.qinyan.rimoat.ui.components.contentWidth
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -13,9 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalDensity
@@ -32,7 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.shape.RoundedCornerShape
 import org.qinyan.rimoat.ui.theme.ExpressiveSurface
@@ -50,7 +45,6 @@ import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.asString
 import org.qinyan.rimoat.i18n.localizedButtonLabel
-import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.motion.*
