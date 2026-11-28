@@ -59,10 +59,14 @@ fun IrWaveformPreview(
             isGroupingUsed = false
         }.format(durationMs)
     }
-    val frequencyText = remember(locale, frequencyHz) {
-        NumberFormat.getIntegerInstance(locale).apply {
+    val frequencyKhzText = remember(locale, frequencyHz) {
+        val khz = frequencyHz / 1000.0
+        val isWhole = kotlin.math.abs(khz - kotlin.math.round(khz)) < 0.05
+        NumberFormat.getNumberInstance(locale).apply {
+            minimumFractionDigits = if (isWhole) 0 else 1
+            maximumFractionDigits = if (isWhole) 0 else 1
             isGroupingUsed = false
-        }.format(frequencyHz)
+        }.format(khz)
     }
 
     Column(modifier.fillMaxWidth().animateContentSize(AppMotion.current.defaultSpatialSpec())) {
@@ -134,7 +138,7 @@ fun IrWaveformPreview(
             ) {
                 WaveformMetric(stringResource(R.string.screen_pulse_count, pulses.size))
                 WaveformMetric(stringResource(R.string.screen_duration_ms, durationText))
-                WaveformMetric(stringResource(R.string.screen_frequency_hz, frequencyText))
+                WaveformMetric(stringResource(R.string.screen_frequency_khz, frequencyKhzText))
             }
     }
 }

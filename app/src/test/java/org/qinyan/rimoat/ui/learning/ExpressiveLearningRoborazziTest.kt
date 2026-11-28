@@ -129,6 +129,7 @@ class ExpressiveLearningRoborazziTest {
         compose.runOnIdle { captured = true }
         compose.onNodeWithContentDescription(app.getString(R.string.screen_received_waveform)).assertIsDisplayed()
         compose.onNodeWithText(app.getString(R.string.screen_pulse_count, signal.patternMicros.size)).assertIsDisplayed()
+        compose.onNodeWithText(app.getString(R.string.screen_frequency_khz, "38")).assertIsDisplayed()
         capture("waveform")
     }
 

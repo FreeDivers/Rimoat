@@ -180,7 +180,7 @@
     <string name="screen_seconds">%1$d秒</string>
     <string name="screen_pulse_count">パルス数：%1$d</string>
     <string name="screen_duration_ms">%1$s ms</string>
-    <string name="screen_frequency_hz">%1$s Hz</string>
+    <string name="screen_frequency_khz">%1$s kHz</string>
     <string name="screen_learned_position">学習済み %1$d / %2$d</string>
     <string name="screen_press_original_button">元のリモコンの「%1$s」を押してください</string>
     <string name="screen_learn_button_title">「%1$s」を学習</string>
