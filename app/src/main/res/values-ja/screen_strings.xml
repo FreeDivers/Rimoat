@@ -119,9 +119,7 @@
     <string name="screen_need_learned_key">名前を入力し、少なくとも1つのボタンを学習してください</string>
     <string name="screen_no_receiver">赤外線受信機が接続されていません</string>
     <string name="screen_demo_mode">デモモード</string>
-    <string name="screen_receive_ready">受信準備完了</string>
-    <string name="screen_receive_unconfirmed">受信機能は未確認です</string>
-    <string name="screen_builtin_receive_ready">内蔵受信機の準備完了</string>
+    <string name="screen_builtin_receiver">内蔵受信機</string>
     <string name="screen_receive_settings">受信設定</string>
     <string name="screen_exit_demo">デモを終了</string>
     <string name="screen_rerecord">再学習</string>
@@ -178,8 +176,6 @@
     <string name="screen_save_draft_failed">学習の下書きを保存できませんでした：%1$s</string>
     <string name="screen_send_error_t">送信に失敗しました：%1$s</string>
     <string name="screen_learning_error_e">学習に失敗しました：%1$s</string>
-    <string name="screen_tiqiaa_receive">Tiqiaa、%1$s</string>
-    <string name="screen_elksmart_receive">ElkSmart、%1$s</string>
     <string name="screen_receive_remaining">受信待ち時間：残り%1$d秒</string>
     <string name="screen_seconds">%1$d秒</string>
     <string name="screen_pulse_count">パルス数：%1$d</string>

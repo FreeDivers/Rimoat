@@ -119,9 +119,7 @@
     <string name="screen_need_learned_key">請填寫名稱並至少學習一個按鍵</string>
     <string name="screen_no_receiver">未連線紅外線接收器</string>
     <string name="screen_demo_mode">示範模式</string>
-    <string name="screen_receive_ready">接收就緒</string>
-    <string name="screen_receive_unconfirmed">接收能力未確認</string>
-    <string name="screen_builtin_receive_ready">內建接收器就緒</string>
+    <string name="screen_builtin_receiver">內建接收器</string>
     <string name="screen_receive_settings">接收設定</string>
     <string name="screen_exit_demo">退出示範</string>
     <string name="screen_rerecord">重新錄製</string>
@@ -178,8 +176,6 @@
     <string name="screen_save_draft_failed">學習草稿未儲存：%1$s</string>
     <string name="screen_send_error_t">傳送失敗: %1$s</string>
     <string name="screen_learning_error_e">學習失敗：%1$s</string>
-    <string name="screen_tiqiaa_receive">遙控精靈，%1$s</string>
-    <string name="screen_elksmart_receive">小蠻腰，%1$s</string>
     <string name="screen_receive_remaining">接收等待剩餘 %1$d 秒</string>
     <string name="screen_seconds">%1$d 秒</string>
     <string name="screen_pulse_count">%1$d 脈衝</string>

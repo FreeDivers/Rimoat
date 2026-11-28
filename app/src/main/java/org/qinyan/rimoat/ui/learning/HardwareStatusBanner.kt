@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import org.qinyan.rimoat.hardware.learning.LearnerType
 import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.components.ActionIconButton
@@ -49,9 +50,10 @@ fun HardwareStatusBanner(
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     LaunchedEffect(active, enabled) { if (!active || !enabled) expanded = false }
+    val containerColor = if (unavailable) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent
     Surface(modifier.fillMaxWidth().animateContentSize(AppMotion.current.defaultSpatialSpec()), shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp).heightIn(min = 48.dp),
+        color = containerColor) {
+        Row(Modifier.padding(start = if (unavailable) 12.dp else 4.dp, end = 4.dp).heightIn(min = 48.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(when {
             unavailable -> Icons.Rounded.SensorsOff
@@ -61,15 +63,9 @@ fun HardwareStatusBanner(
         val statusText = when {
             unavailable -> stringResource(R.string.screen_no_receiver)
             learnerType == LearnerType.MOCK -> stringResource(R.string.screen_demo_mode)
-            learnerType == LearnerType.USB_TIQIAA -> stringResource(
-                R.string.screen_tiqiaa_receive,
-                stringResource(if (receiveConfirmed) R.string.screen_receive_ready else R.string.screen_receive_unconfirmed)
-            )
-            learnerType == LearnerType.USB_ELKSMART -> stringResource(
-                R.string.screen_elksmart_receive,
-                stringResource(if (receiveConfirmed) R.string.screen_receive_ready else R.string.screen_receive_unconfirmed)
-            )
-            else -> stringResource(R.string.screen_builtin_receive_ready)
+            learnerType == LearnerType.USB_TIQIAA -> stringResource(R.string.control_tiqiaa)
+            learnerType == LearnerType.USB_ELKSMART -> stringResource(R.string.control_elksmart)
+            else -> stringResource(R.string.screen_builtin_receiver)
         }
         Text(
             statusText,
