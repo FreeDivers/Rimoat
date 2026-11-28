@@ -228,7 +228,6 @@
     <plurals name="control_hours">
         <item quantity="other">%1$d時間</item>
     </plurals>
-    <string name="control_hours_minutes">%1$s%2$s</string>
     <string name="control_learn">%1$sを学習</string>
     <string name="control_select">%1$sを選択</string>
     <string name="control_fan_label">風速：%1$s</string>

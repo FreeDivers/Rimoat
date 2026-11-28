@@ -37,6 +37,9 @@ object AppStrings {
         return previous
     }
 
+    internal fun resourceContextOrNull(): Context? =
+        if (application == null) null else resourceContext()
+
     internal fun resourceContext(): Context {
         cachedContext?.let { return it.context }
         return synchronized(this) {

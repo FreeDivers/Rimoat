@@ -230,7 +230,6 @@
         <item quantity="one">%1$d hr</item>
         <item quantity="other">%1$d hrs</item>
     </plurals>
-    <string name="control_hours_minutes">%1$s %2$s</string>
     <string name="control_learn">Learn %1$s</string>
     <string name="control_select">Select %1$s</string>
     <string name="control_fan_label">Fan: %1$s</string>

@@ -1,6 +1,12 @@
 package org.qinyan.rimoat
 
 import android.app.Application
+import android.content.res.Configuration
+import android.icu.text.MeasureFormat
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
+import android.os.LocaleList
+import java.util.Locale
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -41,21 +47,28 @@ class AcTimerDurationFormattingTest {
 
     @Before fun initializeStrings() = AppStrings.initialize(app)
 
+    private fun expectedMeasure(locale: Locale, vararg measures: Measure): String =
+        MeasureFormat.getInstance(locale, MeasureFormat.FormatWidth.SHORT).formatMeasures(*measures)
+
     @Test fun timerAppearanceUsesLocalizedDurationFormat() {
-        val eightHours = AcSettings(timerMinutes = 480).controlAppearance(AcAction.TIMER)
-        assertEquals(localizedTimerDurationLabel(480), eightHours.label)
-        assertEquals(localizedTimerDurationLabel(480), eightHours.state)
-        assertEquals("8 小时", eightHours.label)
+        val zhLocale = app.resources.configuration.locales[0]
+        val eightHours = AcSettings(timerMinutes = 480).controlAppearance(AcAction.TIMER, app)
+        assertEquals(localizedTimerDurationLabel(480, app), eightHours.label)
+        assertEquals(localizedTimerDurationLabel(480, app), eightHours.state)
+        assertEquals(expectedMeasure(zhLocale, Measure(8, MeasureUnit.HOUR)), eightHours.label)
 
-        val ninetyMinutes = AcSettings(timerMinutes = 90).controlAppearance(AcAction.TIMER)
-        assertEquals(localizedTimerDurationLabel(90), ninetyMinutes.label)
-        assertEquals(localizedTimerDurationLabel(90), ninetyMinutes.state)
-        assertEquals("1 小时 30 分钟", ninetyMinutes.label)
+        val ninetyMinutes = AcSettings(timerMinutes = 90).controlAppearance(AcAction.TIMER, app)
+        assertEquals(localizedTimerDurationLabel(90, app), ninetyMinutes.label)
+        assertEquals(localizedTimerDurationLabel(90, app), ninetyMinutes.state)
+        assertEquals(
+            expectedMeasure(zhLocale, Measure(1, MeasureUnit.HOUR), Measure(30, MeasureUnit.MINUTE)),
+            ninetyMinutes.label
+        )
 
-        val thirtyMinutes = AcSettings(timerMinutes = 30).controlAppearance(AcAction.TIMER)
-        assertEquals(localizedTimerDurationLabel(30), thirtyMinutes.label)
-        assertEquals(localizedTimerDurationLabel(30), thirtyMinutes.state)
-        assertEquals("30 分钟", thirtyMinutes.label)
+        val thirtyMinutes = AcSettings(timerMinutes = 30).controlAppearance(AcAction.TIMER, app)
+        assertEquals(localizedTimerDurationLabel(30, app), thirtyMinutes.label)
+        assertEquals(localizedTimerDurationLabel(30, app), thirtyMinutes.state)
+        assertEquals(expectedMeasure(zhLocale, Measure(30, MeasureUnit.MINUTE)), thirtyMinutes.label)
     }
 
     @Test fun timerStatusChipUsesLocalizedDurationFormat() {
@@ -94,15 +107,42 @@ class AcTimerDurationFormattingTest {
     @Config(qualifiers = "en-rUS-w411dp-h891dp-mdpi")
     fun englishTimerDurationHandlesSingularAndPluralUnits() {
         AppStrings.initialize(app)
-        assertEquals("1 min", localizedTimerDurationLabel(1))
-        assertEquals("30 mins", localizedTimerDurationLabel(30))
-        assertEquals("1 hr", localizedTimerDurationLabel(60))
-        assertEquals("8 hrs", localizedTimerDurationLabel(480))
-        assertEquals("1 hr 1 min", localizedTimerDurationLabel(61))
-        assertEquals("2 hrs 30 mins", localizedTimerDurationLabel(150))
+        val enLocale = app.resources.configuration.locales[0]
+        assertEquals(expectedMeasure(enLocale, Measure(1, MeasureUnit.MINUTE)), localizedTimerDurationLabel(1, app))
+        assertEquals(expectedMeasure(enLocale, Measure(30, MeasureUnit.MINUTE)), localizedTimerDurationLabel(30, app))
+        assertEquals(expectedMeasure(enLocale, Measure(1, MeasureUnit.HOUR)), localizedTimerDurationLabel(60, app))
+        assertEquals(expectedMeasure(enLocale, Measure(8, MeasureUnit.HOUR)), localizedTimerDurationLabel(480, app))
+        assertEquals(
+            expectedMeasure(enLocale, Measure(1, MeasureUnit.HOUR), Measure(1, MeasureUnit.MINUTE)),
+            localizedTimerDurationLabel(61, app)
+        )
+        assertEquals(
+            expectedMeasure(enLocale, Measure(2, MeasureUnit.HOUR), Measure(30, MeasureUnit.MINUTE)),
+            localizedTimerDurationLabel(150, app)
+        )
 
-        val eightHours = AcSettings(timerMinutes = 480).controlAppearance(AcAction.TIMER)
-        assertEquals("8 hrs", eightHours.label)
-        assertEquals("8 hrs", eightHours.state)
+        val eightHours = AcSettings(timerMinutes = 480).controlAppearance(AcAction.TIMER, app)
+        assertEquals(expectedMeasure(enLocale, Measure(8, MeasureUnit.HOUR)), eightHours.label)
+        assertEquals(expectedMeasure(enLocale, Measure(8, MeasureUnit.HOUR)), eightHours.state)
+    }
+
+    @Test
+    fun timerDurationFollowsPassedContextLocaleAcrossAllSupportedLanguages() {
+        for (tag in listOf("zh-CN", "zh-Hant", "en-US", "ja-JP")) {
+            val localizedContext = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tag))
+            })
+            val locale = localizedContext.resources.configuration.locales[0]
+            assertEquals(
+                tag,
+                expectedMeasure(locale, Measure(1, MeasureUnit.HOUR), Measure(30, MeasureUnit.MINUTE)),
+                localizedTimerDurationLabel(90, localizedContext)
+            )
+            assertEquals(
+                tag,
+                localizedContext.getString(R.string.control_disable_timer),
+                localizedTimerDurationLabel(0, localizedContext)
+            )
+        }
     }
 }

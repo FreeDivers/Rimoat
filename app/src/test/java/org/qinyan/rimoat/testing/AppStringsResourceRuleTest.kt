@@ -14,7 +14,7 @@ class AppStringsResourceRuleTest {
         val english = PackagedStringResources("en")
         assertEquals("1 hr", english.quantity(R.plurals.control_hours, 1, 1))
         assertEquals("2 hrs", english.quantity(R.plurals.control_hours, 2, 2))
-        assertEquals("1 hr 30 mins", english.get(R.string.control_hours_minutes, "1 hr", "30 mins"))
+        assertEquals("Example TV, code set 2", english.get(R.string.screen_save_summary, "Example", "TV", 2))
         val chinese = PackagedStringResources("zh-CN")
         assertEquals("1 小时", chinese.quantity(R.plurals.control_hours, 1, 1))
         assertEquals("2 小时", chinese.quantity(R.plurals.control_hours, 2, 2))

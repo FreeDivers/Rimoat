@@ -228,7 +228,6 @@
     <plurals name="control_hours">
         <item quantity="other">%1$d 小时</item>
     </plurals>
-    <string name="control_hours_minutes">%1$s %2$s</string>
     <string name="control_learn">学习%1$s</string>
     <string name="control_select">选择%1$s</string>
     <string name="control_fan_label">%1$s风</string>
