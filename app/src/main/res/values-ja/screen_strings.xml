@@ -143,7 +143,7 @@
     <string name="screen_testing_transmit">送信をテスト中</string>
     <string name="screen_no_valid_ir">有効な赤外線信号が見つかりません</string>
     <string name="screen_saving_progress">保存中</string>
-    <string name="screen_save_button">ボタンを保存</string>
+    <string name="screen_save_button">保存</string>
     <string name="screen_start_record">学習を開始</string>
     <string name="screen_retry">再試行</string>
     <string name="screen_received_waveform">受信した赤外線波形</string>

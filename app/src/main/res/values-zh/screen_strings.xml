@@ -143,7 +143,7 @@
     <string name="screen_testing_transmit">正在测试发射</string>
     <string name="screen_no_valid_ir">未检测到有效红外信号</string>
     <string name="screen_saving_progress">正在保存</string>
-    <string name="screen_save_button">保存按键</string>
+    <string name="screen_save_button">保存</string>
     <string name="screen_start_record">开始录入</string>
     <string name="screen_retry">重试</string>
     <string name="screen_received_waveform">已接收的红外波形</string>
