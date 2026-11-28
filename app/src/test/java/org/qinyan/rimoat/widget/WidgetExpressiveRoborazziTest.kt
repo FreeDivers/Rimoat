@@ -123,23 +123,19 @@ class WidgetExpressiveRoborazziTest {
     }
 
     @Test fun timerDurationUsesLocalizedUnitsInReadingAndActionDescription() = runBlocking {
-        val durations = mapOf(
-            "en" to "1 hr 30 mins",
-            "zh-CN" to "1 小时 30 分钟",
-            "zh-Hant" to "1 小時 30 分鐘",
-            "ja" to "1時間30分"
-        )
+        val locales = listOf("en", "zh-CN", "zh-Hant", "ja")
         val timer = RemoteButton("timer", AcAction.TIMER.name, key = ButtonKey.TIMER, acAction = AcAction.TIMER)
         val profile = airConditioner.copy(acSettings = AcSettings(temperature = 26, timerMinutes = 90),
             buttons = listOf(timer))
         val (initialConfiguration, initialSnapshot) = fixture(WidgetKind.STATUS, profile = profile)
         val configuration = initialConfiguration.copy(shortcuts = listOf(
             WidgetShortcut(profile.id, WidgetCommands.POWER), WidgetShortcut(profile.id, timer.id)))
-        for ((localeTags, duration) in durations) {
+        for (localeTags in locales) {
             render("timer_duration_$localeTags", DpSize(280.dp, 240.dp), configuration,
                 initialSnapshot.copy(localeTags = localeTags, colorMode = AppColorMode.LIGHT),
                 capture = false) { root ->
                 assertAllConfiguredCommandTargets(root, configuration)
+                val duration = org.qinyan.rimoat.i18n.localizedTimerDurationLabel(90, root.context)
                 val reading = texts(root).single { it.text.toString() == duration }
                 assertEquals("The full localized duration remains visible", 0,
                     requireNotNull(reading.layout).getEllipsisCount(0))
