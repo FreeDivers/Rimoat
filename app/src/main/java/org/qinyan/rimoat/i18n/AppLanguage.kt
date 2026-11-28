@@ -10,6 +10,8 @@ import android.os.LocaleList
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import java.util.Locale
+import kotlinx.coroutines.launch
+import org.qinyan.rimoat.IrRemoteApplication
 
 /** AppCompat applies UI locales; Android 13 owns storage, older devices keep the existing preference. */
 object AppLanguage {
@@ -96,6 +98,11 @@ object AppLanguage {
             // Only retain the Application context, never an Activity or a themed wrapper.
             if (context === context.applicationContext) cachedAppLocaleWrap = Triple(context, configuration, it)
         }
+    }
+
+    fun refreshWidgets(activity: Activity) {
+        val app = activity.application as IrRemoteApplication
+        app.applicationScope.launch { app.widgets.configurationChanged() }
     }
 
     fun set(activity: Activity, tag: String) {
