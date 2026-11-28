@@ -2,7 +2,6 @@ package org.qinyan.rimoat.ui.viewmodel
 
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.i18n.AppError
-import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.toAppError
@@ -28,7 +27,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 
@@ -50,35 +48,32 @@ class RemoteListViewModel(
     val isHardwareReady: StateFlow<Boolean> = transmitterManager.isReady
     val isForceMock: StateFlow<Boolean> = transmitterManager.forceMockMode
 
-    val useDynamicColor: StateFlow<Boolean> = themePreferences.useDynamicColor
-    val colorMode: StateFlow<AppColorMode> = themePreferences.colorMode
-    val pureBlackBackground: StateFlow<Boolean> = themePreferences.pureBlackBackground
-    val isDynamicColorSupported: Boolean = themePreferences.isDynamicColorSupported
-    val rotationDirection: StateFlow<ScreenRotationDirection> = themePreferences.rotationDirection
-    val autoRotateScreen: StateFlow<Boolean> = themePreferences.autoRotateScreen
-    val rotationCondition: StateFlow<ScreenRotationCondition> = themePreferences.rotationCondition
-    val rotationScope: StateFlow<ScreenRotationScope> = themePreferences.rotationScope
-    val suppressRotationPrompt: StateFlow<Boolean> = themePreferences.suppressRotationPrompt
+    private val appearance = AppearanceSettingsViewModel(themePreferences)
+    val useDynamicColor: StateFlow<Boolean> = appearance.useDynamicColor
+    val colorMode: StateFlow<AppColorMode> = appearance.colorMode
+    val pureBlackBackground: StateFlow<Boolean> = appearance.pureBlackBackground
+    val isDynamicColorSupported: Boolean = appearance.isDynamicColorSupported
+    val rotationDirection: StateFlow<ScreenRotationDirection> = appearance.rotationDirection
+    val autoRotateScreen: StateFlow<Boolean> = appearance.autoRotateScreen
+    val rotationCondition: StateFlow<ScreenRotationCondition> = appearance.rotationCondition
+    val rotationScope: StateFlow<ScreenRotationScope> = appearance.rotationScope
+    val suppressRotationPrompt: StateFlow<Boolean> = appearance.suppressRotationPrompt
 
-    private val _room = MutableStateFlow<String?>(null)
-    val selectedRoom = _room.asStateFlow()
-    val rooms = repository.rooms
-    val allRemotes = repository.remotes
-    fun editRoom(oldName: String?, newName: String?, onSaved: () -> Unit) = performStorageOperation {
-        repository.editRoom(oldName, newName)
-        if (_room.value == oldName && oldName != null) _room.value = newName?.trim()
-        onSaved()
-    }
-    fun moveToRoom(id: String, room: String) = performStorageOperation { repository.moveToRoom(id, room) }
+    private val roomModel = RoomViewModel(repository, ::performStorageOperation)
+    val selectedRoom = roomModel.selectedRoom
+    val rooms = roomModel.rooms
+    val allRemotes = roomModel.allRemotes
+    fun editRoom(oldName: String?, newName: String?, onSaved: () -> Unit) = roomModel.editRoom(oldName, newName, onSaved)
+    fun moveToRoom(id: String, room: String) = roomModel.moveToRoom(id, room)
     private val _recentFirst = MutableStateFlow(false)
     val recentFirst = _recentFirst.asStateFlow()
-    fun selectRoom(room: String?) { _room.value = room }
+    fun selectRoom(room: String?) = roomModel.selectRoom(room)
     fun setRecentFirst(value: Boolean) { _recentFirst.value = value }
 
     val filteredRemotes: StateFlow<List<RemoteProfile>> = combine(
         repository.remotes,
         _searchQuery,
-        _selectedCategory, _room, _recentFirst
+        _selectedCategory, selectedRoom, _recentFirst
     ) { remotes, query, category, room, recent ->
         remotes.filter { remote ->
             val matchesCategory = category == null || remote.category == category
@@ -152,67 +147,13 @@ class RemoteListViewModel(
     private val _deletedIds = MutableStateFlow<List<String>>(emptyList())
     val deletedIds: StateFlow<List<String>> = _deletedIds.asStateFlow()
     fun consumeDeleted(ids: List<String>) { _deletedIds.compareAndSet(ids, emptyList()) }
-    private val _trash = MutableStateFlow<List<org.qinyan.rimoat.data.DeletedRemoteEntry>?>(null)
-    val trash = _trash.asStateFlow()
-    fun loadTrash() = performStorageOperation { _trash.value = repository.deletedEntries() }
-    private val _trashBusy = MutableStateFlow(false)
-    val trashBusy = _trashBusy.asStateFlow()
-    fun restoreDeleted(id: String, entryId: String? = null) {
-        if (!_trashBusy.compareAndSet(false, true)) return
-        viewModelScope.launch {
-            try {
-                repository.restoreDeleted(id, entryId)
-                _deletedIds.update { current -> current.filterNot { it == id } }
-                if (_trash.value != null) _trash.value = repository.deletedEntries()
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                setOperationError(
-                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_operation_failed)
-                )
-            }
-            finally { _trashBusy.value = false }
-        }
-    }
-    fun restoreDeleted(ids: List<String>) {
-        if (ids.isEmpty() || !_trashBusy.compareAndSet(false, true)) return
-        viewModelScope.launch {
-            val restored = mutableSetOf<String>()
-            try {
-                ids.asReversed().forEach { id ->
-                    repository.restoreDeleted(id)
-                    restored += id
-                }
-                if (_trash.value != null) _trash.value = repository.deletedEntries()
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                setOperationError(
-                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_operation_failed)
-                )
-            }
-            finally {
-                if (restored.isNotEmpty()) {
-                    _deletedIds.update { current -> current.filterNot(restored::contains) }
-                }
-                _trashBusy.value = false
-            }
-        }
-    }
-    fun permanentlyDelete(entryId: String, onDeleted: () -> Unit) {
-        if (!_trashBusy.compareAndSet(false, true)) return
-        viewModelScope.launch {
-            try {
-                repository.permanentlyDelete(entryId)
-                _trash.value = repository.deletedEntries()
-                onDeleted()
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                setOperationError(
-                    e.toAppError(R.string.msg_storage_unavailable).wrapped(R.string.msg_permanent_delete_failed)
-                )
-            }
-            finally { _trashBusy.value = false }
-        }
-    }
+    private val trashModel = TrashViewModel(repository, viewModelScope, _deletedIds, ::performStorageOperation, ::setOperationError)
+    val trash = trashModel.trash
+    val trashBusy = trashModel.trashBusy
+    fun loadTrash() = trashModel.loadTrash()
+    fun restoreDeleted(id: String, entryId: String? = null) = trashModel.restoreDeleted(id, entryId)
+    fun restoreDeleted(ids: List<String>) = trashModel.restoreDeleted(ids)
+    fun permanentlyDelete(entryId: String, onDeleted: () -> Unit) = trashModel.permanentlyDelete(entryId, onDeleted)
     fun updateDetails(id: String, name: String, room: String, onSaved: () -> Unit) = performStorageOperation {
         repository.updateDetails(id, name, room); onSaved()
     }
@@ -233,102 +174,52 @@ class RemoteListViewModel(
         }
     }
 
-    private val _pendingImport = MutableStateFlow<ImportDocument?>(null)
-    val pendingImport = _pendingImport.asStateFlow()
-    private val _transferBusy = MutableStateFlow(false)
-    val transferBusy = _transferBusy.asStateFlow()
-    private val _transferMessage = MutableStateFlow<UiText?>(null)
-    val transferMessage = _transferMessage.asStateFlow()
-    fun reportTransferError(error: AppError) { setOperationError(error) }
-    fun reportTransferError(message: UiText) { reportTransferError(AppError.Resource(message)) }
+    private val backup = BackupViewModel(repository, backupFiles, isDynamicColorSupported, viewModelScope, ::setOperationError)
+    val pendingImport = backup.pendingImport
+    val transferBusy = backup.transferBusy
+    val transferMessage = backup.transferMessage
+    fun reportTransferError(error: AppError) = backup.reportTransferError(error)
+    fun reportTransferError(message: UiText) = backup.reportTransferError(message)
     fun reportTransferError(message: String) { reportTransferError(UiText.Dynamic(message)) }
-    fun clearTransferMessage() { _transferMessage.value = null }
-    fun cancelImport() { if (!_transferBusy.value) _pendingImport.value = null }
-    private fun transfer(defaultAction: ErrorAction? = null, block: suspend () -> Unit) {
-        if (_transferBusy.value) return
-        _transferBusy.value = true
-        viewModelScope.launch {
-            try { block() }
-            catch (e: CancellationException) { throw e }
-            catch (_: BackupWriteException) {
-                setOperationError(AppError.Resource(UiText.Resource(R.string.backup_export_write_failed), defaultAction))
-            }
-            catch (e: Exception) {
-                setOperationError(
-                    e.toAppError(R.string.msg_file_unavailable, defaultAction)
-                        .wrapped(R.string.msg_file_operation_failed, defaultAction)
-                )
-            }
-            finally { _transferBusy.value = false }
-        }
-    }
-    fun readImport(uri: android.net.Uri) = transfer {
-        _pendingImport.value = checkNotNull(backupFiles).readDocument(uri)
-    }
-    fun readInfraredImport(uri: android.net.Uri) = transfer {
-        _pendingImport.value = checkNotNull(backupFiles).readDocument(uri, infrared = true)
-    }
-    fun commitImport(mode: ImportMode) = transfer {
-        val document = _pendingImport.value ?: return@transfer
-        val count = repository.importBackup(document.backup, emptyMap(), copyAll = mode == ImportMode.COPIES)
-        _pendingImport.value = null
-        _transferMessage.value = UiText.plural(R.plurals.msg_import_finished, count, count)
-    }
-    fun commitImport(choices: Map<String, ConflictChoice>, preferences: PortablePreferences?) = transfer {
-        val document = _pendingImport.value ?: return@transfer
-        val applicablePreferences = preferences?.let {
-            if (isDynamicColorSupported) it else it.copy(dynamicColors = null)
-        }?.takeIf { it.dynamicColors != null || it.pureBlack != null }
-        val count = repository.importBackup(document.backup, choices, applicablePreferences)
-        _pendingImport.value = null
-        _transferMessage.value = UiText.plural(R.plurals.msg_import_finished, count, count)
-    }
-    private var lastExportAction: (() -> Unit)? = null
-    fun retryLastExport(): Boolean {
-        val action = lastExportAction ?: return false
-        action()
-        return true
-    }
-
-    fun export(uri: android.net.Uri, id: String?, preferences: PortablePreferences? = null, onSaved: () -> Unit) {
-        lastExportAction = { export(uri, id, preferences, onSaved) }
-        transfer(defaultAction = ErrorAction.Retry) {
-            val text = repository.exportRemotes(id, preferences)
-            checkNotNull(backupFiles).write(uri, text)
-            lastExportAction = null
-            onSaved()
-        }
-    }
+    fun clearTransferMessage() = backup.clearTransferMessage()
+    fun cancelImport() = backup.cancelImport()
+    fun readImport(uri: android.net.Uri) = backup.readImport(uri)
+    fun readInfraredImport(uri: android.net.Uri) = backup.readInfraredImport(uri)
+    fun commitImport(mode: ImportMode) = backup.commitImport(mode)
+    fun commitImport(choices: Map<String, ConflictChoice>, preferences: PortablePreferences?) = backup.commitImport(choices, preferences)
+    fun retryLastExport(): Boolean = backup.retryLastExport()
+    fun export(uri: android.net.Uri, id: String?, preferences: PortablePreferences? = null, onSaved: () -> Unit) =
+        backup.export(uri, id, preferences, onSaved)
 
     fun setUseDynamicColor(useDynamic: Boolean) {
-        themePreferences.setUseDynamicColor(useDynamic)
+        appearance.setUseDynamicColor(useDynamic)
     }
 
     fun setColorMode(mode: AppColorMode) {
-        themePreferences.setColorMode(mode)
+        appearance.setColorMode(mode)
     }
 
     fun setPureBlackBackground(enabled: Boolean) {
-        themePreferences.setPureBlackBackground(enabled)
+        appearance.setPureBlackBackground(enabled)
     }
 
     fun setRotationDirection(direction: ScreenRotationDirection) {
-        themePreferences.setRotationDirection(direction)
+        appearance.setRotationDirection(direction)
     }
 
     fun setAutoRotateScreen(enabled: Boolean) {
-        themePreferences.setAutoRotateScreen(enabled)
+        appearance.setAutoRotateScreen(enabled)
     }
 
     fun setRotationCondition(condition: ScreenRotationCondition) {
-        themePreferences.setRotationCondition(condition)
+        appearance.setRotationCondition(condition)
     }
 
     fun setRotationScope(scope: ScreenRotationScope) {
-        themePreferences.setRotationScope(scope)
+        appearance.setRotationScope(scope)
     }
 
     fun setSuppressRotationPrompt(suppressed: Boolean) {
-        themePreferences.setSuppressRotationPrompt(suppressed)
+        appearance.setSuppressRotationPrompt(suppressed)
     }
 }
