@@ -2,19 +2,7 @@
 
 package org.qinyan.rimoat.ui.screens
 
-import org.qinyan.rimoat.ui.components.rememberExpressiveShape
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.ButtonGroup
-import androidx.compose.material3.ButtonGroupDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.ui.semantics.Role
-import org.qinyan.rimoat.ui.components.getCategoryIcon
 import androidx.compose.material3.LinearWavyProgressIndicator
 import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.asString
@@ -25,22 +13,17 @@ import org.qinyan.rimoat.ui.theme.Spacing
 import org.qinyan.rimoat.ui.motion.LocalMotionActive
 import org.qinyan.rimoat.ui.motion.ExpandSection
 import org.qinyan.rimoat.ui.motion.FadeVisibility
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.navigationBars
@@ -52,77 +35,34 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.rounded.MeetingRoom
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import org.qinyan.rimoat.ui.components.ExpressivePageTopBar
 import org.qinyan.rimoat.ui.components.ExpressiveShapeTokens
-import org.qinyan.rimoat.ui.components.rememberSegmentedExpressiveShape
 import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.material3.FilterChip
 import org.qinyan.rimoat.ui.components.rememberWideLayout
 import org.qinyan.rimoat.ui.components.TwoPaneLayout
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.SoundEffectOnInteraction
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Clear
-import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.DevicesOther
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material.icons.rounded.Upload
-import org.qinyan.rimoat.ui.motion.MotionAlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import org.qinyan.rimoat.ui.components.ExpressiveDropdownMenu
-import org.qinyan.rimoat.ui.components.ExpressiveDropdownMenuGroup
-import org.qinyan.rimoat.ui.components.ExpressiveDropdownMenuPopup
-import org.qinyan.rimoat.ui.components.ExpressiveMenuItem
-import org.qinyan.rimoat.ui.components.ExpressiveSelectableMenuItem
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import org.qinyan.rimoat.ui.components.ActionIconButton
-import org.qinyan.rimoat.ui.components.ExpressiveTextField
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.SnackbarDuration
 import org.qinyan.rimoat.ui.components.AppSnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -136,18 +76,8 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.IntrinsicMeasurable
-import androidx.compose.ui.layout.IntrinsicMeasureScope
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.Measurable
-import androidx.compose.ui.layout.MeasurePolicy
-import androidx.compose.ui.layout.MeasureResult
-import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -155,19 +85,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.constrainHeight
-import androidx.compose.ui.unit.constrainWidth
-import androidx.compose.ui.window.DialogProperties
-import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.ui.components.HardwareStatusButton
@@ -175,7 +95,6 @@ import org.qinyan.rimoat.ui.components.TransmitterSelectionBottomSheet
 import org.qinyan.rimoat.ui.components.clearSearchFocusOnTapOutside
 import org.qinyan.rimoat.ui.components.rememberSearchFocusController
 import org.qinyan.rimoat.ui.viewmodel.RemoteListViewModel
-import java.util.UUID
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -506,18 +425,12 @@ fun RemoteListScreen(
 
     if (screenActive) {
         remotes.firstOrNull { it.id == editingId }?.let { profile ->
-            var name by rememberSaveable(profile.id) { mutableStateOf(profile.name) }
-            var room by rememberSaveable(profile.id) { mutableStateOf(profile.room) }
-            MotionAlertDialog(onDismissRequest = { editingId = null }, title = { Text(stringResource(R.string.screen_edit_remote)) },
-                modifier = Modifier.safeDrawingPadding(),
-                properties = DialogProperties(decorFitsSystemWindows = false),
-                text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ExpressiveTextField(value = name, onValueChange = { if (it.length <= 100) name = it }, label = { Text(stringResource(R.string.screen_remote_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    ExpressiveTextField(value = room, onValueChange = { if (it.length <= 60) room = it }, label = { Text(stringResource(R.string.screen_room_optional)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    displayedError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                } },
-                confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { viewModel.updateDetails(profile.id, name, room) { editingId = null } }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.screen_save)) } },
-                dismissButton = { TextButton(onClick = { editingId = null }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.screen_cancel)) } })
+            RemoteEditDialog(
+                profile = profile,
+                displayedError = displayedError,
+                onDismiss = { editingId = null },
+                onSave = { name, room -> viewModel.updateDetails(profile.id, name, room) { editingId = null } }
+            )
         }
         exportedUri?.let { saved ->
             BackupSavedDialog(saved, onDismiss = { exportedUri = null }, onError = viewModel::reportTransferError)
@@ -528,511 +441,6 @@ fun RemoteListScreen(
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                 onDismissRequest = { showTransmitterSheet = false }
             )
-        }
-    }
-}
-
-private data class CategoryOption(val category: DeviceCategory?, @androidx.annotation.StringRes val labelRes: Int)
-
-private val categoryOptions = listOf(
-    CategoryOption(null, R.string.screen_category_all),
-    CategoryOption(DeviceCategory.TV, R.string.screen_category_tv),
-    CategoryOption(DeviceCategory.AC, R.string.screen_category_ac),
-    CategoryOption(DeviceCategory.FAN, R.string.screen_category_fan),
-    CategoryOption(DeviceCategory.PROJECTOR, R.string.screen_category_projector),
-    CategoryOption(DeviceCategory.AUDIO, R.string.screen_category_audio),
-    CategoryOption(DeviceCategory.CUSTOM, R.string.screen_category_custom)
-)
-private val remoteCategoryFilters = categoryOptions.map { it.category }
-
-/** Wrapping choices keep every category reachable in a narrow landscape pane. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CategoryFilterChips(
-    selectedCategory: DeviceCategory?,
-    onSelectCategory: (DeviceCategory?) -> Unit
-) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        categoryOptions.forEach { (category, labelRes) ->
-            val checked = selectedCategory == category
-            ToggleButton(
-                checked = checked,
-                onCheckedChange = { onSelectCategory(category) },
-                colors = ToggleButtonDefaults.colors(
-                    containerColor = ExpressiveSurface.card,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    checkedContainerColor = MaterialTheme.colorScheme.primary,
-                    checkedContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier.heightIn(min = 48.dp).semantics {
-                    selected = checked
-                    role = Role.RadioButton
-                }
-            ) { Text(stringResource(labelRes)) }
-        }
-    }
-}
-
-private val CategoryButtonRigidHorizontalPadding = 6.dp
-private val CategoryButtonCompressibleHorizontalPadding = 10.dp
-private val CategoryButtonCompressionLimit = 6.dp
-
-/**
- * Reserves resting horizontal padding for [ButtonGroup] intrinsic measurement while allowing
- * inner slack to absorb neighbor compression and spring overshoot without squeezing [content].
- */
-@Composable
-private fun CompressibleHorizontalSlot(
-    horizontalSlack: Dp,
-    content: @Composable () -> Unit
-) {
-    val measurePolicy = remember(horizontalSlack) {
-        object : MeasurePolicy {
-            override fun MeasureScope.measure(
-                measurables: List<Measurable>,
-                constraints: Constraints
-            ): MeasureResult {
-                val slackPx = horizontalSlack.roundToPx()
-                val placeable = measurables.single().measure(constraints.copy(minWidth = 0))
-                val width = constraints.constrainWidth(placeable.width + slackPx * 2)
-                val height = constraints.constrainHeight(placeable.height)
-                return layout(width, height) {
-                    placeable.placeRelative(
-                        x = (width - placeable.width) / 2,
-                        y = (height - placeable.height) / 2
-                    )
-                }
-            }
-
-            override fun IntrinsicMeasureScope.minIntrinsicWidth(
-                measurables: List<IntrinsicMeasurable>,
-                height: Int
-            ): Int = measurables.single().minIntrinsicWidth(height)
-
-            override fun IntrinsicMeasureScope.maxIntrinsicWidth(
-                measurables: List<IntrinsicMeasurable>,
-                height: Int
-            ): Int = measurables.single().maxIntrinsicWidth(height) + horizontalSlack.roundToPx() * 2
-
-            override fun IntrinsicMeasureScope.minIntrinsicHeight(
-                measurables: List<IntrinsicMeasurable>,
-                width: Int
-            ): Int {
-                val innerWidth = if (width == Constraints.Infinity) {
-                    width
-                } else {
-                    (width - horizontalSlack.roundToPx() * 2).coerceAtLeast(0)
-                }
-                return measurables.single().minIntrinsicHeight(innerWidth)
-            }
-
-            override fun IntrinsicMeasureScope.maxIntrinsicHeight(
-                measurables: List<IntrinsicMeasurable>,
-                width: Int
-            ): Int {
-                val innerWidth = if (width == Constraints.Infinity) {
-                    width
-                } else {
-                    (width - horizontalSlack.roundToPx() * 2).coerceAtLeast(0)
-                }
-                return measurables.single().maxIntrinsicHeight(innerWidth)
-            }
-        }
-    }
-    Layout(content = content, measurePolicy = measurePolicy)
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun CategoryFilterBar(
-    selectedCategory: DeviceCategory?,
-    onSelectCategory: (DeviceCategory?) -> Unit
-) {
-    val categories = categoryOptions
-    val buttonPadding = PaddingValues(
-        horizontal = CategoryButtonRigidHorizontalPadding,
-        vertical = 8.dp
-    )
-
-    ButtonGroup(
-        overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 4.dp).selectableGroup(),
-        expandedRatio = .08f,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        categories.forEach { (category, labelRes) ->
-            customItem(
-                buttonGroupContent = {
-                    val checked = selectedCategory == category
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val bringIntoView = remember { BringIntoViewRequester() }
-                    LaunchedEffect(checked) {
-                        if (checked) {
-                            withFrameNanos { }
-                            bringIntoView.bringIntoView()
-                        }
-                    }
-                    ToggleButton(
-                        checked = checked,
-                        onCheckedChange = { onSelectCategory(category) },
-                        interactionSource = interactionSource,
-                        colors = ToggleButtonDefaults.colors(
-                            containerColor = ExpressiveSurface.card,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                            checkedContainerColor = MaterialTheme.colorScheme.primary,
-                            checkedContentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        contentPadding = buttonPadding,
-                        modifier = Modifier.heightIn(min = 48.dp)
-                            .animateWidth(interactionSource, compressionLimit = CategoryButtonCompressionLimit)
-                            .bringIntoViewRequester(bringIntoView).semantics {
-                                selected = checked
-                                role = Role.RadioButton
-                            }
-                    ) {
-                        CompressibleHorizontalSlot(CategoryButtonCompressibleHorizontalPadding) {
-                            Text(stringResource(labelRes), maxLines = 1, softWrap = false)
-                        }
-                    }
-                },
-                menuContent = { menu ->
-                    SoundEffectOnInteraction(enabled = false) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(labelRes)) },
-                            onClick = { menu.dismiss(); onSelectCategory(category) }
-                        )
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun RoomAndSortBar(
-    rooms: List<String>,
-    selectedRoom: String?,
-    recentFirst: Boolean,
-    onSelectRoom: (String?) -> Unit,
-    onSetRecentFirst: (Boolean) -> Unit
-) {
-    val screenActive = LocalMotionActive.current
-    var showRooms by remember { mutableStateOf(false) }
-    var showSort by remember { mutableStateOf(false) }
-    val roomLabel = stringResource(R.string.screen_room)
-    val allRoomsLabel = stringResource(R.string.screen_all_rooms)
-    val selectedRoomLabel = selectedRoom ?: allRoomsLabel
-    val roomExpansionLabel = stringResource(R.string.screen_room_expansion, selectedRoomLabel,
-        stringResource(if (showRooms) R.string.screen_expanded else R.string.screen_collapsed))
-    val sortStateLabel = stringResource(if (recentFirst) R.string.screen_recent else R.string.screen_default_sort)
-    LaunchedEffect(screenActive) {
-        if (!screenActive) {
-            showRooms = false
-            showSort = false
-        }
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.weight(1f)) {
-            val roomActive = selectedRoom != null
-            FilledTonalButton(
-                onClick = { showRooms = true },
-                modifier = Modifier.heightIn(min = 48.dp).semantics {
-                    contentDescription = roomLabel
-                    stateDescription = roomExpansionLabel
-                },
-                contentPadding = PaddingValues(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = if (roomActive) MaterialTheme.colorScheme.secondaryContainer else ExpressiveSurface.card,
-                    contentColor = if (roomActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
-                ),
-                shapes = ButtonDefaults.shapes()
-            ) {
-                Icon(
-                    Icons.Rounded.MeetingRoom,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = if (roomActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = selectedRoomLabel,
-                    modifier = Modifier.weight(1f, fill = false),
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.width(4.dp))
-                Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
-            }
-            val roomOptions = buildList {
-                add(null to allRoomsLabel)
-                rooms.forEach { add(it to it) }
-            }
-            ExpressiveDropdownMenu(
-                expanded = screenActive && showRooms,
-                onDismissRequest = { showRooms = false },
-                selectable = true
-            ) {
-                roomOptions.forEachIndexed { index, (room, label) ->
-                    ExpressiveSelectableMenuItem(
-                        selected = selectedRoom == room,
-                        onClick = {
-                            showRooms = false
-                            onSelectRoom(room)
-                        },
-                        text = { Text(label) },
-                        index = index,
-                        count = roomOptions.size
-                    )
-                }
-            }
-        }
-        Box {
-            Surface(
-                shape = CircleShape,
-                color = if (recentFirst) MaterialTheme.colorScheme.secondaryContainer else ExpressiveSurface.card,
-                contentColor = if (recentFirst) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
-            ) {
-                ActionIconButton(stringResource(R.string.screen_sort),
-                    onClick = { showSort = true },
-                    modifier = Modifier.semantics {
-                        stateDescription = sortStateLabel
-                    }
-                ) {
-                    Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = stringResource(R.string.screen_sort))
-                }
-            }
-            val sortOptions = listOf(
-                false to stringResource(R.string.screen_default_sort),
-                true to stringResource(R.string.screen_recent)
-            )
-            ExpressiveDropdownMenu(
-                expanded = screenActive && showSort,
-                onDismissRequest = { showSort = false },
-                selectable = true
-            ) {
-                sortOptions.forEachIndexed { index, (recent, label) ->
-                    ExpressiveSelectableMenuItem(
-                        selected = recentFirst == recent,
-                        onClick = {
-                            showSort = false
-                            onSetRecentFirst(recent)
-                        },
-                        text = { Text(label) },
-                        index = index,
-                        count = sortOptions.size
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun RemoteCard(
-    remote: RemoteProfile,
-    onClick: () -> Unit,
-    onToggleFavorite: () -> Unit,
-    onDelete: () -> Unit,
-    onEdit: () -> Unit = {},
-    onExport: () -> Unit = {},
-    index: Int = 0,
-    count: Int = 1
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val cardShape = rememberSegmentedExpressiveShape(interactionSource, index, count)
-    var showActions by remember { mutableStateOf(false) }
-    var actionAfterDismiss by remember { mutableStateOf<(() -> Unit)?>(null) }
-    val closeWithAction: (() -> Unit) -> Unit = { action ->
-        if (showActions) {
-            actionAfterDismiss = action
-            showActions = false
-        }
-    }
-    val visibleBrand = remote.brand.takeIf { it.isNotBlank() && !remote.name.contains(it, ignoreCase = true) }
-    val subtitle = when {
-        remote.room.isNotBlank() && visibleBrand != null -> stringResource(R.string.screen_remote_room_brand, remote.room, visibleBrand)
-        remote.room.isNotBlank() -> remote.room
-        else -> visibleBrand.orEmpty()
-    }
-    Card(
-        onClick = onClick,
-        shape = cardShape,
-        interactionSource = interactionSource,
-        colors = CardDefaults.cardColors(containerColor = ExpressiveSurface.card),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp,
-            focusedElevation = 0.dp, hoveredElevation = 0.dp, draggedElevation = 0.dp),
-        modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 72.dp)
-                .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = if (remote.isFavorite) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(44.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = getCategoryIcon(remote),
-                        contentDescription = null,
-                        tint = if (remote.isFavorite) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(Spacing.large))
-
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = remote.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
-                    softWrap = true
-                )
-                if (subtitle.isNotEmpty()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        softWrap = true
-                    )
-                }
-            }
-
-            // Keep the title column stable when the favorite state changes.
-            Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) {
-                if (remote.isFavorite) Icon(
-                    imageVector = Icons.Rounded.Star,
-                    contentDescription = stringResource(R.string.screen_favorited),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
-            Box {
-                ActionIconButton(stringResource(R.string.screen_manage_name, remote.name), onClick = { showActions = true }) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.screen_manage_name, remote.name))
-                }
-                ExpressiveDropdownMenuPopup(
-                    expanded = LocalMotionActive.current && showActions,
-                    onDismissRequest = { showActions = false }
-                ) {
-                    // DropdownMenuPopup keeps its content alive for the exit transition.
-                    // Apply mutations only after it leaves composition: reordering a
-                    // favorite must not move the anchor or change a fading menu's text.
-                    DisposableEffect(Unit) {
-                        onDispose {
-                            val action = actionAfterDismiss
-                            actionAfterDismiss = null
-                            action?.invoke()
-                        }
-                    }
-                    ExpressiveDropdownMenuGroup(index = 0, count = 2) {
-                        ExpressiveMenuItem(
-                            onClick = { closeWithAction(onToggleFavorite) },
-                            text = { Text(if (remote.isFavorite) stringResource(R.string.screen_unfavorite) else stringResource(R.string.screen_favorite)) },
-                            index = 0,
-                            count = 3,
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = if (remote.isFavorite) Icons.Rounded.StarBorder else Icons.Rounded.Star,
-                                    contentDescription = null
-                                )
-                            }
-                        )
-                        ExpressiveMenuItem(
-                            onClick = { closeWithAction(onEdit) },
-                            text = { Text(stringResource(R.string.screen_edit_details)) },
-                            index = 1,
-                            count = 3,
-                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) }
-                        )
-                        ExpressiveMenuItem(
-                            onClick = { closeWithAction(onExport) },
-                            text = { Text(stringResource(R.string.screen_export_remote)) },
-                            index = 2,
-                            count = 3,
-                            leadingIcon = { Icon(Icons.Rounded.Upload, contentDescription = null) }
-                        )
-                    }
-                    ExpressiveDropdownMenuGroup(index = 1, count = 2) {
-                        ExpressiveMenuItem(
-                            onClick = { closeWithAction(onDelete) },
-                            text = { Text(stringResource(R.string.screen_trash_remote)) },
-                            index = 0,
-                            count = 1,
-                            leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyStateView(
-    isSearch: Boolean,
-    onResetSearch: () -> Unit,
-    onAddRemote: () -> Unit,
-    hasSearchQuery: Boolean,
-    actionsEnabled: Boolean,
-    showAddAction: Boolean = true,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp).verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(88.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Rounded.DevicesOther,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(Spacing.large))
-        Text(
-            text = if (isSearch) stringResource(if (hasSearchQuery) R.string.screen_search_empty else R.string.screen_filter_empty) else stringResource(R.string.screen_no_saved_remotes),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(Spacing.large))
-        if (isSearch) {
-            TextButton(onClick = onResetSearch, enabled = actionsEnabled, shapes = ButtonDefaults.shapes()) {
-                Text(stringResource(if (hasSearchQuery) R.string.screen_clear_search else R.string.screen_reset_filters))
-            }
-        } else if (showAddAction) {
-            androidx.compose.material3.Button(onClick = onAddRemote, enabled = actionsEnabled, shapes = ButtonDefaults.shapes()) {
-                Text(stringResource(R.string.screen_add_remote))
-            }
         }
     }
 }
