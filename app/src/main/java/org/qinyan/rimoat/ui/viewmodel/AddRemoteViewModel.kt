@@ -1,15 +1,12 @@
 package org.qinyan.rimoat.ui.viewmodel
 
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.AppError
 import org.qinyan.rimoat.i18n.ErrorAction
 import org.qinyan.rimoat.i18n.UiText
 import org.qinyan.rimoat.i18n.displayText
 import org.qinyan.rimoat.i18n.toAppError
 import org.qinyan.rimoat.i18n.wrapped
 import androidx.lifecycle.SavedStateHandle
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.qinyan.rimoat.data.LegacyRemoteMigration
@@ -96,36 +93,15 @@ class AddRemoteViewModel(
     private val _uiState = MutableStateFlow(AddRemoteUiState(isLoading = true))
     val uiState: StateFlow<AddRemoteUiState> = _uiState.asStateFlow()
 
-    private data class ProgressCheckpointKey(
-        val categoryId: Int?,
-        val brandId: Int?,
-        val step: AddRemoteStep,
-        val query: String,
-        val remoteId: String?,
-        val customName: String,
-        val observations: Map<String, PairingObservation>
-    )
-
-    private val progressJson = Json { ignoreUnknownKeys = true }
-    private val savedProgressJson: String? = savedStateHandle["pairing_progress"]
-    private var progress = decodeProgress(savedProgressJson)
-    private var lastPersistedProgress: PairingProgress? = savedProgressJson?.let { progress }
-    private fun decodeProgress(json: String?): PairingProgress = runCatching {
-        json?.let { progressJson.decodeFromString<PairingProgress>(it) }?.takeIf { it.version in 1..2 }
-    }.getOrNull() ?: PairingProgress()
+    private val progressStore = PairingProgressStore(savedStateHandle)
+    private var progress: PairingProgress
+        get() = progressStore.progress
+        set(value) { progressStore.progress = value }
     private var restoring = true
     private var flowCompleted = false
-    private fun brandKey(category: Int, brand: Int) = "$category:$brand"
-    private fun updateBrandProgress(key: String, update: (BrandProgress) -> BrandProgress) {
-        val updated = update(progress.brands[key] ?: BrandProgress())
-        val reordered = (progress.brands - key) + (key to updated)
-        val bounded = if (reordered.size <= MAX_SAVED_BRANDS) {
-            reordered
-        } else {
-            reordered.entries.drop(reordered.size - MAX_SAVED_BRANDS).associate { it.key to it.value }
-        }
-        progress = progress.copy(brands = bounded)
-    }
+    private fun brandKey(category: Int, brand: Int) = progressStore.brandKey(category, brand)
+    private fun updateBrandProgress(key: String, update: (BrandProgress) -> BrandProgress) =
+        progressStore.updateBrandProgress(key, update)
     private fun checkpoint() {
         if (restoring || flowCompleted) return
         val state = _uiState.value
@@ -142,19 +118,7 @@ class AddRemoteViewModel(
         }
         persistProgress()
     }
-    private fun persistProgress() {
-        if (progress == lastPersistedProgress) return
-        if (progress == PairingProgress()) {
-            savedStateHandle.remove<String>("pairing_progress")
-            lastPersistedProgress = progress
-            return
-        }
-        val serialized = progressJson.encodeToString(progress)
-        if (savedStateHandle.get<String>("pairing_progress") != serialized) {
-            savedStateHandle["pairing_progress"] = serialized
-        }
-        lastPersistedProgress = progress
-    }
+    private fun persistProgress() = progressStore.persistProgress()
     private fun observationsFor(remoteId: String, buttons: List<RemoteButton>): Map<String, PairingObservation> {
         val state = _uiState.value
         val key = brandKey(state.selectedCategory?.id ?: return emptyMap(), state.selectedBrand?.brandIdx ?: return emptyMap())
@@ -208,7 +172,6 @@ class AddRemoteViewModel(
     fun clearFeedback() { _feedback.value = null }
     fun dismissError(message: UiText) { _uiState.update { if (it.error == message) it.copy(error = null, errorAction = null) else it } }
     fun retryLastAction() { retryAction?.invoke() }
-
 
     init {
         viewModelScope.launch {
@@ -557,9 +520,7 @@ class AddRemoteViewModel(
                 remoteRepository.saveRemote(profile)
                 if (epoch != saveEpoch) return@launch
                 flowCompleted = true
-                progress = PairingProgress()
-                lastPersistedProgress = null
-                savedStateHandle.remove<String>("pairing_progress")
+                progressStore.clear()
                 testPressCounts.clear()
                 clearFeedback()
                 _uiState.update { it.copy(isLoading = false, isSaving = false) }
@@ -599,9 +560,7 @@ class AddRemoteViewModel(
     fun reset() {
         flowCompleted = false
         restoring = false
-        progress = PairingProgress()
-        lastPersistedProgress = null
-        savedStateHandle.remove<String>("pairing_progress")
+        progressStore.clear()
         testPressCounts.clear()
         saveEpoch++
         saveJob?.cancel()
@@ -656,7 +615,4 @@ class AddRemoteViewModel(
         }
     }
 
-    private companion object {
-        private const val MAX_SAVED_BRANDS = 5
-    }
 }
