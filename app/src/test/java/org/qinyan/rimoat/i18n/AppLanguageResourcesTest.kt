@@ -216,8 +216,22 @@ class AppLanguageResourcesTest {
             })
             assertEquals("2.0  /  MIT", context.getString(R.string.licenses_version_license, "2.0", "MIT"))
             assertEquals("Living room  Example", context.getString(R.string.screen_remote_room_brand, "Living room", "Example"))
-            assertEquals("TV  Example  Model", context.getString(R.string.screen_save_summary, "TV", "Example", "Model"))
             assertEquals("24°  Cool", context.getString(R.string.widget_temperature_mode, 24, "Cool"))
+        }
+        val expectedSummaries = mapOf(
+            "en" to ("Example TV, code set 2" to "TV, code set 2"),
+            "zh-CN" to ("示例 电视，方案2" to "电视，方案2"),
+            "zh-Hant" to ("示例 電視，方案2" to "電視，方案2"),
+            "ja" to ("Example テレビ、コードセット 2" to "テレビ、コードセット 2")
+        )
+        for ((tag, expected) in expectedSummaries) {
+            val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
+                setLocales(LocaleList.forLanguageTags(tag))
+            })
+            val brand = if (tag.startsWith("zh")) "示例" else "Example"
+            val category = context.getString(R.string.screen_category_tv)
+            assertEquals(tag, expected.first, context.getString(R.string.screen_save_summary, brand, category, 2))
+            assertEquals(tag, expected.second, context.getString(R.string.screen_save_summary_short, category, 2))
         }
     }
 
