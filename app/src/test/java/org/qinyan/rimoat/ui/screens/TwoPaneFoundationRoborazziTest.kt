@@ -14,6 +14,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.github.takahirom.roborazzi.*
 import kotlinx.coroutines.*
+import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Rule
@@ -49,10 +50,15 @@ class TwoPaneFoundationRoborazziTest {
 
     private fun model(profiles: List<RemoteProfile> = emptyList()): RemoteListViewModel {
         AppStrings.initialize(app)
+        val remotes = app.filesDir.resolve("remotes").apply { mkdirs() }
+        profiles.forEachIndexed { index, profile ->
+            remotes.resolve("${profile.id}.json").writeText(
+                Json.encodeToString(RemoteProfile.serializer(), profile.copy(updatedAt = index.toLong()))
+            )
+        }
         val repository = RemoteRepository(app, scope)
         runBlocking {
             repository.awaitLoaded()
-            profiles.forEach { repository.saveRemote(it) }
         }
         val manager = IrTransmitterManager(app, scope).also { managers += it }
         return RemoteListViewModel(repository, manager, ThemePreferences(app), BackupFileStore(app))
