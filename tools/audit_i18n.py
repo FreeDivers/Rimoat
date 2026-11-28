@@ -1,8 +1,9 @@
 """Read-only audit of packaged translations, resource references, and catalog label coverage.
 
 Run: python -B tools/audit_i18n.py
-Prints JSON to stdout and returns nonzero for structural resource errors. UI source
-counts, catalog coverage and Japanese Han matches are reported for review.
+Prints JSON to stdout and returns nonzero for structural resource errors and disallowed
+i18n patterns (AppStrings literal/Chinese fallbacks, localizedLabel Chinese literals, and
+U+00B7 separators). Catalog coverage and Japanese Han matches are reported for review.
 No databases, assets, resources, or user data are modified.
 """
 
@@ -255,7 +256,7 @@ def kotlin_string_literals(text):
             yield match.group(2)
 
 
-def audit_ui_i18n_counts(bundles):
+def audit_ui_i18n_counts(bundles, errors):
     app_strings_literal_argument = 0
     app_strings_chinese_fallback = 0
     localized_label_chinese_literal = 0
@@ -263,11 +264,31 @@ def audit_ui_i18n_counts(bundles):
         cleaned = strip_kotlin_comments(path.read_text(encoding="utf-8-sig"))
         for match in APP_STRINGS_LITERAL_ARGUMENT.finditer(cleaned):
             app_strings_literal_argument += 1
+            line = cleaned.count("\n", 0, match.start()) + 1
             if HAN.search(match.group(2)):
                 app_strings_chinese_fallback += 1
+                errors.append({
+                    "kind": "app_strings_chinese_fallback",
+                    "file": relative(path),
+                    "line": line,
+                    "key": match.group(1),
+                })
+            else:
+                errors.append({
+                    "kind": "app_strings_literal_argument",
+                    "file": relative(path),
+                    "line": line,
+                    "key": match.group(1),
+                })
         for match in LOCALIZED_LABEL_CHINESE_LITERAL.finditer(cleaned):
             if HAN.search(match.group(1)):
                 localized_label_chinese_literal += 1
+                line = cleaned.count("\n", 0, match.start()) + 1
+                errors.append({
+                    "kind": "localized_label_chinese_literal",
+                    "file": relative(path),
+                    "line": line,
+                })
 
     ui_and_widget_literals = {}
     for scope in ("ui", "widget"):
@@ -279,11 +300,17 @@ def audit_ui_i18n_counts(bundles):
         ui_and_widget_literals[scope] = count
 
     resource_u00b7 = 0
-    for entries in bundles.values():
-        for entry in entries.values():
-            for value in entry["values"].values():
+    for locale, entries in bundles.items():
+        for key, entry in entries.items():
+            for quantity, value in entry["values"].items():
                 if "\u00b7" in value:
                     resource_u00b7 += 1
+                    errors.append({
+                        "kind": "resource_u00b7",
+                        "locale": locale,
+                        "key": key,
+                        "quantity": quantity,
+                    })
 
     return {
         "app_strings_get_literal_argument": app_strings_literal_argument,
@@ -300,7 +327,7 @@ def audit_ui_i18n_counts(bundles):
 def audit():
     errors = []
     bundles, resources = audit_resources(errors)
-    counts = audit_ui_i18n_counts(bundles)
+    counts = audit_ui_i18n_counts(bundles, errors)
     return {"status": "PASS" if not errors else "FAIL", "resources": resources,
             "ui_i18n_counts": counts,
             "catalog": audit_catalog(bundles), "errors": errors}
