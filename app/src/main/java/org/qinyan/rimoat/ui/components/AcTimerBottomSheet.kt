@@ -2,7 +2,6 @@ package org.qinyan.rimoat.ui.components
 
 import androidx.compose.ui.res.stringResource
 import org.qinyan.rimoat.R
-import org.qinyan.rimoat.i18n.localizedLabel
 import org.qinyan.rimoat.i18n.localizedTimerDurationLabel
 import org.qinyan.rimoat.i18n.localizedTimerTargetLabel
 import org.qinyan.rimoat.i18n.rememberLocalizedDateTimeFormatter
@@ -31,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import org.qinyan.rimoat.data.timerDurationLabel
 import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.theme.ExpressiveSurface
 import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas

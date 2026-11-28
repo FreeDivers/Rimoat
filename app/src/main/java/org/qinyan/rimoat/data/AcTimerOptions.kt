@@ -34,10 +34,3 @@ object AcTimerOptions {
     fun supports(protocol: Int, settings: AcSettings): Boolean =
         settings.timerMinutes in forProtocol(protocol, settings.powerOn)
 }
-
-fun timerDurationLabel(minutes: Int): String = when {
-    minutes == 0 -> "关闭定时"
-    minutes < 60 -> "$minutes 分钟"
-    minutes % 60 == 0 -> "${minutes / 60} 小时"
-    else -> "${minutes / 60} 小时 ${minutes % 60} 分钟"
-}
