@@ -16,9 +16,9 @@ import org.junit.Test
 class MotionNavigationTest {
     @Test fun wizardReturnsToAddInTheOppositeDirection() {
         val wizard = AppScreen.CustomRemoteWizard(sessionId = "test")
-        assertTrue(isBackNavigation(wizard, AppScreen.AddRemote))
-        assertFalse(isBackNavigation(AppScreen.AddRemote, wizard))
-        assertFalse(isBackNavigation(wizard, AppScreen.RemoteControl("saved")))
+        assertEquals(AppScreen.AddRemote, wizard.backDestination())
+        assertNotEquals(wizard, AppScreen.AddRemote.backDestination())
+        assertNotEquals(AppScreen.RemoteControl("saved"), wizard.backDestination())
     }
 
     @Test fun rootDoesNotInterceptSystemBackToHome() {
@@ -69,7 +69,7 @@ class MotionNavigationTest {
         assertEquals(AppScreen.Settings, AppScreen.About.backDestination())
         assertEquals(AppScreen.About, AppScreen.OpenSourceLicenses.backDestination())
         assertEquals(AppScreen.OpenSourceLicenses, AppScreen.LibraryLicense("library").backDestination())
-        assertTrue(isBackNavigation(AppScreen.Trash, AppScreen.Settings))
+        assertEquals(AppScreen.Settings, AppScreen.Trash.backDestination())
     }
 
     @Test fun licensePanesShareStateAndReturnToAboutWhenWide() {

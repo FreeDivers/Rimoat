@@ -21,6 +21,3 @@ internal fun AppScreen.backDestination(wide: Boolean = false): AppScreen? = when
     is AppScreen.CustomRemoteWizard -> AppScreen.AddRemote
     else -> AppScreen.RemoteList
 }
-
-internal fun isBackNavigation(from: AppScreen, to: AppScreen): Boolean =
-    to == from.backDestination()
