@@ -1,7 +1,6 @@
 package org.qinyan.rimoat.ui.learning
 
 import org.qinyan.rimoat.ui.components.contentWidth
-import org.qinyan.rimoat.ui.screens.displayName
 
 import org.qinyan.rimoat.R
 
@@ -27,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -48,7 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.qinyan.rimoat.data.ApplianceType
@@ -56,19 +53,13 @@ import org.qinyan.rimoat.data.AcAction
 import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.DeviceCategory
 import org.qinyan.rimoat.data.RemoteProfile
-import org.qinyan.rimoat.data.db.IrBrand
-import org.qinyan.rimoat.hardware.learning.LearnerType
-import org.qinyan.rimoat.hardware.learning.LearningState
 import org.qinyan.rimoat.ui.HapticHelper
 import org.qinyan.rimoat.ui.components.*
 import org.qinyan.rimoat.ui.motion.*
-import org.qinyan.rimoat.ui.screens.BrandSelectionView
 import org.qinyan.rimoat.ui.components.getCategoryIcon
-import kotlinx.coroutines.CancellationException
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.draw.clip
@@ -79,7 +70,7 @@ import org.qinyan.rimoat.ui.theme.ProvideExpressiveCanvas
 import org.qinyan.rimoat.ui.motion.MotionAlertDialog
 
 @Composable
-private fun ApplianceType.label(): String = stringResource(when (this) {
+internal fun ApplianceType.label(): String = stringResource(when (this) {
     ApplianceType.TV -> R.string.screen_category_tv
     ApplianceType.AC -> R.string.screen_category_ac
     ApplianceType.FAN -> R.string.screen_category_fan
@@ -116,7 +107,6 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
     var assignmentKeyId by rememberSaveable { mutableStateOf<String?>(null) }
     var assignmentAction by rememberSaveable { mutableStateOf<AcAction?>(null) }
     var pickBrand by rememberSaveable { mutableStateOf(false) }
-    val brandContext = androidx.compose.ui.platform.LocalContext.current
     val wide = rememberWideLayout()
     val active = LocalMotionActive.current
     val startRecording = {
@@ -144,55 +134,7 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
         isBack = { from, to -> from && !to }, backTarget = if (pickBrand) false else null,
         onBack = { pickBrand = false }) { brandPage ->
     if (brandPage) {
-        var brands by remember(state.selectedApplianceType) { mutableStateOf<List<IrBrand>>(emptyList()) }
-        var query by rememberSaveable { mutableStateOf("") }
-        var loading by remember { mutableStateOf(true) }
-        var error by remember { mutableStateOf<UiText?>(null) }
-        LaunchedEffect(state.selectedApplianceType) {
-            loading = true
-            error = null
-            try { brands = viewModel.brandsFor(state.selectedApplianceType) }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { error = UiText.Resource(R.string.screen_brand_load_failed) }
-            finally { loading = false }
-        }
-        val brandScrollBehavior = if (!wide) TopAppBarDefaults.exitUntilCollapsedScrollBehavior() else null
-        ProvideExpressiveCanvas {
-        Scaffold(
-            modifier = Modifier.let { if (brandScrollBehavior != null) it.nestedScroll(brandScrollBehavior.nestedScrollConnection) else it },
-            containerColor = ExpressiveSurface.canvas,
-            topBar = {
-                ExpressivePageTopBar(
-                    title = stringResource(R.string.screen_choose_brand),
-                    wide = wide,
-                    scrollBehavior = brandScrollBehavior,
-                    navigationIcon = {
-                        ActionIconButton(stringResource(R.string.screen_back_to_brand), { pickBrand = false }) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
-                        }
-                    }
-                )
-            }
-        ) { brandPadding ->
-            Column(Modifier.fillMaxSize().padding(brandPadding)) {
-                error?.let {
-                    Text(
-                        it.asString(),
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite }
-                    )
-                }
-                BrandSelectionView(brands.filter { query.isBlank() || it.nameCn.contains(query, true) || it.nameEn.contains(query, true) || it.pinyin.contains(query, true) },
-                    rememberLazyListState(), query,
-                    org.qinyan.rimoat.data.db.IrCategory(0, state.selectedApplianceType.label(), "",
-                        state.selectedApplianceType.catalogCode), loading, { query = it }, {
-                        HapticHelper.performRemoteClick(haptic, context)
-                        viewModel.setBrand(it.displayName(brandContext))
-                        pickBrand = false
-                    })
-            }
-        }
-        }
+        WizardBrandPicker(viewModel, state, wide, onBack = { pickBrand = false })
     } else {
     MotionContent(targetState = state, contentKey = { it.motionKey },
         isBack = { from, to -> to.step.ordinal < from.step.ordinal },
@@ -315,55 +257,8 @@ fun CustomRemoteWizardScreen(viewModel: CustomRemoteWizardViewModel, onBack: () 
         )
     }
     if (active && addKey) {
-        val dialogKeyboard = LocalSoftwareKeyboardController.current
-        MotionAlertDialog(
-            onDismissRequest = { addKey = false },
-            title = { Text(stringResource(R.string.screen_add_button), modifier = Modifier.semantics { heading() }) },
-            text = {
-                ExpressiveTextField(
-                    value = keyName,
-                    onValueChange = { keyName = it.take(100) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.screen_button_name)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        dialogKeyboard?.hide()
-                        if (keyName.isNotBlank()) {
-                            HapticHelper.performSelection(haptic, context)
-                            viewModel.addCustomKey(keyName)
-                            addKey = false
-                        }
-                    })
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    shapes = ButtonDefaults.shapes(),
-                    onClick = {
-                        dialogKeyboard?.hide()
-                        HapticHelper.performSelection(haptic, context)
-                        viewModel.addCustomKey(keyName)
-                        addKey = false
-                    },
-                    enabled = keyName.isNotBlank(),
-
-                    modifier = Modifier.heightIn(min = 48.dp)
-                ) { Text(stringResource(R.string.screen_add)) }
-            },
-            dismissButton = {
-                TextButton(
-                    shapes = ButtonDefaults.shapes(),
-                    onClick = {
-                        dialogKeyboard?.hide()
-                        HapticHelper.performSelection(haptic, context)
-                        addKey = false
-                    },
-
-                    modifier = Modifier.heightIn(min = 48.dp)
-                ) { Text(stringResource(R.string.screen_cancel)) }
-            }
-        )
+        WizardAddKeyDialog(keyName, onNameChange = { keyName = it },
+            onAdd = { viewModel.addCustomKey(it) }, onDismiss = { addKey = false })
     }
     }
     }
@@ -397,7 +292,6 @@ internal fun LearningSetupContent(
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val nameError = if (page.errorMessage != null && page.remoteName.isBlank()) page.errorMessage.asString() else null
-
 
     val types: @Composable () -> Unit = {
         Text(
