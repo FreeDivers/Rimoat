@@ -180,7 +180,6 @@ class RemoteListViewModel(
     val transferMessage = backup.transferMessage
     fun reportTransferError(error: AppError) = backup.reportTransferError(error)
     fun reportTransferError(message: UiText) = backup.reportTransferError(message)
-    fun reportTransferError(message: String) { reportTransferError(UiText.Dynamic(message)) }
     fun clearTransferMessage() = backup.clearTransferMessage()
     fun cancelImport() = backup.cancelImport()
     fun readImport(uri: android.net.Uri) = backup.readImport(uri)
