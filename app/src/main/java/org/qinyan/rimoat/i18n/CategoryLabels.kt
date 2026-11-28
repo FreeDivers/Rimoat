@@ -25,7 +25,7 @@ val IrCategory.displayText: UiText
         "air" -> UiText.Resource(R.string.screen_category_ac)
         "fan" -> UiText.Resource(R.string.screen_category_fan)
         "pjt" -> UiText.Resource(R.string.screen_category_projector)
-        "amp" -> UiText.Resource(R.string.screen_category_amplifier)
+        "amp" -> UiText.Resource(R.string.screen_category_audio)
         "stb" -> UiText.Resource(R.string.screen_category_set_top_box)
         "dvd" -> UiText.Resource(R.string.screen_category_dvd)
         "cam" -> UiText.Resource(R.string.screen_category_camera)

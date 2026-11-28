@@ -189,9 +189,8 @@
     <string name="screen_category_dvd">DVD</string>
     <string name="screen_category_camera">相機</string>
     <string name="screen_category_light">紅外線開關</string>
-    <string name="screen_category_streaming_box">盒子</string>
+    <string name="screen_category_streaming_box">網路盒子</string>
     <string name="screen_category_iptv">IPTV</string>
-    <string name="screen_category_amplifier">擴大機</string>
     <string name="screen_power_group">電源</string>
     <string name="screen_navigation_sources">導航與訊號來源</string>
     <string name="screen_volume_channels">聲音與頻道</string>

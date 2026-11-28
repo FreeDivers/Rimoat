@@ -192,7 +192,6 @@
     <string name="screen_category_light">IR switch</string>
     <string name="screen_category_streaming_box">Streaming box</string>
     <string name="screen_category_iptv">IPTV</string>
-    <string name="screen_category_amplifier">Amplifier</string>
     <string name="screen_power_group">Power</string>
     <string name="screen_navigation_sources">Navigation and input</string>
     <string name="screen_volume_channels">Sound and channels</string>

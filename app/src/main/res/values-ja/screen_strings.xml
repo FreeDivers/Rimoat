@@ -191,7 +191,6 @@
     <string name="screen_category_light">赤外線スイッチ</string>
     <string name="screen_category_streaming_box">ストリーミング端末</string>
     <string name="screen_category_iptv">IPTV</string>
-    <string name="screen_category_amplifier">アンプ</string>
     <string name="screen_power_group">電源</string>
     <string name="screen_navigation_sources">ナビゲーションと入力</string>
     <string name="screen_volume_channels">音声とチャンネル</string>
