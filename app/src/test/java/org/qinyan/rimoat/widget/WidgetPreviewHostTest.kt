@@ -44,6 +44,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.qinyan.rimoat.R
+import org.qinyan.rimoat.data.ButtonKey
 import org.qinyan.rimoat.data.RemoteButton
 import org.qinyan.rimoat.data.RemoteProfile
 import org.qinyan.rimoat.ui.theme.IrRemoteTheme
@@ -91,7 +92,7 @@ class WidgetPreviewHostTest {
             assertNull(LayoutInflater.from(host.context).factory2)
             activity.setContentView(host)
             val profile = RemoteProfile("remote", "Preview TV", buttons = listOf(
-                RemoteButton("power", "Power", iconName = "power", rawPattern = listOf(9000, 4500, 560))))
+                RemoteButton("power", "Power", iconName = "power", key = ButtonKey.POWER, rawPattern = listOf(9000, 4500, 560))))
             val configuration = WidgetConfiguration(WidgetKind.PANEL, shortcuts = listOf(WidgetShortcut(profile.id, "power")))
             val snapshot = WidgetSnapshot(loaded = true, localeTags = "en", profiles = listOf(profile),
                 commands = mapOf(profile.id to WidgetCommands.choices(profile)))
@@ -139,7 +140,7 @@ class WidgetPreviewHostTest {
             activity.setContentView(host)
             val profiles = (1..6).map { index ->
                 RemoteProfile("remote_$index", "Remote $index", buttons = listOf(
-                    RemoteButton("power", "Power", iconName = "power", rawPattern = listOf(9000, 4500, 560))))
+                    RemoteButton("power", "Power", iconName = "power", key = ButtonKey.POWER, rawPattern = listOf(9000, 4500, 560))))
             }
             val configuration = WidgetConfiguration(WidgetKind.PANEL,
                 shortcuts = profiles.map { WidgetShortcut(it.id, "power") }, arrangement = WidgetArrangement.LIST)

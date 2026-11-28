@@ -129,7 +129,7 @@ class RemoteCommandRecoveryRoborazziTest {
         AppStrings.initialize(app)
         val context = WidgetPreviewComposer.previewContext(app)
         val buttons = listOf(
-            RemoteButton("power", "电源", iconName = "power", rawPattern = listOf(9000, 4500, 560)),
+            RemoteButton("power", "电源", iconName = "power", key = ButtonKey.POWER, rawPattern = listOf(9000, 4500, 560)),
             RemoteButton("vol_up", "音量+", iconName = "add", rawPattern = listOf(9000, 4500, 560))
         )
         val profile = RemoteProfile("tv_other", "客厅电视", category = DeviceCategory.TV, buttons = buttons)

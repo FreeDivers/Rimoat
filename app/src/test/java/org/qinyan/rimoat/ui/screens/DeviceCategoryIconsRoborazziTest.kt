@@ -74,7 +74,7 @@ class DeviceCategoryIconsRoborazziTest {
         RemoteProfile("light", "客厅灯", category = DeviceCategory.CUSTOM, sourceRemoteId = "R_light_1_1_0")
     ).map { it.copy(room = "客厅", buttons = listOf(
         RemoteButton("power", "电源", iconName = "power", key = ButtonKey.POWER, rawPattern = listOf(9000, 4500, 560))
-    )) }
+    )) }.map(LegacyRemoteMigration::normalizeKeys)
 
     @After fun release() {
         TimeZone.setDefault(originalTimeZone)
@@ -114,7 +114,8 @@ class DeviceCategoryIconsRoborazziTest {
                 while (cursor.moveToNext()) {
                     val source = cursor.getString(0)
                     assertSame(source, getCategoryIcon(cursor.getString(1)),
-                        getCategoryIcon(RemoteProfile("catalog", "遥控器", sourceRemoteId = source)))
+                        getCategoryIcon(LegacyRemoteMigration.normalizeKeys(
+                            RemoteProfile("catalog", "遥控器", sourceRemoteId = source))))
                 }
             }
         }

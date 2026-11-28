@@ -93,7 +93,7 @@ class BugFixInteractionRoborazziTest {
     @Test fun extendedNecButtonRetainsAddressFormatWhenPressed() {
         AppStrings.initialize(app)
         val button = RemoteButton("power", "电源", iconName = "power", signalType = SignalType.NEC,
-            necAddress = 0x00FE, necCommand = 0x45, necExtended = true)
+            necAddress = 0x00FE, necCommand = 0x45, necExtended = true, key = ButtonKey.POWER)
         val original = RemoteProfile("tv", "客厅电视", category = DeviceCategory.TV, buttons = listOf(button))
         val profile = Json.decodeFromString(RemoteProfile.serializer(), Json.encodeToString(RemoteProfile.serializer(), original))
         val transmitter = IrTransmitterManager(app).apply {
