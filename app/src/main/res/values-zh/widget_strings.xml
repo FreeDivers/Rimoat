@@ -11,20 +11,8 @@
     <string name="widget_category_audio">音响</string>
     <string name="widget_category_projector">投影仪</string>
     <string name="widget_category_remote">遥控器</string>
-    <string name="widget_turned_off">已关闭</string>
     <string name="widget_off">关</string>
     <string name="widget_on">开</string>
-    <string name="widget_fan_value">风速  %1$s</string>
-    <string name="widget_vertical_swing_value">上下扫风  %1$s</string>
-    <string name="widget_horizontal_swing_on">左右扫风  开</string>
-    <string name="widget_timer_value">定时  %1$d 分钟</string>
-    <string name="widget_sleep_on">睡眠  开</string>
-    <string name="widget_eco_on">节能  开</string>
-    <string name="widget_turbo_on">超强  开</string>
-    <plurals name="widget_available_buttons">
-        <item quantity="one">%1$d 个可用按键</item>
-        <item quantity="other">%1$d 个可用按键</item>
-    </plurals>
     <string name="widget_config_read_failed">无法读取小组件配置</string>
     <string name="widget_select_remote_first">请先选择遥控器</string>
     <string name="widget_shortcut_changed">快捷键已改变，请重新操作</string>

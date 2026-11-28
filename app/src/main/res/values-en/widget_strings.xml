@@ -19,20 +19,8 @@
     <string name="widget_category_audio">Audio</string>
     <string name="widget_category_projector">Projector</string>
     <string name="widget_category_remote">Remote</string>
-    <string name="widget_turned_off">Off</string>
     <string name="widget_off">Off</string>
     <string name="widget_on">On</string>
-    <string name="widget_fan_value">Fan speed  %1$s</string>
-    <string name="widget_vertical_swing_value">Vertical swing  %1$s</string>
-    <string name="widget_horizontal_swing_on">Horizontal swing  On</string>
-    <string name="widget_timer_value">Timer  %1$d min</string>
-    <string name="widget_sleep_on">Sleep  On</string>
-    <string name="widget_eco_on">Eco  On</string>
-    <string name="widget_turbo_on">Turbo  On</string>
-    <plurals name="widget_available_buttons">
-        <item quantity="one">%1$d available button</item>
-        <item quantity="other">%1$d available buttons</item>
-    </plurals>
     <string name="widget_config_read_failed">Unable to read widget settings</string>
     <string name="widget_select_remote_first">Select a remote first</string>
     <string name="widget_shortcut_changed">Shortcut changed. Try again.</string>

@@ -42,8 +42,7 @@ internal fun Identity(profile: RemoteProfile, modifier: GlanceModifier, compact:
 @Composable
 internal fun IndependentReading(profile: RemoteProfile, snapshot: WidgetSnapshot, compact: Boolean = false) {
     val context = LocalContext.current
-    val status = widgetDeviceStatus(profile, snapshot.records[profile.id], snapshot.simulated, context)
-    val command = status.command
+    val command = lastCommand(profile, snapshot.records[profile.id], snapshot.simulated)
     val description = LocalContext.current.getString(R.string.widget_device_command, profile.category.widgetLabel(context), command?.displayLabel(profile, context).orEmpty()).trim()
     val iconSize = if (compact) 24.dp else 32.dp
     Row(verticalAlignment = Alignment.CenterVertically) {

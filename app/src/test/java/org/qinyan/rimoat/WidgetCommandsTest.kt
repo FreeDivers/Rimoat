@@ -215,9 +215,9 @@ class WidgetCommandsTest {
         }
     }
     @Test fun stateDoesNotInventPowerOrVolumeForIndependentCodes() {
-        assertEquals("电视", widgetDeviceStatus(tv(), null, false).primary)
-        assertEquals("电源", widgetDeviceStatus(tv(), RemoteCommandRecord(label = "电源", buttonId = "power"), false).primary)
-        assertEquals("26°", widgetDeviceStatus(ac(), null, false).primary)
+        assertNull(lastCommand(tv(), null, false))
+        assertEquals("电源", lastCommand(tv(), RemoteCommandRecord(label = "电源", buttonId = "power"), false)?.label)
+        assertEquals(26, widgetAcSettings(ac(), null, false).temperature)
         assertFalse(widgetCommandEnabled(WidgetShortcut("ac", "@ac:TEMP_UP"), ac().copy(acSettings = AcSettings(temperature = 30)), null, false))
         assertFalse(widgetCommandEnabled(WidgetShortcut("ac", "@ac:TEMP_DOWN"), ac().copy(acSettings = AcSettings(temperature = 16)), null, false))
         assertTrue(widgetCommandEnabled(WidgetShortcut("tv", "power"), tv(), null, false))
@@ -229,18 +229,18 @@ class WidgetCommandsTest {
         assertEquals("power", record.buttonId)
         for (category in listOf(DeviceCategory.TV, DeviceCategory.FAN, DeviceCategory.AUDIO, DeviceCategory.PROJECTOR, DeviceCategory.CUSTOM)) {
             val profile = tv().copy(category = category, buttons = listOf(power.copy(label = "新名称")))
-            assertEquals("新名称", widgetDeviceStatus(profile, record, true).command?.label)
-            assertNull(widgetDeviceStatus(profile, record, false).command)
-            assertNull(widgetDeviceStatus(profile.copy(buttons = emptyList()), record, true).command)
+            assertEquals("新名称", lastCommand(profile, record, true)?.label)
+            assertNull(lastCommand(profile, record, false))
+            assertNull(lastCommand(profile.copy(buttons = emptyList()), record, true))
         }
         val legacy = RemoteCommandRecord(label = "电源")
-        assertEquals("power", widgetDeviceStatus(tv(), legacy, false).command?.id)
-        assertNull(widgetDeviceStatus(tv().copy(buttons = listOf(power, power.copy(id = "second"))), legacy, false).command)
+        assertEquals("power", lastCommand(tv(), legacy, false)?.id)
+        assertNull(lastCommand(tv().copy(buttons = listOf(power, power.copy(id = "second"))), legacy, false))
         val restored = RemoteCommandJournal(File(temporary.newFolder(), "old.json").apply {
             writeText("""{"tv":{"label":"电源","sentAt":1,"simulated":false}}""")
         })
         restored.load()
-        assertEquals("power", widgetDeviceStatus(tv(), restored.records.value["tv"], false).command?.id)
+        assertEquals("power", lastCommand(tv(), restored.records.value["tv"], false)?.id)
     }
     @Test fun concurrentCommandsReadCommittedState() = runBlocking {
         val rig = Rig()
@@ -252,7 +252,7 @@ class WidgetCommandsTest {
         val rig = Rig(); rig.mock = true
         rig.up(); rig.up()
         assertEquals(26, rig.profile!!.acSettings.temperature)
-        assertEquals("28°", widgetDeviceStatus(rig.profile!!, rig.journal.records.value["ac"], true).primary)
+        assertEquals(28, widgetAcSettings(rig.profile!!, rig.journal.records.value["ac"], true).temperature)
         rig.mock = false; rig.up()
         assertEquals(27, rig.profile!!.acSettings.temperature)
         assertNull(rig.journal.records.value["ac"]!!.demoSettings)

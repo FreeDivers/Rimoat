@@ -96,9 +96,6 @@ fun DeviceCategory.widgetLabel(context: Context? = null): String = when (this) {
     DeviceCategory.CUSTOM -> widgetString(context, R.string.widget_category_remote)
 }
 
-data class WidgetDeviceStatus(val primary: String, val secondary: String, val details: List<String>,
-                              val command: WidgetCommand? = null)
-
 fun widgetAcSettings(profile: RemoteProfile, record: RemoteCommandRecord?, simulated: Boolean): AcSettings =
     if (simulated && record?.demoBase == profile.acSettings) record.demoSettings ?: profile.acSettings else profile.acSettings
 
@@ -112,21 +109,7 @@ fun widgetCommandEnabled(shortcut: WidgetShortcut, profile: RemoteProfile?, reco
     }
 }
 
-fun widgetDeviceStatus(profile: RemoteProfile, record: RemoteCommandRecord?, simulated: Boolean, context: Context? = null): WidgetDeviceStatus {
-    if (profile.category == DeviceCategory.AC && profile.acProtocolId != null && !profile.useStaticAcButtons) {
-        val state = widgetAcSettings(profile, record, simulated)
-        return WidgetDeviceStatus(if (state.powerOn) widgetString(context, R.string.control_temperature_value, state.temperature) else widgetString(context, R.string.widget_turned_off),
-            if (state.powerOn) localizedLabel(state.mode, context) else widgetString(context, R.string.widget_temperature_mode, state.temperature, localizedLabel(state.mode, context)),
-            buildList {
-                add(widgetString(context, R.string.widget_fan_value, localizedLabel(state.fanSpeed, context)))
-                add(widgetString(context, R.string.widget_vertical_swing_value, if (state.isSwingOn) widgetString(context, R.string.widget_on) else widgetString(context, R.string.widget_off)))
-                if (state.horizontalSwingOn) add(widgetString(context, R.string.widget_horizontal_swing_on))
-                if (state.timerMinutes > 0) add(widgetString(context, R.string.widget_timer_value, state.timerMinutes))
-                if (state.sleepOn) add(widgetString(context, R.string.widget_sleep_on))
-                if (state.ecoOn) add(widgetString(context, R.string.widget_eco_on))
-                if (state.turboOn) add(widgetString(context, R.string.widget_turbo_on))
-            })
-    }
+fun lastCommand(profile: RemoteProfile, record: RemoteCommandRecord?, simulated: Boolean): WidgetCommand? {
     // Independent IR codes do not report volume, fan speed or appliance power. Show the actual command.
     val receipt = record?.takeIf { it.simulated == simulated }
     // New receipts use stable IDs; older local receipts resolve only an unambiguous label.
@@ -135,13 +118,7 @@ fun widgetDeviceStatus(profile: RemoteProfile, record: RemoteCommandRecord?, sim
         if (it.buttonId != null) profile.buttons.firstOrNull { button -> button.id == it.buttonId }
         else profile.buttons.singleOrNull { button -> button.label == it.label }
     }?.takeIf { it.hasSignal }
-    val command = button?.let { WidgetCommand(it.id, it.label, it.iconName) }
-    val count = profile.buttons.count { it.hasSignal }
-    val buttonCount = context?.resources?.getQuantityString(R.plurals.widget_available_buttons, count, count)
-        ?: AppStrings.quantity(R.plurals.widget_available_buttons, count, count)
-    return WidgetDeviceStatus(command?.displayLabel(profile, context) ?: profile.category.widgetLabel(context),
-        profile.brand.ifBlank { profile.category.widgetLabel(context) },
-        listOfNotNull(profile.room.takeIf { it.isNotBlank() }, buttonCount), command)
+    return button?.let { WidgetCommand(it.id, it.label, it.iconName) }
 }
 
 private fun widgetString(context: Context?, @StringRes id: Int, vararg args: Any): String =

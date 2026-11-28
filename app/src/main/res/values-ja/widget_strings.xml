@@ -19,20 +19,8 @@
     <string name="widget_category_audio">オーディオ</string>
     <string name="widget_category_projector">プロジェクター</string>
     <string name="widget_category_remote">リモコン</string>
-    <string name="widget_turned_off">オフ</string>
     <string name="widget_off">オフ</string>
     <string name="widget_on">オン</string>
-    <string name="widget_fan_value">風量  %1$s</string>
-    <string name="widget_vertical_swing_value">上下スイング  %1$s</string>
-    <string name="widget_horizontal_swing_on">左右スイング  オン</string>
-    <string name="widget_timer_value">タイマー  %1$d分</string>
-    <string name="widget_sleep_on">おやすみ  オン</string>
-    <string name="widget_eco_on">省エネ  オン</string>
-    <string name="widget_turbo_on">パワフル  オン</string>
-    <plurals name="widget_available_buttons">
-        <item quantity="one">使用可能なボタン：%1$d個</item>
-        <item quantity="other">使用可能なボタン：%1$d個</item>
-    </plurals>
     <string name="widget_config_read_failed">ウィジェットの設定を読み込めません</string>
     <string name="widget_select_remote_first">先にリモコンを選択してください</string>
     <string name="widget_shortcut_changed">ショートカットが変更されました。もう一度操作してください</string>
