@@ -1,5 +1,7 @@
 package org.qinyan.rimoat.i18n
 
+import android.content.Context
+import org.qinyan.rimoat.data.RemoteButton
 import androidx.annotation.StringRes
 import org.qinyan.rimoat.R
 import org.qinyan.rimoat.data.ButtonKey
@@ -133,3 +135,33 @@ val ButtonKey.labelRes: Int
         ButtonKey.DIGIT_9 -> R.string.button_key_digit_9
         ButtonKey.PLUS_TEN -> R.string.button_key_plus_ten
     }
+
+/** Built-in metadata controls translation; editable and unknown source names stay literal. */
+fun localizedButtonLabel(button: RemoteButton, context: Context? = null): String {
+    fun text(id: Int) = context?.getString(id) ?: AppStrings.get(id)
+    val builtinKey = button.builtinLabel?.let { value -> ButtonKey.entries.firstOrNull { it.name == value } }
+    if (button.builtinLabel != null) {
+        if (builtinKey != null) return text(defaultLearningLabelRes(builtinKey, button.acAction))
+        return button.catalogLabel?.fallbackKey?.let { text(it.labelRes) }
+            ?: button.catalogLabel?.fallbackLabel?.let { text(it.labelRes) }
+            ?: button.builtinLabel
+    }
+    if (button.isLearned && button.sourceKeyType == null && !button.id.startsWith("ac_function_")) return button.label
+    button.acAction?.let { action ->
+        if (button.label == action.name || button.label == action.label) return text(action.labelRes)
+    }
+    if (button.sourceKeyType != null || button.acAction != null || button.id.startsWith("ac_function_")) {
+        return localizedCatalogKeyLabel(button, context)
+            ?: button.catalogLabel?.fallbackKey?.let { text(it.labelRes) }
+            ?: button.catalogLabel?.fallbackLabel?.let { text(it.labelRes) } ?: button.label
+    }
+    return button.label
+}
+
+/** A learned snapshot remains distinct from the protocol's adjustable state controls. */
+fun localizedAcRawButtonLabel(button: RemoteButton, context: Context? = null): String {
+    val label = localizedButtonLabel(button, context)
+    if (!button.isLearned) return label
+    return context?.getString(R.string.control_learned_button_name, label)
+        ?: AppStrings.get(R.string.control_learned_button_name, label)
+}
