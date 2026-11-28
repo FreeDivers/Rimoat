@@ -560,7 +560,10 @@ class BugFixInteractionRoborazziTest {
                 !vm.uiState.value.isSaving && vm.uiState.value.error != null
             }
             compose.waitForIdle()
-            val expectedError = app.getString(R.string.msg_remote_save_failed, "storage full")
+            val expectedError = app.getString(
+                R.string.msg_remote_save_failed,
+                app.getString(R.string.control_unknown_error)
+            )
             compose.onAllNodesWithText(expectedError).assertCountEquals(1)
             capture("confirm_remote_save_error")
 
