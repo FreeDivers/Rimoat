@@ -1,5 +1,5 @@
 <resources>
-    <string name="widget_max_shortcuts">Select up to 12 different shortcuts</string>
+    <string name="widget_max_shortcuts">Select up to %1$d different shortcuts</string>
     <string name="widget_single_shortcut_only">Select only one button for this widget</string>
     <string name="widget_wrong_remote">This shortcut belongs to a different remote</string>
     <string name="widget_invalid_shortcut">Invalid shortcut</string>

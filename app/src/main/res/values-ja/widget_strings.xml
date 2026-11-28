@@ -7,7 +7,7 @@
     <string name="widget_status_description">機器の設定を確認してすばやく操作</string>
     <string name="widget_error_title">表示できません</string>
     <string name="widget_error_action">タップして再設定</string>
-    <string name="widget_max_shortcuts">ショートカットは12個まで選択できます</string>
+    <string name="widget_max_shortcuts">ショートカットは%1$d個まで選択できます</string>
     <string name="widget_single_shortcut_only">このウィジェットではボタンを1つ選択してください</string>
     <string name="widget_wrong_remote">選択したリモコンのショートカットではありません</string>
     <string name="widget_invalid_shortcut">無効なショートカットです</string>

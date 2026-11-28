@@ -25,7 +25,7 @@ data class WidgetConfiguration(
     val arrangement: WidgetArrangement = WidgetArrangement.GRID
 ) {
     fun validate() {
-        require(shortcuts.size <= MAX_SHORTCUTS && shortcuts.distinct().size == shortcuts.size) { AppStrings.get(R.string.widget_max_shortcuts) }
+        require(shortcuts.size <= MAX_SHORTCUTS && shortcuts.distinct().size == shortcuts.size) { AppStrings.get(R.string.widget_max_shortcuts, MAX_SHORTCUTS) }
         require(kind != WidgetKind.SINGLE || shortcuts.size <= 1) { AppStrings.get(R.string.widget_single_shortcut_only) }
         require(kind == WidgetKind.PANEL || shortcuts.all { it.remoteId == remoteId }) { AppStrings.get(R.string.widget_wrong_remote) }
         require(shortcuts.all { it.remoteId.isNotBlank() && it.buttonId.isNotBlank() }) { AppStrings.get(R.string.widget_invalid_shortcut) }

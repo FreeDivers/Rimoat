@@ -1,5 +1,5 @@
 <resources>
-    <string name="widget_max_shortcuts">最多選擇 12 個不同快捷鍵</string>
+    <string name="widget_max_shortcuts">最多選擇 %1$d 個不同快捷鍵</string>
     <string name="widget_single_shortcut_only">單鍵小工具只能選擇一個按鍵</string>
     <string name="widget_wrong_remote">快捷鍵不屬於所選遙控器</string>
     <string name="widget_invalid_shortcut">快捷鍵無效</string>

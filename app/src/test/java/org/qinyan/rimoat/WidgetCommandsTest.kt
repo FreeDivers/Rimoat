@@ -127,7 +127,7 @@ class WidgetCommandsTest {
         val tooMany = assertThrows(IllegalArgumentException::class.java) {
             WidgetConfiguration(WidgetKind.PANEL, shortcuts = List(13) { WidgetShortcut("a", "$it") }).validate()
         }
-        val expected = org.qinyan.rimoat.i18n.AppStrings.get(R.string.widget_max_shortcuts)
+        val expected = org.qinyan.rimoat.i18n.AppStrings.get(R.string.widget_max_shortcuts, WidgetConfiguration.MAX_SHORTCUTS)
         assertEquals(expected, duplicate.message)
         assertEquals(expected, tooMany.message)
     }

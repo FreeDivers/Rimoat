@@ -7,7 +7,7 @@
     <string name="widget_status_description">View device settings and adjust common controls</string>
     <string name="widget_error_title">Unable to display</string>
     <string name="widget_error_action">Tap to configure again</string>
-    <string name="widget_max_shortcuts">Select up to 12 different shortcuts</string>
+    <string name="widget_max_shortcuts">Select up to %1$d different shortcuts</string>
     <string name="widget_single_shortcut_only">Select only one button for this widget</string>
     <string name="widget_wrong_remote">This shortcut belongs to a different remote</string>
     <string name="widget_invalid_shortcut">Invalid shortcut</string>
