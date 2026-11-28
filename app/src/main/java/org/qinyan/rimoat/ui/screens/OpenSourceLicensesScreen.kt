@@ -121,8 +121,8 @@ private fun OpenSourceLicensesContent(
                 wide = !isListRoot,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(stringResource(R.string.screen_back), onClick = { if (active) onBack() }, enabled = active) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.screen_back))
+                    ActionIconButton(stringResource(R.string.common_back), onClick = { if (active) onBack() }, enabled = active) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
                     }
                 }
             )

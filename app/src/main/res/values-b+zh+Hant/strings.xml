@@ -10,7 +10,7 @@
     <string name="licenses_unavailable">無法讀取開源授權</string>
     <string name="licenses_debug_only">僅除錯版本</string>
     <string name="settings_title">設定</string>
-    <string name="settings_back">返回</string>
+    <string name="common_back">返回</string>
     <string name="settings_backup_all">備份全部遙控器</string>
     <string name="settings_import_backup">匯入本機備份</string>
     <string name="settings_trash">資源回收筒</string>

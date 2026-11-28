@@ -121,7 +121,7 @@ class LanguageSwitchRoborazziTest {
                 if (tag != "en") assertNotSame("Language '$tag' must recreate the retained pages", previous, controller.get())
                 composeRule.onNodeWithText(currentString(R.string.settings_title)).assertIsDisplayed()
                 if (tag == "ja") capture("settings_after")
-                composeRule.onNodeWithContentDescription(currentString(R.string.settings_back)).performClick()
+                composeRule.onNodeWithContentDescription(currentString(R.string.common_back)).performClick()
                 composeRule.onNodeWithText(currentString(R.string.screen_all_rooms)).assertIsDisplayed()
                 composeRule.onNodeWithText(currentString(R.string.screen_category_tv)).assertIsDisplayed()
                 composeRule.onNodeWithText("Living room TV").assertIsDisplayed()
@@ -188,7 +188,7 @@ class LanguageSwitchRoborazziTest {
                 }
             }
             composeRule.waitForIdle()
-            composeRule.onNodeWithContentDescription(currentString(R.string.settings_back)).performClick()
+            composeRule.onNodeWithContentDescription(currentString(R.string.common_back)).performClick()
             composeRule.onNodeWithText("Study TV").performClick()
             composeRule.waitForIdle()
 

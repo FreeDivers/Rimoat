@@ -173,8 +173,8 @@ internal fun SettingsScreen(viewModel: RemoteListViewModel, onBack: () -> Unit, 
                 wide = twoColumn,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(stringResource(R.string.settings_back), onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.settings_back))
+                    ActionIconButton(stringResource(R.string.common_back), onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
                     }
                 }
             )

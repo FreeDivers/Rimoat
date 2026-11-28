@@ -10,7 +10,7 @@
     <string name="licenses_unavailable">オープンソースライセンスを読み込めません</string>
     <string name="licenses_debug_only">デバッグ版のみ</string>
     <string name="settings_title">設定</string>
-    <string name="settings_back">戻る</string>
+    <string name="common_back">戻る</string>
     <string name="settings_backup_all">すべてのリモコンをバックアップ</string>
     <string name="settings_import_backup">ローカルバックアップを読み込む</string>
     <string name="settings_trash">ごみ箱</string>

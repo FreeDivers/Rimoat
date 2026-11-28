@@ -12,7 +12,7 @@
     <string name="licenses_unavailable">Unable to read open source licenses</string>
     <string name="licenses_debug_only">Debug builds only</string>
     <string name="settings_title">Settings</string>
-    <string name="settings_back">Back</string>
+    <string name="common_back">Back</string>
     <string name="settings_backup_all">Back up all remotes</string>
     <string name="settings_import_backup">Import local backup</string>
     <string name="settings_trash">Trash</string>

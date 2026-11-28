@@ -79,8 +79,8 @@ private fun AboutContent(versionName: String, onBack: () -> Unit, onLicensesClic
                 wide = wide,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    ActionIconButton(stringResource(R.string.screen_back), onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.screen_back))
+                    ActionIconButton(stringResource(R.string.common_back), onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
                     }
                 }
             )
