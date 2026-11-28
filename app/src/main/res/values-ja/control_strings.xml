@@ -243,7 +243,7 @@
     <string name="control_send_failed">送信失敗：%1$s</string>
     <string name="control_sent_channel">送信済み [%1$s]</string>
     <string name="control_unavailable_count">使用不可の送信先（%1$d）</string>
-    <string name="control_selected_status">選択中・%1$s</string>
+    <string name="control_selected_status">選択中：%1$s</string>
     <string name="control_category_ac">エアコン</string>
     <string name="control_category_tv">テレビ</string>
     <string name="control_category_fan">扇風機</string>

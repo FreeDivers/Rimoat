@@ -43,7 +43,7 @@ class AppLanguageResourcesTest {
             "en" to "Selected: USB",
             "zh-CN" to "已选：USB",
             "zh-Hant" to "已選：USB",
-            "ja" to "選択中・USB"
+            "ja" to "選択中：USB"
         )) {
             val context = app.createConfigurationContext(Configuration(app.resources.configuration).apply {
                 setLocales(LocaleList.forLanguageTags(tag))
@@ -51,6 +51,7 @@ class AppLanguageResourcesTest {
             val actual = context.getString(R.string.control_selected_status, "USB")
             assertEquals(tag, expected, actual)
             assertTrue("$tag does not use U+00B7", '\u00b7' !in actual)
+            assertTrue("$tag does not use U+30FB", '\u30fb' !in actual)
         }
     }
 
